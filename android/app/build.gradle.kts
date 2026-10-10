@@ -23,6 +23,9 @@ android {
         versionName = "1.0.0"
         ndkVersion = "30.0.16248370"
 
+        ndk {
+            abiFilters += listOf("arm64-v8a")
+        }
     }
 
     buildTypes {
