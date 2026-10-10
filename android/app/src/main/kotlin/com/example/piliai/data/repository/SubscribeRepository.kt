@@ -121,7 +121,7 @@ object SubscribeParser {
                         desc = buildString {
                             append(if (s.isRss) "RSS 源" else "网页刮削源")
                             if (s.description.isNotBlank()) append(" · ${s.description}")
-                            if (!s.isRss) append(" · 需关键词搜索（暂不支持自动刮削）")
+                            if (!s.isRss) append(" · 需关键词搜索")
                         },
                         pubAt = 0L,
                         // episode 存订阅配置文件 URL（后续两步要用它重取完整选择器配置）

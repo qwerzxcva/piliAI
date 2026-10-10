@@ -15,8 +15,11 @@
     <string name="subscribe_no_matching_resolver">The owning subscription has no available web resolver. This link cannot be played directly.</string>
     <string name="subscribe_choose_resolver">This subscription contains multiple resolvers. Select a specific source and search for this title.</string>
     <string name="subscribe_resolver_load_failed">Could not load the owning subscription configuration. Check your connection and retry.</string>
+    <string name="subscribe_bittorrent_needs_cache">This subscription link is a magnet or torrent. The player cannot play it directly, and cache and seeding controls are not connected yet.</string>
     <string name="subscribe_search_empty">No matching subscription content found</string>
     <string name="subscribe_search_library">Search imported subscription content</string>
+    <string name="subscribe_search_rss_hint">RSS sources search the imported feed and return entries.</string>
+    <string name="subscribe_search_rss_and_web_hint">RSS and web-selector sources search the imported source; web sources continue through subject, episode, and playback extraction.</string>
     <string name="bangumi_no_exact_match">No exact matching subject found on Bangumi</string>
     <string name="playback_backend_title">Playback engine</string>
     <string name="playback_backend_media3">Media3 (default, hardware decoding)</string>

@@ -8,7 +8,8 @@
 //! ## Architecture
 //!
 //! Android builds use cargo-ndk or manual NDK toolchain configuration.
-//! The JNI interface is in `android_entry.rs` (only compiled for Android targets).
+//! The Android JNI interfaces are in `android_entry.rs` and `gpu_next.rs`; both
+//! are compiled only for Android targets.
 
 extern crate std;
 
@@ -24,6 +25,11 @@ pub mod dmfilter;
 pub mod dmheat;
 // Playurl DASH stream selection (stage 5)
 pub mod playurl;
+
+// GPU-next is Android-only because its JNI and libmpv client API require the
+// locked Android ARM64 native dependency prefix.
+#[cfg(target_os = "android")]
+mod gpu_next;
 
 #[cfg(target_os = "android")]
 mod android_entry;

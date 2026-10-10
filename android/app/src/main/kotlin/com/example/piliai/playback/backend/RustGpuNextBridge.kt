@@ -91,7 +91,7 @@ class RustGpuNextBridge : GpuNextBridge {
      * `mpv_create` only. Renderer and other options must be set with
      * [setOption] before [initialize]. This does not set vo=gpu-next.
      */
-    fun open() {
+    override fun open() {
         if (token.get() != 0L) {
             throw IllegalStateException("mpv instance is already open")
         }
@@ -108,7 +108,7 @@ class RustGpuNextBridge : GpuNextBridge {
     }
 
     /** `mpv_initialize`. Options set after this are rejected by the registry. */
-    fun initialize() {
+    override fun initialize() {
         call("initialize") { nativeInitialize(requireToken()) }
     }
 

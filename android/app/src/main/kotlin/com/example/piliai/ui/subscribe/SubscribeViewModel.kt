@@ -164,6 +164,24 @@ class SubscribeViewModel(
         viewModelScope.launch { repository.setEnabled(id, enabled) }
     }
 
+    /** 磁力或种子来自订阅源，但当前没有缓存与做种控制，不能当网页去解析。 */
+    fun reportBitTorrent(item: SubscribeItemEntity) {
+        browseJob?.cancel()
+        searchJob?.cancel()
+        ++browseGeneration
+        val context = com.example.piliai.AppContext.get()
+        val source = _state.value.sources.firstOrNull {
+            it.id == item.sourceId && it.enabled
+        }
+        _state.value = _state.value.copy(
+            errorMessage = context.getString(
+                if (source == null) com.example.piliai.R.string.subscribe_source_unavailable
+                else com.example.piliai.R.string.subscribe_bittorrent_needs_cache
+            ),
+            isRefreshing = refreshJob?.isActive == true
+        )
+    }
+
     /**
      * 审核轮8：条目无可播放直链时的提示
      * （避免把网页 URL 丢进播放器造成「点了没反应」）

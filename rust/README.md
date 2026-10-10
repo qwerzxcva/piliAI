@@ -10,43 +10,46 @@ Native Rust library for PiliNara Android app. Provides high-performance implemen
 ### Prerequisites
 
 - Rust toolchain (`rustup`)
-- Android NDK r27+
-- Target triples installed:
+- Android NDK 30.0.16248370
+- Only the Android ARM64 target is supported:
   ```bash
-  rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android i686-linux-android
+  rustup target add aarch64-linux-android
   ```
 
 ### Build for Android (manual)
 
 ```bash
 # Set up environment
-export ANDROID_NDK_HOME=/path/to/android-ndk-r27b
-export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang"
+export ANDROID_NDK_HOME=/path/to/android-ndk-30.0.16248370
+export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android36-clang"
 
-# Build for each ABI
-for target in aarch64-linux-android armv7-linux-androideabi x86_64-linux-android i686-linux-android; do
-  cargo build --release --target $target
-done
+# Build only the Android ARM64 target after the locked mpv/libplacebo build
+export MPV_PREFIX=/path/to/prefix/arm64
+cargo build --release --target aarch64-linux-android
 ```
 
 ### Build via CI
 
-Push to the `feat/kotlin-rust-build` branch or open a PR targeting `main` to trigger the CI build.
+Push to `main` or open a pull request targeting `main` to trigger the CI build.
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│  Flutter (Dart)                                     │
+│  Android (Kotlin + Compose)                       │
 │  ┌─────────────────────────────────────────────┐   │
-│  │ ExoPlayerController (Dart)                  │   │
-│  │  - MethodChannel: com.example.piliplus/...  │   │
+│  │ Media3 player and subscription UI            │   │
 │  └──────────────────┬──────────────────────────┘   │
-│                     │ Platform Channel              │
+│                     │ JNI                          │
+├─────────────────────┼───────────────────────────────┤
+│  Native (Rust + pinned ARM64 dependencies)       │
+│  ┌─────────────────────────────────────────────┐   │
+│  │ Kotlin playback and native media contracts   │   │
+│  └──────────────────┬──────────────────────────┘   │
 ├─────────────────────┼───────────────────────────────┤
 │  Android (Kotlin)                                  │
 │  ┌─────────────────────────────────────────────┐   │
-│  │ ExoPlayerPlugin.kt                          │   │
+│  │ Media3 + RustGpuNextBridge                  │   │
 │  │  - WebpNativeLib.encode()                   │   │
 │  │  - AudioNativeLib.normalizeAudio()          │   │
 │  └──────────────────┬──────────────────────────┘   │
@@ -66,7 +69,7 @@ Push to the `feat/kotlin-rust-build` branch or open a PR targeting `main` to tri
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
 | `WebpNativeLib_create` | width, height | jlong (pointer) | Create encoder, -1 on error |
-| `WebpNativeLib_addFrame` | ptr, data, durationMs, x, y | jint (0=ok) | Add VP8 frame |
+| `WebpNativeLib_addFrame` | ptr, data, durationMs, x, y | jint (0=ok) | Validate and add RGBA frame data |
 | `WebpNativeLib_finalize` | ptr | ByteArray | Finalize and return WebP bytes |
 | `AudioNativeLib_normalize` | input, channels | ByteArray | Normalize PCM samples |
 
@@ -77,7 +80,6 @@ Push to the `feat/kotlin-rust-build` branch or open a PR targeting `main` to tri
 cd rust
 cargo test
 
-# Cross-compile check (Android targets)
-cargo check --target aarch64-linux-android
-cargo check --target armv7-linux-androideabi
+# Cross-compile check (Android ARM64 target; requires MPV_PREFIX from the locked native build)
+MPV_PREFIX=/path/to/prefix/arm64 cargo check --target aarch64-linux-android
 ```

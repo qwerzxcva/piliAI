@@ -260,8 +260,13 @@ fun SubscribeScreen(
                                     // RSS 型 Animeko 源：link 是 searchUrl（.xml），
                                     // 点开应弹关键词搜索（走 RSS 解析）
                                     item.sourceName == "rss" -> searchTarget = item
+                                    // 磁力/种子不能交给 ExoPlayer，也不能当成网页去刮。
+                                    classifySubscriptionLink(item.link) ==
+                                        SubscriptionLinkKind.BITTORRENT ->
+                                        viewModel.reportBitTorrent(item)
                                     // 可直接播放的直链
-                                    isLikelyPlayable(item.link) ->
+                                    classifySubscriptionLink(item.link) ==
+                                        SubscriptionLinkKind.DIRECT_MEDIA ->
                                         onPlay(item.link, item.title, item.cover)
                                     // 无直链：网页刮削源 → 弹搜索框
                                     item.link.isBlank() -> webTarget = item
@@ -297,6 +302,7 @@ fun SubscribeScreen(
     searchTarget?.let { target ->
         SearchInSourceDialog(
             sourceName = target.title,
+            supportsWebSelector = false,
             onDismiss = { searchTarget = null },
             onSearch = { kw ->
                 // RSS 型：link 就是 searchUrl，sourceName 存 "rss"
@@ -314,6 +320,7 @@ fun SubscribeScreen(
     webTarget?.let { target ->
         SearchInSourceDialog(
             sourceName = target.title,
+            supportsWebSelector = true,
             onDismiss = { webTarget = null },
             onSearch = { kw ->
                 // target.episode 存的是订阅配置文件 URL，
@@ -346,13 +353,12 @@ fun SubscribeScreen(
 /**
  * 在 Animeko 数据源内按关键词搜索
  *
- * 说明（诚实）：只有 **RSS 型**源能真正搜出可播条目；
- * 网页刮削型（web-selector）需要 CSS 选择器引擎，当前未实现，
- * 搜索会返回明确失败提示，而不是假结果。
+ * RSS 型源直接解析返回的 feed；网页刮削型源继续经过作品、剧集和视频地址三步链路。
  */
 @Composable
 private fun SearchInSourceDialog(
     sourceName: String,
+    supportsWebSelector: Boolean,
     onDismiss: () -> Unit,
     onSearch: (String) -> Unit
 ) {
@@ -371,7 +377,13 @@ private fun SearchInSourceDialog(
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "仅 RSS 型数据源支持自动搜索；网页刮削型需 CSS 引擎，暂不支持",
+                    stringResource(
+                        if (supportsWebSelector) {
+                            com.example.piliai.R.string.subscribe_search_rss_and_web_hint
+                        } else {
+                            com.example.piliai.R.string.subscribe_search_rss_hint
+                        }
+                    ),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -447,34 +459,71 @@ private fun BangumiLoginDialog(
     )
 }
 
+internal enum class SubscriptionLinkKind {
+    EMPTY,
+    BITTORRENT,
+    DIRECT_MEDIA,
+    WEB_PAGE
+}
+
 /**
- * 审核轮8：判断链接是否「可能可直接播放」
+ * 订阅条目链接分类。只看 URL 本身，不发起网络请求。
  *
- * ExoPlayer 能吃：直链媒体（mp4/m4a/webm/...）、HLS(m3u8)、DASH(mpd)。
- * 吃不了：普通网页（.html / 无扩展名的详情页）。
- *
- * 注意：这是启发式判断（看 URL 后缀与路径），不发起网络请求。
- * 判定为可播放不代表一定能播（可能 403/风控），但能避免把明显是网页的
- * URL 丢进播放器导致「点了没反应」。
+ * 磁力与种子不是网页，也不能交给 ExoPlayer；直链媒体、HLS 与 DASH
+ * 才进播放器。判定为直链不代表一定能播（可能 403/风控）。
  */
-private fun isLikelyPlayable(url: String): Boolean {
-    if (url.isBlank()) return false
+internal fun classifySubscriptionLink(url: String): SubscriptionLinkKind {
+    val value = url.trim()
+    if (value.isEmpty()) return SubscriptionLinkKind.EMPTY
+    if (isBitTorrentLink(value)) return SubscriptionLinkKind.BITTORRENT
+    if (isDirectMediaLink(value)) return SubscriptionLinkKind.DIRECT_MEDIA
+    return SubscriptionLinkKind.WEB_PAGE
+}
+
+private fun isBitTorrentLink(url: String): Boolean {
+    if (url.startsWith("magnet:", ignoreCase = true)) {
+        val query = url.substringAfter('?', "")
+        return query.split('&').any { parameter ->
+            val separator = parameter.indexOf('=')
+            if (separator < 0) return@any false
+            val key = parameter.substring(0, separator)
+            val raw = parameter.substring(separator + 1)
+            key.equals("xt", ignoreCase = true) &&
+                raw.startsWith("urn:btih:", ignoreCase = true) &&
+                isBitTorrentInfoHash(raw.substring(9))
+        }
+    }
+    val path = linkPath(url)
+    return path.endsWith(".torrent", ignoreCase = true)
+}
+
+private fun isBitTorrentInfoHash(value: String): Boolean {
+    val hash = value.substringBefore('&').substringBefore('/')
+    val hex = hash.length == 40 && hash.all {
+        it.isDigit() || it.lowercaseChar() in 'a'..'f'
+    }
+    val base32 = hash.length == 32 && hash.all {
+        val c = it.uppercaseChar()
+        (c in 'A'..'Z' && c !in listOf('I', 'L', 'O')) || c in '2'..'7'
+    }
+    return hex || base32
+}
+
+private fun isDirectMediaLink(url: String): Boolean {
     val lower = url.lowercase()
-    // 磁力/种子：ExoPlayer 不能直接播（需 BT 下载器），明确排除
-    if (lower.startsWith("magnet:") || lower.endsWith(".torrent")) return false
-    // HLS / DASH 清单
     if (lower.contains(".m3u8") || lower.contains(".mpd")) return true
-    // 常见媒体直链后缀
-    val mediaExt = listOf(
+    val path = linkPath(url)
+    return listOf(
         ".mp4", ".m4v", ".webm", ".mkv", ".flv",
         ".mp3", ".m4a", ".aac", ".flac", ".ogg", ".wav", ".ts"
-    )
-    val path = runCatching { url.toUri().path ?: "" }.getOrDefault("")
-    if (mediaExt.any { path.lowercase().endsWith(it) }) return true
-    // 明显是网页
-    if (lower.endsWith(".html") || lower.endsWith(".htm") || lower.endsWith(".php")) return false
-    // 无扩展名：视为详情页，不可直接播放
-    return false
+    ).any { path.endsWith(it, ignoreCase = true) }
+}
+
+private fun linkPath(url: String): String {
+    val withoutFragment = url.substringBefore('#')
+    val withoutQuery = withoutFragment.substringBefore('?')
+    return runCatching { withoutQuery.toUri().path ?: withoutQuery }
+        .getOrDefault(withoutQuery)
 }
 
 @Composable

@@ -35,9 +35,6 @@ jobs:
       - name: Test quality gate
         run: python3 -m unittest discover -s tests -p 'test_*.py' -v
 
-      - name: Validate pinned native dependency plan
-        run: python3 scripts/build_native_dependencies.py --plan --lock scripts/native-dependencies.lock.json
-
       - name: Install cargo-ndk
         run: cargo install cargo-ndk --version 4.1.2 --locked
 
@@ -55,6 +52,9 @@ jobs:
           $SDKMANAGER --sdk_root=$ANDROID_HOME "ndk;${{ env.ANDROID_NDK_VERSION }}" 2>&1
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/${{ env.ANDROID_NDK_VERSION }}" >> $GITHUB_ENV
 
+      - name: Build pinned native dependencies
+        run: python3 scripts/build_native_dependencies.py --lock scripts/native-dependencies.lock.json
+
       - name: Build Rust library for arm64-v8a
         run: |
           cd rust
@@ -67,9 +67,20 @@ jobs:
           export LDFLAGS="-Wl,-z,max-page-size=16384"
           export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=aarch64-linux-android36-clang
           export RUSTFLAGS="-C link-arg=-landroid -C link-arg=-llog -C link-arg=-lunwind -C link-arg=-Wl,-z,max-page-size=16384"
-          
+          export MPV_PREFIX="$GITHUB_WORKSPACE/.aharou/native-build/prefix/arm64"
+
           cargo ndk -t arm64-v8a --platform 36 -o ../android/app/src/main/jniLibs build --locked --release 2>&1
-          python3 ../scripts/verify_native_artifacts.py ../android/app/src/main/jniLibs/arm64-v8a --require-library libpilinara_native.so
+          find "$MPV_PREFIX/lib" -maxdepth 1 \( -type f -o -type l \) -name '*.so*' -exec cp -L {} ../android/app/src/main/jniLibs/arm64-v8a/ \;
+          python3 ../scripts/verify_native_artifacts.py ../android/app/src/main/jniLibs/arm64-v8a \
+            --require-library libpilinara_native.so \
+            --require-library libmpv.so \
+            --require-library libavcodec.so \
+            --require-library libavformat.so \
+            --require-library libavutil.so \
+            --require-library libswscale.so \
+            --require-library libswresample.so
+          llvm-nm -D ../android/app/src/main/jniLibs/arm64-v8a/libpilinara_native.so | \
+            grep -E 'Java_com_example_piliai_playback_backend_RustGpuNextBridge_native(Create|Initialize|SetOption)$'
 
       # 审核90：Rust 单元测试与 lint 门禁（此前 CI 从不校验，坏代码可直接合并）
       - name: Rust test & clippy
@@ -119,7 +130,7 @@ jobs:
           chmod +x ./android/gradlew
           cd android
           ./gradlew :app:assembleDebug --build-cache --no-daemon --stacktrace 2>&1
-          for regression in run_playback_headers_regression.py run_playback_session_regression.py run_playback_network_regression.py run_playback_speed_regression.py run_pip_params_regression.py run_owned_resolver_regression.py run_subscription_search_regression.py run_jsonpath_regression.py run_rss_regression.py run_scraper_regression.py run_todaywatch_regression.py; do
+          for regression in run_playback_headers_regression.py run_playback_session_regression.py run_playback_network_regression.py run_playback_speed_regression.py run_pip_params_regression.py run_owned_resolver_regression.py run_subscription_search_regression.py run_subscription_link_regression.py run_jsonpath_regression.py run_rss_regression.py run_scraper_regression.py run_todaywatch_regression.py; do
             PYTHONDONTWRITEBYTECODE=1 python3 "../tests/$regression" || exit 1
           done
           ./gradlew :app:lintDebug --build-cache --no-daemon 2>&1

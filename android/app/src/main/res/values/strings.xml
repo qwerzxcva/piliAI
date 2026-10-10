@@ -11,8 +11,11 @@
     <string name="subscribe_no_matching_resolver">所属订阅没有可用的网页解析源，此链接不能直接播放</string>
     <string name="subscribe_choose_resolver">所属订阅包含多个解析源，请先选择具体数据源并搜索此作品</string>
     <string name="subscribe_resolver_load_failed">读取所属订阅的解析配置失败，请检查网络后重试</string>
+    <string name="subscribe_bittorrent_needs_cache">这是订阅源里的磁力或种子链接。播放器不能直接播放，缓存与做种控制还没有接入。</string>
     <string name="subscribe_search_empty">没有找到匹配的订阅内容</string>
     <string name="subscribe_search_library">搜索已导入的订阅内容</string>
+    <string name="subscribe_search_rss_hint">RSS 源会从订阅源搜索并返回条目。</string>
+    <string name="subscribe_search_rss_and_web_hint">RSS 源和网页刮削源都会从已导入订阅源搜索；网页源会继续解析作品、剧集和播放地址。</string>
     <string name="bangumi_no_exact_match">Bangumi 上没有找到精确匹配的条目</string>
     <string name="playback_backend_title">播放引擎</string>
     <string name="playback_backend_media3">Media3（默认，硬件解码）</string>

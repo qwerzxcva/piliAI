@@ -62,11 +62,13 @@ class GpuNextBackend(private val bridge: GpuNextBridge) : PlaybackBackend {
     override val id: String = ID
 
     override fun prepare(request: PlaybackRequest) {
+        bridge.open()
         bridge.setOption("vo", "gpu-next")
         bridge.setOption("hwdec", "auto-safe")
         bridge.setOption("gpu-context", "android")
         if (request.userAgent.isNotBlank()) bridge.setOption("user-agent", request.userAgent)
         request.headers["Referer"]?.let { bridge.setOption("referrer", it) }
+        bridge.initialize()
         bridge.command("loadfile", request.videoUri.toString(), "replace")
         if (request.resumePositionMs > 0L) {
             bridge.setProperty("start", (request.resumePositionMs / 1000.0).toString())
@@ -112,6 +114,10 @@ class GpuNextBackend(private val bridge: GpuNextBridge) : PlaybackBackend {
  * 现在给出的是明确的契约，避免播放器层直接依赖 mpv 的 C API。
  */
 interface GpuNextBridge {
+    /** Creates mpv before pre-initialize options are applied. */
+    fun open()
+    /** Initializes mpv after renderer and Android context options are set. */
+    fun initialize()
     fun setOption(name: String, value: String)
     fun setProperty(name: String, value: String)
     fun stringProperty(name: String): String

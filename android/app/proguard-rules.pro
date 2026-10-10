@@ -7,11 +7,11 @@
 -keepclassmembers class kotlinx.serialization.json.** { *; }
 -keepclassmembers class **$$serializer { *; }
 -keepclasseswithmembers class * { @kotlinx.serialization.Serializable <fields>; }
--keep,includedescriptorclasses class com.example.pilinara.**$$serializer { *; }
--keepclassmembers class com.example.pilinara.** {
+-keep,includedescriptorclasses class com.example.piliai.**$$serializer { *; }
+-keepclassmembers class com.example.piliai.** {
     *** Companion;
 }
--keepclasseswithmembers class com.example.pilinara.** {
+-keepclasseswithmembers class com.example.piliai.** {
     kotlinx.serialization.KSerializer serializer(...);
 }
 
@@ -47,10 +47,11 @@
 -keepclasseswithmembernames,includedescriptorclasses class * {
     native <methods>;
 }
--keep class com.example.pilinara.PlayUrlNativeLib { *; }
--keep class com.example.pilinara.danmaku.DanmakuNativeLib { *; }
--keep class com.example.pilinara.AudioNativeLib { *; }
--keep class com.example.pilinara.WebpNativeLib { *; }
+-keep class com.example.piliai.PlayUrlNativeLib { *; }
+-keep class com.example.piliai.danmaku.DanmakuNativeLib { *; }
+-keep class com.example.piliai.AudioNativeLib { *; }
+-keep class com.example.piliai.WebpNativeLib { *; }
+-keep class com.example.piliai.playback.backend.RustGpuNextBridge { *; }
 
 # 兼容性抑制
 -dontwarn com.google.android.play.core.**

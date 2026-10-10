@@ -22,6 +22,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -43,7 +44,7 @@ import com.example.piliai.data.remote.BangumiApi
 fun BangumiSubjectScreen(subjectId: Long, onBack: () -> Unit) {
     var subject by remember(subjectId) { mutableStateOf<BangumiApi.Subject?>(null) }
     var loadFailed by remember(subjectId) { mutableStateOf(false) }
-    var retryAttempt by remember(subjectId) { mutableStateOf(0) }
+    var retryAttempt by remember(subjectId) { mutableIntStateOf(0) }
 
     LaunchedEffect(subjectId, retryAttempt) {
         subject = null

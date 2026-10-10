@@ -33,25 +33,25 @@ pub extern "C" fn Java_com_example_piliai_WebpNativeLib_create(
 
 #[no_mangle]
 pub extern "C" fn Java_com_example_piliai_WebpNativeLib_addFrame(
-    _env: JNIEnv<'_>,
+    mut env: JNIEnv<'_>,
     _class: JClass<'_>,
     encoder_ptr: i64,
-    _data: JByteArray<'_>,
+    data: JByteArray<'_>,
     duration_ms: jint,
     x: jint,
     y: jint,
 ) -> jint {
-    if encoder_ptr == 0 || encoder_ptr == -1 {
+    if encoder_ptr == 0 || encoder_ptr == -1 || duration_ms < 0 {
         return -1;
     }
-
-    // TODO: This is a placeholder: frame data is not passed to add_frame,
-    // so returning 0 here does not mean that a frame was added.
-    let _encoder = unsafe { &mut *(encoder_ptr as *mut crate::webp::AnimatedWebpEncoder) };
-    let _ = duration_ms;
-    let _ = x;
-    let _ = y;
-    0
+    let Ok(frame) = env.convert_byte_array(&data) else {
+        return -1;
+    };
+    let encoder = unsafe { &mut *(encoder_ptr as *mut crate::webp::AnimatedWebpEncoder) };
+    match encoder.add_frame(&frame, duration_ms as u32, x, y) {
+        Ok(()) => 0,
+        Err(_) => -1,
+    }
 }
 
 #[no_mangle]
