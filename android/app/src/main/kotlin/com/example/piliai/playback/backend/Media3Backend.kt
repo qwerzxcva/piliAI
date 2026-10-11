@@ -13,6 +13,8 @@ import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
+import com.example.piliai.piliplus.Media3LoadControlFactory
+import com.example.piliai.utils.RendererPrefs
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -41,8 +43,14 @@ class Media3Backend(
             .setUsage(androidx.media3.common.C.USAGE_MEDIA)
             .build()
 
+        // 审核轮（bv P1）：此前 LoadControl 是孤儿代码，设置页的「缓冲时长」从未生效。
+        // 现在把 Media3LoadControlFactory 真正接到 Builder；与 AudioAttributes 同为
+        // Builder 期设置，运行中修改缓冲偏好需重建播放器才生效。
         player = ExoPlayer.Builder(context)
             .setAudioAttributes(audioAttributes, true)
+            .setLoadControl(
+                Media3LoadControlFactory.create(bufferDurationMs = RendererPrefs.bufferDurationMs)
+            )
             .build()
             .apply {
                 addListener(ExoPlayerListener())
