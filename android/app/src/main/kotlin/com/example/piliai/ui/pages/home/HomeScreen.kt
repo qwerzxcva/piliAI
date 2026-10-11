@@ -6,6 +6,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -377,9 +378,15 @@ private fun VideoCardItem(card: VideoItem, onClick: () -> Unit) {
             // 封面 + 角标（播放量、时长）
             Box {
                 AsyncImage(
-                    model = card.pic.toHttpsUrl(),
+                    model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                        .data(card.pic.toHttpsUrl())
+                        .crossfade(180)
+                        .build(),
                     contentDescription = card.title,
-                    modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(16f / 9f)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh),
                     contentScale = ContentScale.Crop,
                 )
                 Row(
@@ -431,8 +438,20 @@ private fun VideoCardItem(card: VideoItem, onClick: () -> Unit) {
                     overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                if (card.author.isNotBlank()) {
-                    Spacer(Modifier.height(2.dp))
+                Spacer(Modifier.height(4.dp))
+                // 审核223：UP 主行（头像 + 名称）——B站 App 同款布局
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (card.authorFace.isNotBlank()) {
+                        AsyncImage(
+                            model = card.authorFace.toHttpsUrl(),
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(18.dp)
+                                .clip(CircleShape),
+                            contentScale = ContentScale.Crop,
+                        )
+                        Spacer(Modifier.width(5.dp))
+                    }
                     Text(
                         text = card.author,
                         style = MaterialTheme.typography.labelSmall,
