@@ -586,7 +586,8 @@ def make_environment(ndk, toolchain, build_tools, prefix):
 
 
 def _meson_string_list(values):
-    return '[' + ', '.join(json.dumps(value) for value in values) + ']'
+    # meson machine files reject double-quoted strings; use single quotes
+    return '[' + ', '.join("'" + value.replace("'", "'\\''") + "'" for value in values) + ']'
 
 
 def write_cross_file(path, environment):
