@@ -123,7 +123,12 @@ jobs:
           export RUSTFLAGS="-C link-arg=-landroid -C link-arg=-llog -C link-arg=-lunwind -C link-arg=-Wl,-z,max-page-size=16384"
           export MPV_PREFIX="$GITHUB_WORKSPACE/.aharou/native-build/prefix/arm64"
 
-          cargo ndk -t arm64-v8a --platform 36 -o ../android/app/src/main/jniLibs build --locked --release 2>&1
+          cargo ndk -t arm64-v8a --platform 36 -o ../android/app/src/main/jniLibs build --locked --release > /tmp/rust_build.txt 2>&1
+          status=$?
+          tail -30 /tmp/rust_build.txt | while IFS= read -r L; do
+            [ -n "$L" ] && echo "::error::RUST ${L:0:280}"
+          done
+          [ $status -ne 0 ] && exit $status
           find "$MPV_PREFIX/lib" -maxdepth 1 \( -type f -o -type l \) -name '*.so*' -exec cp -L {} ../android/app/src/main/jniLibs/arm64-v8a/ \;
           python3 ../scripts/verify_native_artifacts.py ../android/app/src/main/jniLibs/arm64-v8a \
             --require-library libpilinara_native.so \
