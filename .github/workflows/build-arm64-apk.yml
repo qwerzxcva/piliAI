@@ -73,14 +73,13 @@ jobs:
           # 这一段绝不能被 bash -e 提前杀掉：先关掉 errexit，失败也要把
           # build.log 与各 meson-log.txt 完整打进日志，便于无 admin 的定位。
           set +e
-          # 审核226p：脚本 stderr（BuildFailure 一句话根因）也要进注解
-          python3 scripts/build_native_dependencies.py --lock scripts/native-dependencies.lock.json 2> /tmp/native_stderr.txt
+          # 审核226p：脚本 stdout/stderr 全捕获（BuildFailure 一句话根因 + traceback）
+          python3 scripts/build_native_dependencies.py --lock scripts/native-dependencies.lock.json > /tmp/native_out.txt 2>&1
           status=$?
-          if [ -s /tmp/native_stderr.txt ]; then
-            while IFS= read -r L; do
-              echo "::error::STDERR ${L:0:280}"
-            done < /tmp/native_stderr.txt
-          fi
+          # 审核231：无论成败都 dump 末尾输出到注解（exit 2 之类无 STDERR 的失败也要能看见）
+          tail -25 /tmp/native_out.txt | while IFS= read -r L; do
+            [ -n "$L" ] && echo "::error::OUT ${L:0:280}"
+          done
           if [ $status -ne 0 ]; then
             echo "=== build.log tail ==="
             LOG=".aharou/native-build/logs/build.log"
