@@ -864,7 +864,7 @@ def build_component(name, source, work, environment, cross_file, log_path, lock_
             '-Diso8859x=enabled', '-Dpattern=enabled',
         ])
     elif name == 'ffmpeg':
-        build.mkdir()
+        build.mkdir(exist_ok=True)
         args = [
             '--target-os=android', '--enable-cross-compile', '--arch=aarch64', '--cpu=armv8-a',
             f'--cross-prefix=aarch64-linux-android-',
