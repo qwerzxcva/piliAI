@@ -486,9 +486,23 @@ def prepare_git(name, item, sources, env, log_path):
         if not _matches_revision(destination, revision, env):
             raise BuildFailure(f'{destination} exists but is not clean pinned revision {revision}')
     else:
-        _run(['git', 'clone', '--no-checkout', repository, str(destination)], sources, env, log_path)
-        _run(['git', '-C', str(destination), 'fetch', '--no-tags', 'origin', revision], sources, env, log_path)
-        _run(['git', '-C', str(destination), 'checkout', '--detach', revision], sources, env, log_path)
+        # 审核226k：CI/本地网络对 github clone 都不稳，clone+fetch 全链重试
+        last_error = None
+        for attempt in range(4):
+            try:
+                shutil.rmtree(destination, ignore_errors=True)
+                _run(['git', 'clone', '--no-checkout', repository, str(destination)], sources, env, log_path)
+                _run(['git', '-C', str(destination), 'fetch', '--no-tags', 'origin', revision], sources, env, log_path)
+                _run(['git', '-C', str(destination), 'checkout', '--detach', revision], sources, env, log_path)
+                last_error = None
+                break
+            except BuildFailure as error:
+                last_error = error
+                if attempt == 3:
+                    raise
+                time.sleep(15 * (attempt + 1))
+        if last_error is not None:
+            raise last_error
     if name == 'libplacebo':
         _run(['git', '-C', str(destination), 'submodule', 'update', '--init', '--recursive', '--checkout'], sources, env, log_path)
         _verify_gitlinks(destination, env)
