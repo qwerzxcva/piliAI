@@ -74,9 +74,18 @@ jobs:
             echo "=== build.log tail ==="
             LOG=".aharou/native-build/logs/build.log"
             [ -f "$LOG" ] && tail -50 "$LOG"
+            # 审核226i：无 admin 拉不到 job 日志，把报错行转成 ::error:: 注解（API 可读）
+            if [ -f "$LOG" ]; then
+              grep -aE 'ERROR|Error|error:|FATAL|failed|FAILED|BUILT|Traceback|BuildFailure|command failed' "$LOG" | tail -40 | while IFS= read -r L; do
+                echo "::error::${L:0:300}"
+              done
+            fi
             for MLOG in $(find .aharou/native-build -name 'meson-log.txt' 2>/dev/null); do
               echo "=== $MLOG tail ==="
               tail -60 "$MLOG"
+              grep -aE 'ERROR|error:|not found|undefined' "$MLOG" | tail -10 | while IFS= read -r L; do
+                echo "::error::[meson] ${L:0:300}"
+              done
             done
             # 组件 configure 日志（ffmpeg 等）同样兜底输出
             for CLOG in $(find .aharou/native-build -name 'config.log' -o -name 'ffbuild/config.log' 2>/dev/null); do
