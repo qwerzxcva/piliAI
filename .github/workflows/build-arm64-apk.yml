@@ -96,10 +96,9 @@ jobs:
               done
             fi
             for MLOG in $(find .aharou/native-build -name 'meson-log.txt' 2>/dev/null); do
-              echo "=== $MLOG tail ==="
-              tail -60 "$MLOG"
-              grep -aE 'ERROR|error:|not found|undefined' "$MLOG" | tail -10 | while IFS= read -r L; do
-                echo "::error::[meson] ${L:0:300}"
+              # 审核229：meson-log 最后 30 行全量进注解（探测噪音在前面，fatal 在尾部）
+              tail -30 "$MLOG" | while IFS= read -r L; do
+                [ -n "$L" ] && echo "::error::MLOG ${L:0:280}"
               done
             done
             # 组件 configure 日志（ffmpeg 等）同样兜底输出
