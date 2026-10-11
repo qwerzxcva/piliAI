@@ -50,7 +50,11 @@ jobs:
       - name: Install native build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends meson ninja-build pkg-config autoconf automake libtool xz-utils bzip2
+          sudo apt-get install -y --no-install-recommends ninja-build pkg-config autoconf automake libtool xz-utils bzip2
+          # 审核228：apt meson (1.3.2) 太旧——fontconfig 要求 >= 1.11，用 pip 装最新 meson
+          pip3 install --quiet --upgrade meson ninja
+          export PATH="$HOME/.local/bin:$PATH"
+          echo "PATH=$HOME/.local/bin:$PATH" >> $GITHUB_ENV
           meson --version && ninja --version
 
       - name: Setup Android SDK & NDK
