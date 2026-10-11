@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
@@ -178,17 +179,39 @@ fun UserContent(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // 审核234：BiliPai 分组卡片风——菜单项聚合到圆角容器内，去独立分割线
         item { UserCard(nav = nav) }
         item { QuickActions(onHistory = onHistoryClick, onFavorites = onFavoritesClick,
             onDownloads = onDownloadsClick, onToView = onToViewClick) }
-        item { HorizontalDivider() }
-        item { MenuItemRow(MenuItemData("历史观看", Icons.Default.History, onHistoryClick)) }
-        item { MenuItemRow(MenuItemData("稍后再看", Icons.Default.PlayArrow, onToViewClick)) }
-        item { MenuItemRow(MenuItemData("我的收藏", Icons.Default.Favorite, onFavoritesClick)) }
-        item { MenuItemRow(MenuItemData("追番中心", Icons.Default.PlayCircle, onBangumiClick)) }
-        item { MenuItemRow(MenuItemData("我的订阅", Icons.Default.Subscriptions, onSubscribeClick)) }
-        item { MenuItemRow(MenuItemData("设置", Icons.Default.Settings, onSettingsClick)) }
-        item { MenuItemRow(MenuItemData("退出登录", Icons.AutoMirrored.Filled.Logout, onLogout)) }
+        item {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column {
+                    MenuItemRow(MenuItemData("历史观看", Icons.Default.History, onHistoryClick))
+                    MenuItemRow(MenuItemData("稍后再看", Icons.Default.PlayArrow, onToViewClick))
+                    MenuItemRow(MenuItemData("我的收藏", Icons.Default.Favorite, onFavoritesClick))
+                    MenuItemRow(MenuItemData("追番中心", Icons.Default.PlayCircle, onBangumiClick))
+                    MenuItemRow(MenuItemData("我的订阅", Icons.Default.Subscriptions, onSubscribeClick))
+                }
+            }
+        }
+        item {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column {
+                    MenuItemRow(MenuItemData("设置", Icons.Default.Settings, onSettingsClick))
+                    MenuItemRow(MenuItemData("退出登录", Icons.AutoMirrored.Filled.Logout, onLogout))
+                }
+            }
+        }
     }
 }
 
@@ -196,8 +219,9 @@ fun UserContent(
 fun UserCard(nav: NavData) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -264,7 +288,7 @@ fun QuickActions(
             ) {
                 Surface(
                     modifier = Modifier.size(48.dp),
-                    shape = MaterialTheme.shapes.small,
+                    shape = RoundedCornerShape(16.dp),
                     color = MaterialTheme.colorScheme.primaryContainer
                 ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -298,7 +322,6 @@ fun MenuItemRow(item: MenuItemData) {
         Icon(Icons.Default.ChevronRight, contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
-    HorizontalDivider()
 }
 
 data class MenuItemData(

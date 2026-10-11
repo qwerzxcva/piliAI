@@ -71,6 +71,7 @@ class MainApplication : Application() {
                     .build()
             )
             .crossfade(true)
+            .allowRgb565(true)  // 审核234：列表封面无透明通道，RGB_565 内存减半（渲染更快更省电）
             .build()
         coil.Coil.setImageLoader(imageLoader)
 

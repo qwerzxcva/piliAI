@@ -628,19 +628,13 @@ fun SettingsScreen(
         }
 
         Column(Modifier.padding(padding).fillMaxSize()) {
-            TabRow(
-                selectedTabIndex = category,
-                containerColor = MaterialTheme.colorScheme.surface,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                categories.forEachIndexed { i, label ->
-                    Tab(
-                        selected = category == i,
-                        onClick = { category = i },
-                        text = { Text(label) },
-                    )
-                }
-            }
+            // 审核234：胶囊分段分类（与首页一致）
+            com.example.piliai.ui.components.SegmentedPillRow(
+                labels = categories,
+                selectedIndex = category,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                onSelect = { category = it },
+            )
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),

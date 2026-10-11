@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.PlayCircleOutline
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -118,84 +119,60 @@ fun HomeScreen(
 
     Scaffold(
         topBar = {
-            // Kototoro 打磨：品牌渐变顶栏
-            // Kototoro 风格顶栏：去掉粉蓝渐变与彩虹图标色，改用主题 surface +
-            // 单一 onSurface 图标色；次要入口收进溢出菜单，主操作只留搜索。
-            Surface(
-                color = MaterialTheme.colorScheme.surface,
-                modifier = Modifier.fillMaxWidth().statusBarsPadding(),
+            // 审核234：BiliPai 式顶栏——搜索胶囊为主视觉 + 右侧仅消息/我的；
+            // 排行/分区/番剧/竖屏流等入口全部下沉到分类条（不再 9 图标铺满）
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surface)
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
-                TopAppBar(
-                    title = {
-                        Text(
-                            "PiliAI",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                    },
-                    actions = {
-                        // 审核215+用户版融合：全部入口一级图标平铺顶栏（含消息/我的）
-                        IconButton(onClick = onMessageClick) {
+                com.example.piliai.ui.components.SearchPill(
+                    hint = "搜索视频、UP主",
+                    onClick = onSearchClick,
+                    trailing = {
+                        IconButton(onClick = onMessageClick, modifier = Modifier.width(32.dp).height(32.dp)) {
                             Icon(Icons.Filled.Notifications, contentDescription = "消息",
-                                tint = MaterialTheme.colorScheme.onSurface)
-                        }
-                        IconButton(onClick = onMineClick) {
-                            Icon(Icons.Filled.Person, contentDescription = "我的",
-                                tint = MaterialTheme.colorScheme.onSurface)
-                        }
-                        IconButton(onClick = onTodayWatchClick) {
-                            Icon(Icons.Filled.AutoAwesome, contentDescription = "今日推荐",
-                                tint = MaterialTheme.colorScheme.onSurface)
-                        }
-                        IconButton(onClick = onRankClick) {
-                            Icon(Icons.Filled.EmojiEvents, contentDescription = "排行榜",
-                                tint = MaterialTheme.colorScheme.onSurface)
-                        }
-                        IconButton(onClick = onHotMoreClick) {
-                            Icon(Icons.Filled.Whatshot, contentDescription = "热门精选",
-                                tint = MaterialTheme.colorScheme.onSurface)
-                        }
-                        IconButton(onClick = onZoneClick) {
-                            Icon(Icons.Filled.Apps, contentDescription = "分区浏览",
-                                tint = MaterialTheme.colorScheme.onSurface)
-                        }
-                        IconButton(onClick = onBangumiClick) {
-                            Icon(Icons.Filled.Movie, contentDescription = "番剧",
-                                tint = MaterialTheme.colorScheme.onSurface)
-                        }
-                        IconButton(onClick = onStoryClick) {
-                            Icon(Icons.Filled.PlayCircleOutline, contentDescription = "竖屏推荐流",
-                                tint = MaterialTheme.colorScheme.onSurface)
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.width(20.dp).height(20.dp))
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent
-                    ),
                 )
             }
         },
     ) { padding ->
-        // 审核215：顶部可滑动分类条（B站 App 风格），点击直达对应页面
+        // 审核234：浮动胶囊分段分类条（BiliPai HomeTopTabFloatingDock 风格），
+        // 顶栏下沉的入口（今日推荐/排行/热门/分区/番剧/竖屏流）全部收进这里
         var selectedTab by remember { androidx.compose.runtime.mutableIntStateOf(0) }
-        val tabs = listOf(
-            "推荐" to ({} as () -> Unit), // 当前页即推荐
-            "热门" to onHotMoreClick,
-            "排行" to onRankClick,
-            "番剧" to onBangumiClick,
-            "分区" to onZoneClick,
-            "竖屏流" to onStoryClick,
-        )
-        ScrollableTabRow(
-            selectedTabIndex = selectedTab,
-            edgePadding = 12.dp,
-            containerColor = MaterialTheme.colorScheme.surface,
+        val tabs = remember {
+            listOf(
+                "推荐" to ({} as () -> Unit),
+                "热门" to onHotMoreClick,
+                "排行" to onRankClick,
+                "番剧" to onBangumiClick,
+                "分区" to onZoneClick,
+                "竖屏流" to onStoryClick,
+                "今日" to onTodayWatchClick,
+            )
+        }
+        androidx.compose.foundation.lazy.LazyRow(
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            tabs.forEachIndexed { i, (label, onClick) ->
-                Tab(
-                    selected = selectedTab == i,
-                    onClick = { selectedTab = i; onClick() },
-                    text = { Text(label) },
+            item {
+                com.example.piliai.ui.components.SegmentedPillRow(
+                    labels = tabs.take(4).map { it.first },
+                    selectedIndex = if (selectedTab < 4) selectedTab else -1,
+                    onSelect = { i -> selectedTab = i; tabs[i].second() },
+                )
+            }
+            item {
+                com.example.piliai.ui.components.SegmentedPillRow(
+                    labels = tabs.drop(4).map { it.first },
+                    selectedIndex = if (selectedTab >= 4) selectedTab - 4 else -1,
+                    onSelect = { i -> selectedTab = i + 4; tabs[i + 4].second() },
                 )
             }
         }
@@ -206,18 +183,18 @@ fun HomeScreen(
         ) {
             when (val s = state) {
                 is HomeUiState.Loading -> {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
-                    }
+                    // 审核234：骨架屏替代转圈（BiliPai HomeFeedSkeletonCard 观感，感知加载更快）
+                    com.example.piliai.ui.components.SkeletonVideoGrid(Modifier.fillMaxSize())
                 }
                 is HomeUiState.Success -> {
                     val topRcmd by viewModel.topRcmd.collectAsStateWithLifecycle()
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(2),
                         state = gridState,
-                        contentPadding = PaddingValues(4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        // 审核234：BiliPai 卡距规格 6dp、页边 10dp
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         // 顶部 Hero 轮播（Kototoro 风格：240dp 高、底部 20dp 圆角、
                         // 100dp 渐变遮罩、胶囊指示器）
@@ -376,7 +353,7 @@ private fun VideoCardItem(card: VideoItem, onClick: () -> Unit) {
     // 播放量/时长作为角标叠在图上，标题置于下方分层 surface（AMOLED 灰阶）。
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(20.dp), // Kototoro 大圆角（原 12dp 太小）
+        shape = RoundedCornerShape(14.dp), // 审核234：BiliPai 利落圆角
         colors = androidx.compose.material3.CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ),
@@ -419,6 +396,19 @@ private fun VideoCardItem(card: VideoItem, onClick: () -> Unit) {
                     Spacer(Modifier.width(3.dp))
                     Text(
                         text = card.viewCountText,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White,
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Icon(
+                        Icons.Filled.ChatBubbleOutline,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Spacer(Modifier.width(3.dp))
+                    Text(
+                        text = card.danmakuCountText,
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.White,
                     )

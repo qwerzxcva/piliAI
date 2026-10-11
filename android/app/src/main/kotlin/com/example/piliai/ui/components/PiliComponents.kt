@@ -1,0 +1,167 @@
+package com.example.piliai.ui.components
+
+/**
+ * 审核234：BiliPai/Kototoro 视觉语言组件库。
+ * - SearchPill：B站 App 首页顶部搜索胶囊
+ * - SegmentedPillRow：浮动胶囊分段控件（顶部分类/设置分类共用）
+ * - SkeletonVideoCardRow：首页加载骨架屏（替代转圈，感知更快）
+ */
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
+
+/** B站 App 风格搜索胶囊：整条可点，进入搜索页 */
+@Composable
+fun SearchPill(
+    hint: String = "搜索视频、UP主",
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {},
+    trailing: @Composable (() -> Unit)? = null,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(40.dp)
+            .clip(RoundedCornerShape(50))
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Default.Search,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(18.dp).height(18.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            hint,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        trailing?.invoke()
+    }
+}
+
+/** 浮动胶囊分段控件（BiliPai HomeTopTabFloatingDock 风格简化版） */
+@Composable
+fun SegmentedPillRow(
+    labels: List<String>,
+    selectedIndex: Int,
+    modifier: Modifier = Modifier,
+    onSelect: (Int) -> Unit = {},
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(50))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        labels.forEachIndexed { i, label ->
+            val selected = i == selectedIndex
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(
+                        if (selected) MaterialTheme.colorScheme.surfaceContainerHighest
+                        else Color.Transparent
+                    )
+                    .clickable { onSelect(i) }
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+            ) {
+                Text(
+                    label,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (selected) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/** 首页骨架卡（shimmer） */
+@Composable
+fun SkeletonVideoCard(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "shimmer")
+    val alpha by transition.animateFloat(
+        initialValue = 0.35f, targetValue = 0.75f,
+        animationSpec = infiniteRepeatable(tween(900, easing = LinearEasing), RepeatMode.Reverse),
+        label = "alpha",
+    )
+    val shimmer = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = alpha)
+    Column(modifier = modifier.clip(RoundedCornerShape(14.dp))) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f)
+                .background(shimmer)
+        )
+        Spacer(Modifier.height(8.dp))
+        Box(
+            Modifier
+                .padding(horizontal = 8.dp)
+                .fillMaxWidth(0.9f)
+                .height(12.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(shimmer)
+        )
+        Spacer(Modifier.height(6.dp))
+        Row(
+            Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.width(18.dp).height(18.dp).clip(CircleShape).background(shimmer))
+            Spacer(Modifier.width(6.dp))
+            Box(Modifier.width(64.dp).height(10.dp).clip(RoundedCornerShape(5.dp)).background(shimmer))
+        }
+        Spacer(Modifier.height(4.dp))
+    }
+}
+
+/** 骨架网格（首页 Loading 态） */
+@Composable
+fun SkeletonVideoGrid(modifier: Modifier = Modifier, rows: Int = 3) {
+    Column(modifier = modifier.padding(horizontal = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        repeat(rows) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                SkeletonVideoCard(Modifier.weight(1f))
+                SkeletonVideoCard(Modifier.weight(1f))
+            }
+        }
+    }
+}

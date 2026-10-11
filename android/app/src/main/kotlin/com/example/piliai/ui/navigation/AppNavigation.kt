@@ -1,6 +1,18 @@
 package com.example.piliai.ui.navigation
 
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -143,29 +155,59 @@ fun AppNavigation() {
     Scaffold(
         bottomBar = {
             if (showBottomBar) {
-                NavigationBar {
-                    MainTab.entries.forEach { tab ->
-                        val route = tabRouteOf(tab)
-                        val selected = currentRoute == route
-                        NavigationBarItem(
-                            selected = selected,
-                            onClick = {
-                                if (!selected) {
-                                    navController.navigate(route) {
-                                        popUpTo(Screen.Home.route) { saveState = true }
-                                        launchSingleTop = true
-                                        restoreState = true
+                // 审核234：BiliPai 悬浮胶囊 dock——水平 16dp/底部 12dp 悬空、全圆角容器、
+                // 选中项 primaryContainer 胶囊指示（替代 MD3 NavigationBar 通栏）
+                Box(Modifier.fillMaxWidth().padding(horizontal = 48.dp, vertical = 12.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(50))
+                            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                            .border(
+                                1.dp,
+                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                RoundedCornerShape(50)
+                            )
+                            .padding(vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        MainTab.entries.forEach { tab ->
+                            val route = tabRouteOf(tab)
+                            val selected = currentRoute == route
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(50))
+                                    .background(
+                                        if (selected) MaterialTheme.colorScheme.primaryContainer
+                                        else Color.Transparent
+                                    )
+                                    .clickable {
+                                        if (!selected) {
+                                            navController.navigate(route) {
+                                                popUpTo(Screen.Home.route) { saveState = true }
+                                                launchSingleTop = true
+                                                restoreState = true
+                                            }
+                                        }
                                     }
-                                }
-                            },
-                            icon = {
+                                    .padding(horizontal = 18.dp, vertical = 6.dp),
+                            ) {
                                 Icon(
                                     if (selected) tab.iconFilled else tab.iconOutlined,
                                     contentDescription = stringResource(tab.labelRes),
+                                    tint = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
+                                        else MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
-                            },
-                            label = { Text(stringResource(tab.labelRes)) },
-                        )
+                                Text(
+                                    stringResource(tab.labelRes),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
+                                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
                     }
                 }
             }
