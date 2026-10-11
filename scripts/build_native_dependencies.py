@@ -493,8 +493,13 @@ def prepare_git(name, item, sources, env, log_path):
         # 审核226m：CI 上大仓库 git clone 反复被网络重置。回退路径：
         # codeload tarball（release tag 或任意 revision 的 archive 端点）解压后
         # git init + 提交为 pinned revision，使 _matches_revision 校验通过。
+        def _log(message):
+            with open(log_path, 'a', encoding='utf-8') as handle:
+                handle.write(f'[fallback] {message}\n')
+
         def _tarball_fallback():
             tar_url = f'https://codeload.github.com/{repository.split("github.com/")[1]}/tar.gz/{revision}'
+            _log(f'downloading tarball {tar_url}')
             tmp_tar = destination.with_suffix('.tar.gz')
             last_dl = None
             for attempt in range(5):
@@ -511,12 +516,19 @@ def prepare_git(name, item, sources, env, log_path):
                     last_dl = error
                     time.sleep(10 * (attempt + 1))
             if last_dl is not None:
-                raise last_dl
+                _log(f'tarball download failed: {last_dl}')
+                raise BuildFailure(f'{name} tarball download failed: {last_dl}')
+            _log(f'downloaded {tmp_tar.stat().st_size} bytes')
             staging = destination.with_suffix('.extract')
             shutil.rmtree(staging, ignore_errors=True)
             staging.mkdir(parents=True)
-            with tarfile.open(tmp_tar, 'r:gz') as archive:
-                archive.extractall(staging, filter='data')
+            try:
+                with tarfile.open(tmp_tar, 'r:gz') as archive:
+                    archive.extractall(staging, filter='data')
+            except Exception as error:
+                _log(f'extract failed: {error}')
+                raise BuildFailure(f'{name} tarball extract failed: {error}') from error
+            _log('extracted')
             entries = [p for p in staging.iterdir() if p.is_dir()]
             if len(entries) != 1:
                 raise BuildFailure(f'{name} tarball extracted to unexpected layout: {entries}')
@@ -524,11 +536,16 @@ def prepare_git(name, item, sources, env, log_path):
             entries[0].rename(destination)
             shutil.rmtree(staging, ignore_errors=True)
             tmp_tar.unlink(missing_ok=True)
-            _run(['git', 'init'], destination, env, log_path)
-            _run(['git', '-C', str(destination), 'add', '-A'], destination, env, log_path)
-            _git(destination, 'config', 'user.email', 'build@local', env=env)
-            _git(destination, 'config', 'user.name', 'build', env=env)
-            _git(destination, 'commit', '-m', f'pinned {revision}', env=env)
+            try:
+                _run(['git', 'init'], destination, env, log_path)
+                _run(['git', '-C', str(destination), 'add', '-A'], destination, env, log_path)
+                _git(destination, 'config', 'user.email', 'build@local', env=env)
+                _git(destination, 'config', 'user.name', 'build', env=env)
+                _git(destination, 'commit', '-m', f'pinned {revision}', env=env)
+            except Exception as error:
+                _log(f'git init/commit failed: {error}')
+                raise BuildFailure(f'{name} tarball git init failed: {error}') from error
+            _log('git commit done')
             # tarball 是树快照，重建 commit 的 SHA 必然不等于原仓库 SHA——
             # 用 .pinned-revision 标记 + 工作树干净校验代替（见 _matches_revision）
             (destination / '.pinned-revision').write_text(revision + '\n', encoding='utf-8')
@@ -550,7 +567,14 @@ def prepare_git(name, item, sources, env, log_path):
                     break
                 time.sleep(15 * (attempt + 1))
         if last_error is not None:
-            _tarball_fallback()
+            _log(f'git clone failed after retries: {last_error}')
+            try:
+                _tarball_fallback()
+            except BuildFailure:
+                raise
+            except Exception as error:
+                _log(f'fallback unexpected error: {error}')
+                raise BuildFailure(f'{name} tarball fallback failed: {error}') from error
     if name == 'libplacebo':
         _run(['git', '-C', str(destination), 'submodule', 'update', '--init', '--recursive', '--checkout'], sources, env, log_path)
         _verify_gitlinks(destination, env)
