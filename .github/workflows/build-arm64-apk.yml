@@ -65,9 +65,9 @@ jobs:
         run: |
           LOG=".aharou/native-build/logs/build.log"
           if [ -f "$LOG" ]; then
-            { echo "=== native build log (tail 300) ==="; echo '```'; tail -300 "$LOG"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            tail -120 "$LOG" | while IFS= read -r line; do echo "::error::$line"; done
           else
-            echo "no native build log produced" >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::no native build log produced under .aharou/native-build/logs/"
           fi
 
       - name: Build Rust library for arm64-v8a
