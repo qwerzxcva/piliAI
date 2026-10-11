@@ -330,7 +330,7 @@ class SubscribeViewModel(
                         link = item.link,
                         desc = item.desc,
                         episode = item.episode,
-                        sourceName = "rss"
+                        sourceName = source.name
                     )
                 }
                 if (parsed.items.isEmpty()) {

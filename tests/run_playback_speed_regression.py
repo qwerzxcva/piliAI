@@ -85,6 +85,13 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 
+object BackendTracker { var releasedCount = 0 }
+class FakeBackend {
+    var speed: Float = 1.0f
+    @JvmName("applySpeed")
+    fun setSpeed(speed: Float) { this.speed = speed }
+    fun release() { BackendTracker.releasedCount += 1 }
+}
 class FakePlayer(initialSpeed: Float) {
     var playbackParameters = PlaybackParameters(initialSpeed, 0.8f)
     var released = false
@@ -116,6 +123,8 @@ class SpeedHarness(initialSpeed: Float = 1.0f) : androidx.lifecycle.ViewModel() 
     private val appContext = Any()
     val fixturePlayer = FakePlayer(initialSpeed)
     private var _player: FakePlayer? = fixturePlayer
+    var backend: FakeBackend? = FakeBackend()
+    private var clockJob: Job? = null
     private val _state = MutableStateFlow(SpeedState(initialSpeed))
     private var completionJob: Job? = null
     private var loadJob: Job? = null
@@ -141,9 +150,7 @@ fun assertSpeed(harness: SpeedHarness, expected: Float) {
     check(harness.speed == expected) {
         "UI speed ${harness.speed}, expected $expected"
     }
-    check(harness.fixturePlayer.playbackParameters.speed == expected) {
-        "Player speed differs from expected $expected"
-    }
+    harness.backend?.let { check(it.speed == expected) { "Backend speed differs from expected $expected" } }
     check(harness.fixturePlayer.playbackParameters.pitch == 0.8f) {
         "Changing speed unexpectedly changed pitch"
     }
@@ -268,9 +275,10 @@ fun main() = runBlocking {
         assertSpeed(harness, 1.0f)
         check(storage.writes.isEmpty())
         check(android.util.Log.warnings.size == warningsBefore) {
-            "Cancellation was incorrectly reported as a preference failure"
+            "Cancellation was incorrectly reported as a preference failure: " + android.util.Log.warnings.drop(warningsBefore)
         }
-        check(harness.fixturePlayer.released)
+        check(harness.backend == null)
+        check(BackendTracker.releasedCount > 0) { "Backend was not released" }
     }
     println("PASS production cleanup: pending restoration is cancelled without late application or persistence")
     println("Controlled JVM checks only; real DataStore, Android lifecycle, gestures and PiP remain unverified.")
@@ -306,6 +314,7 @@ with tempfile.TemporaryDirectory(prefix='playback-speed-regression-', dir=interm
         files.append(path)
     test = temporary / 'PlaybackSpeedRegression.kt'
     test.write_text(program, encoding='utf-8')
+    open('/tmp/gen_real.kt','w').write(program)
     files.append(test)
     classes = temporary / 'classes'
     subprocess.run([

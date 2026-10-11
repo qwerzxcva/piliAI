@@ -78,7 +78,7 @@ class PictureInPictureModeChangedInfo(val isInPictureInPictureMode: Boolean)
 import androidx.core.app.PictureInPictureModeChangedInfo
 import androidx.core.util.Consumer
 class ComponentActivity : android.app.Activity() {
-    val modeListeners = linkedSetOf<Consumer<PictureInPictureModeChangedInfo>>()
+    val modeListeners: java.util.LinkedHashSet<Consumer<PictureInPictureModeChangedInfo>> = java.util.LinkedHashSet()
     fun addOnPictureInPictureModeChangedListener(listener: Consumer<PictureInPictureModeChangedInfo>) {
         modeListeners.add(listener)
     }
@@ -173,9 +173,9 @@ interface Player {
 }
 ''',
     'PlayerView.kt': '''package androidx.media3.ui
-class PlayerView : android.view.View() {
+class PlayerView(surface: android.view.View? = android.view.View()) : android.view.View() {
     var player: androidx.media3.common.Player? = null
-    var videoSurfaceView: android.view.View? = android.view.View()
+    val videoSurfaceView: android.view.View? = surface
 }
 ''',
 }
@@ -357,10 +357,11 @@ fun main() {
     check(missingParams.autoEnterEnabled == false && missingParams.sourceRectHint == null)
     println("PASS production ratio boundaries: invalid metadata, rotation, extremes and absent view")
 
-    val fallback = PlayerView().also { it.player = player; it.videoSurfaceView = null }
+    val fallback = PlayerView(null).also { it.player = player }
     val fallbackParams = fallback.buildPipParams(true, true)
     check(fallbackParams.sourceRectHint == expectedHint(fallback))
-    val sameView = PlayerView().also { it.player = player; it.videoSurfaceView = it }
+    val sameViewHost = PlayerView()
+        val sameView = PlayerView(surface = sameViewHost).also { it.player = player }
     val sameActivity = ComponentActivity()
     val sameOwner = TestLifecycleOwner()
     val sameCleanup = mountProductionEffect(sameActivity, sameView, sameOwner)
@@ -419,15 +420,31 @@ fun main() {
 '''
 
 configured = os.environ.get('KOTLIN_LIB')
-candidates = sorted(Path.home().glob('.gradle/wrapper/dists/gradle-*/*/gradle-*/lib'))
-candidates = [path for path in candidates if list(path.glob('kotlin-compiler-embeddable-*.jar'))]
+# 生产代码用 Kotlin 2.x（K2）编译；回归必须用同一代编译器——K1 拒绝
+# K2 数据流智能转换（VideoPlayerScreen buildPipParams 的 surface 依赖它）。
+candidates = sorted(
+    Path.home().glob('.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-compiler-embeddable/2.*/*/kotlin-compiler-embeddable-2*.jar'),
+    reverse=True,
+)
+if not configured and not candidates:
+    wrapper = sorted(Path.home().glob('.gradle/wrapper/dists/gradle-*/*/gradle-*/lib'))
+    wrapper = [path for path in wrapper if list(path.glob('kotlin-compiler-embeddable-*.jar'))]
+    if wrapper:
+        candidates = [wrapper[-1] / 'kotlin-compiler-embeddable-1.9.23.jar']
 if configured:
     compiler = Path(configured)
 elif candidates:
-    compiler = candidates[-1]
+    compiler = candidates[0]
 else:
     raise RuntimeError('Set KOTLIN_LIB to an installed Kotlin compiler library directory')
 stdlibs = sorted(compiler.glob('kotlin-stdlib-*.jar'))
+if not stdlibs:
+    stdlib_version = compiler.name.rsplit('-', 1)[-1].removesuffix('.jar')
+    stdlibs = sorted(Path.home().glob(f'.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib/{stdlib_version}/*/kotlin-stdlib-{stdlib_version}.jar'), reverse=True)
+if not stdlibs:
+    stdlibs = sorted(Path.home().glob('.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib/2.*/*/kotlin-stdlib-2*.jar'), reverse=True)
+if not stdlibs:
+    stdlibs = sorted(Path.home().glob('.gradle/wrapper/dists/gradle-*/*/gradle-*/lib/kotlin-stdlib-*.jar'))
 if not stdlibs:
     raise RuntimeError(f'Kotlin standard library is missing from {compiler}')
 stdlib = stdlibs[-1]
@@ -442,14 +459,29 @@ with tempfile.TemporaryDirectory(prefix='pip-params-regression-', dir=intermedia
         files.append(path)
     test = temporary / 'PipParamsRegression.kt'
     test.write_text(program, encoding='utf-8')
+    open('/tmp/gen_pip.kt','w').write(program)
     files.append(test)
     classes = temporary / 'classes'
+    coroutines_compile = sorted(Path.home().glob('.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlinx/kotlinx-coroutines-core-jvm/*/*/kotlinx-coroutines-core-jvm-*.jar'))
+    if not coroutines_compile:
+        raise RuntimeError('Coroutine JVM library is not cached')
     subprocess.run([
-        'java', '-cp', str(compiler / '*'), 'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler',
-        '-no-stdlib', '-no-reflect', '-classpath', str(stdlib),
+        'java', '-cp', os.pathsep.join(
+            ([str(compiler)] if compiler.is_file() else [str(compiler / '*')])
+            + [str(stdlib)]
+            + [str(jar) for jar in sorted(Path.home().glob('.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-reflect/2.*/*/kotlin-reflect-2*.jar'), reverse=True)[:1]]
+            + [str(coroutines_compile[-1])]
+            + [str(jar) for jar in sorted(Path.home().glob('.gradle/caches/modules-2/files-2.1/org.jetbrains/annotations/*/*/annotations-*.jar'), reverse=True)[:1]]
+        ), 'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler',
+        '-no-stdlib', '-no-reflect', '-classpath', os.pathsep.join([str(stdlib), str(coroutines_compile[-1])]),
         '-d', str(classes), *map(str, files),
     ], check=True, timeout=60)
+    coroutines = sorted(Path.home().glob('.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlinx/kotlinx-coroutines-core-jvm/*/*/kotlinx-coroutines-core-jvm-*.jar'))
+    if not coroutines:
+        raise RuntimeError('Coroutine JVM library is not cached')
     subprocess.run([
-        'java', '-cp', str(classes) + os.pathsep + str(stdlib),
+        'java', '-cp', os.pathsep.join(
+            [str(classes), str(stdlib), str(coroutines[-1])]
+        ),
         'PipParamsRegressionKt',
     ], check=True, timeout=20)

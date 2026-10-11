@@ -10,12 +10,12 @@
 //! and libmpv linkage are not exercised by the unit tests below.
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(target_os = "android")]
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(target_os = "android")]
 use std::sync::OnceLock;
+use std::sync::{Arc, Mutex};
 use std::thread::ThreadId;
 use std::time::Duration;
 #[cfg(target_os = "android")]
@@ -192,9 +192,7 @@ impl<S> HandleRegistry<S> {
         if token == 0 || token == -1i64 as u64 {
             return Err(BridgeError::Resource("token space exhausted"));
         }
-        state
-            .instances
-            .insert(token as i64, Self::allocate(native));
+        state.instances.insert(token as i64, Self::allocate(native));
         Ok(token as i64)
     }
 
@@ -212,7 +210,10 @@ impl<S> HandleRegistry<S> {
         // call that libmpv itself blocks inside; callers must use APIs whose
         // libmpv contract is non-blocking or explicitly timed.
         let mut state = self.lock()?;
-        let instance = state.instances.get_mut(&token).ok_or(BridgeError::NotOpen)?;
+        let instance = state
+            .instances
+            .get_mut(&token)
+            .ok_or(BridgeError::NotOpen)?;
         if !allowed.contains(&instance.phase) {
             return Err(if instance.phase == InstancePhase::Created {
                 BridgeError::InvalidArgument("not-initialized")
@@ -231,9 +232,14 @@ impl<S> HandleRegistry<S> {
     }
 
     pub fn initialize(&self, token: i64) -> BridgeResult<()> {
-        self.with_phase(token, &[InstancePhase::Created], |native| native.initialize())?;
+        self.with_phase(token, &[InstancePhase::Created], |native| {
+            native.initialize()
+        })?;
         let mut state = self.lock()?;
-        let instance = state.instances.get_mut(&token).ok_or(BridgeError::NotOpen)?;
+        let instance = state
+            .instances
+            .get_mut(&token)
+            .ok_or(BridgeError::NotOpen)?;
         if instance.phase == InstancePhase::Created {
             instance.phase = InstancePhase::Initialized;
         }
@@ -326,7 +332,10 @@ impl<S> HandleRegistry<S> {
             return Err(BridgeError::MainThreadBlocked);
         }
         let mut state = self.lock()?;
-        let instance = state.instances.get_mut(&token).ok_or(BridgeError::NotOpen)?;
+        let instance = state
+            .instances
+            .get_mut(&token)
+            .ok_or(BridgeError::NotOpen)?;
         if instance.phase != InstancePhase::Initialized {
             return Err(if instance.phase == InstancePhase::Created {
                 BridgeError::InvalidArgument("not-initialized")
@@ -346,7 +355,10 @@ impl<S> HandleRegistry<S> {
             return Err(BridgeError::MainThreadBlocked);
         }
         let mut state = self.lock()?;
-        let instance = state.instances.get_mut(&token).ok_or(BridgeError::NotOpen)?;
+        let instance = state
+            .instances
+            .get_mut(&token)
+            .ok_or(BridgeError::NotOpen)?;
         match instance.phase {
             InstancePhase::Created | InstancePhase::Initialized => {}
             InstancePhase::Closing | InstancePhase::Closed => return Err(BridgeError::Closing),
@@ -513,7 +525,9 @@ impl MpvClient for FakeMpv {
     }
 
     fn stop(&mut self, budget: Duration, slice_seconds: f64) -> BridgeResult<()> {
-        if !slice_seconds.is_finite() || slice_seconds <= 0.0 || slice_seconds > budget.as_secs_f64()
+        if !slice_seconds.is_finite()
+            || slice_seconds <= 0.0
+            || slice_seconds > budget.as_secs_f64()
         {
             return Err(BridgeError::InvalidArgument("timeout"));
         }
@@ -672,7 +686,9 @@ mod ffi {
             if raw.is_null() {
                 return Err(BridgeError::Mpv(MPV_ERROR_GENERIC));
             }
-            let owned = unsafe { CStr::from_ptr(raw) }.to_string_lossy().into_owned();
+            let owned = unsafe { CStr::from_ptr(raw) }
+                .to_string_lossy()
+                .into_owned();
             unsafe { mpv_free(raw.cast()) };
             Ok(owned)
         }
@@ -704,9 +720,7 @@ mod ffi {
         fn set_wid(&mut self, wid: i64) -> BridgeResult<()> {
             let name = c_string("wid")?;
             let mut value = wid;
-            mpv_result(unsafe {
-                mpv_set_option_string_wid(self.handle, name.as_ptr(), &mut value)
-            })
+            mpv_result(unsafe { mpv_set_option_string_wid(self.handle, name.as_ptr(), &mut value) })
         }
 
         fn wait_event(&mut self, timeout_seconds: f64) -> BridgeResult<i32> {
@@ -822,9 +836,8 @@ mod ffi {
         let vm = env
             .get_java_vm()
             .map_err(|_| BridgeError::Jni("GetJavaVM"))?;
-        let code = unsafe {
-            av_jni_set_java_vm(vm.get_java_vm_pointer().cast(), std::ptr::null_mut())
-        };
+        let code =
+            unsafe { av_jni_set_java_vm(vm.get_java_vm_pointer().cast(), std::ptr::null_mut()) };
         if code < 0 {
             return Err(BridgeError::Jni("av_jni_set_java_vm"));
         }
@@ -909,7 +922,9 @@ mod ffi {
     }
 
     #[no_mangle]
-    pub extern "C" fn Java_com_example_piliai_playback_backend_RustGpuNextBridge_nativeCreate<'local>(
+    pub extern "C" fn Java_com_example_piliai_playback_backend_RustGpuNextBridge_nativeCreate<
+        'local,
+    >(
         mut env: JNIEnv<'local>,
         _class: JClass<'local>,
     ) -> jlong {
@@ -1199,7 +1214,11 @@ mod tests {
         registry
             .command(
                 token,
-                &["seek".to_string(), "1.5".to_string(), "absolute".to_string()],
+                &[
+                    "seek".to_string(),
+                    "1.5".to_string(),
+                    "absolute".to_string(),
+                ],
             )
             .expect("command");
         assert_eq!(registry.open_count(), 1);
@@ -1238,7 +1257,10 @@ mod tests {
         assert_eq!(registry.bind_surface(token, 42, 42).expect("bind"), None);
         let released = registry.close(token).expect("close");
         assert_eq!(released, Some(42));
-        assert_eq!(registry.clear_surface(token).unwrap_err(), BridgeError::NotOpen);
+        assert_eq!(
+            registry.clear_surface(token).unwrap_err(),
+            BridgeError::NotOpen
+        );
     }
 
     #[test]
@@ -1262,7 +1284,9 @@ mod tests {
         );
         assert_eq!(registry.poll_event(token, 0.0).unwrap(), MPV_EVENT_SHUTDOWN);
         assert_eq!(
-            registry.poll_event(token, NATIVE_CALL_BUDGET.as_secs_f64() + 5.0).unwrap(),
+            registry
+                .poll_event(token, NATIVE_CALL_BUDGET.as_secs_f64() + 5.0)
+                .unwrap(),
             MPV_EVENT_SHUTDOWN
         );
         assert!(registry.poll_event(token, f64::INFINITY).is_err());
@@ -1340,7 +1364,12 @@ mod tests {
         let ok = results.iter().filter(|result| result.is_ok()).count();
         let rejected = results
             .iter()
-            .filter(|result| matches!(result, Err(BridgeError::NotOpen) | Err(BridgeError::Closing)))
+            .filter(|result| {
+                matches!(
+                    result,
+                    Err(BridgeError::NotOpen) | Err(BridgeError::Closing)
+                )
+            })
             .count();
         assert_eq!(ok, 1, "{results:?}");
         assert_eq!(rejected, 1, "{results:?}");

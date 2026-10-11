@@ -10,9 +10,10 @@ fn main() {
         return;
     }
 
-    let prefix = PathBuf::from(env::var("MPV_PREFIX").unwrap_or_else(|_| {
-        panic!("MPV_PREFIX is required for Android GPU-next builds")
-    }));
+    let prefix = PathBuf::from(
+        env::var("MPV_PREFIX")
+            .unwrap_or_else(|_| panic!("MPV_PREFIX is required for Android GPU-next builds")),
+    );
     let lib_dir = prefix.join("lib");
     let mpv = lib_dir.join("libmpv.so");
     if !prefix.is_dir() {
