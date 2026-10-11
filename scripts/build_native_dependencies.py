@@ -1090,6 +1090,10 @@ def main(argv=None):
     except BuildFailure as error:
         print(f'Native dependency build failed: {error}', file=sys.stderr)
         return 1
+    except Exception as error:
+        # 审核226q：非 BuildFailure 异常给紧凑单行，防 traceback 被注解上限截掉关键行
+        print(f'Native dependency build crashed: {type(error).__name__}: {error}', file=sys.stderr)
+        return 1
     print(json.dumps(result, indent=2, sort_keys=True))
     print('Native compilation completed and existing artifact verification passed.')
     print('GPU-next rendering and device playback were not verified.')
