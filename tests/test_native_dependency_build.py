@@ -123,8 +123,8 @@ class NativeDependencyBuildTests(unittest.TestCase):
             self.builder.write_cross_file(cross, environment)
             text = cross.read_text(encoding='utf-8')
             self.assertIn(f"prefix = '{prefix}'", text)
-            self.assertIn("c_args = [\"--target=aarch64-linux-android36\", \"--sysroot=", text)
-            self.assertNotIn("c_args = ['--target=aarch64-linux-android36 --sysroot=", text)
+            self.assertIn("c_args = ['--target=aarch64-linux-android36', '--sysroot=", text)
+            self.assertNotIn('c_args = ["--target=', text)  # meson rejects double quotes
 
     def test_populated_archives_validate_without_planning_a_build(self):
         payload = self.lock()
