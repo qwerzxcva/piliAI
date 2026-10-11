@@ -161,12 +161,14 @@ fun SettingsScreen(
             item {
                 // bv P2：硬件解码开关（重建播放器生效）
                 SettingRow(
-                    title = "硬件解码",
-                    subtitle = when (state.hardwareDecodeMode) {
-                        "hardware" -> "强制硬解（4K/HEVC 流畅）"
-                        "software" -> "强制软解（硬解异常时绕行）"
-                        else -> "自动（推荐）"
-                    },
+                    title = stringResource(R.string.playback_decoder_title),
+                    subtitle = stringResource(
+                        when (state.hardwareDecodeMode) {
+                            "hardware" -> R.string.playback_decoder_prefer_hardware
+                            "software" -> R.string.playback_decoder_prefer_software
+                            else -> R.string.playback_decoder_auto
+                        }
+                    ),
                     icon = Icons.Default.Memory,
                     onClick = { showHwDecodeDialog = true }
                 )
@@ -886,13 +888,13 @@ fun SettingsScreen(
     if (showHwDecodeDialog) {
         AlertDialog(
             onDismissRequest = { showHwDecodeDialog = false },
-            title = { Text("硬件解码") },
+            title = { Text(stringResource(R.string.playback_decoder_title)) },
             text = {
                 Column {
                     listOf(
-                        "auto" to "自动（推荐，交给系统选择）",
-                        "hardware" to "强制硬解（4K/HEVC 更流畅、省电）",
-                        "software" to "强制软解（硬解绿屏/花屏/崩溃时绕行）"
+                        "auto" to R.string.playback_decoder_auto,
+                        "hardware" to R.string.playback_decoder_prefer_hardware,
+                        "software" to R.string.playback_decoder_prefer_software
                     ).forEach { (mode, label) ->
                         Row(
                             Modifier
@@ -909,12 +911,12 @@ fun SettingsScreen(
                                 onClick = { viewModel.setHardwareDecodeMode(mode); showHwDecodeDialog = false }
                             )
                             Spacer(Modifier.width(8.dp))
-                            Text(label, style = MaterialTheme.typography.bodyMedium)
+                            Text(stringResource(label), style = MaterialTheme.typography.bodyMedium)
                         }
                     }
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "修改后需重新进入播放页生效",
+                        stringResource(R.string.playback_decoder_restart_hint),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

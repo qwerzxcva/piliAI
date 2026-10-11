@@ -207,8 +207,8 @@ class Media3Backend(
     /**
      * bv P2：硬件解码模式。
      * - auto（默认）：交给 Media3 默认选择
-     * - hardware：优先硬解（同名优先 hardware=true 的解码器）
-     * - software：强制软解（设备硬解 4K/HEVC 出绿屏/崩溃时绕行）
+     * - hardware：优先硬件解码器
+     * - software：优先软件解码器；无可用软件解码器时仍可使用硬件解码器
      * 通过自定义 MediaCodecSelector 重排解码器优先级；Builder 期设置，重建播放器生效。
      */
     private fun buildRenderersFactory(): DefaultRenderersFactory {

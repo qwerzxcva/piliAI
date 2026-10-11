@@ -32,4 +32,9 @@
     <string name="playback_completion_repeat">Repeat this video</string>
     <string name="playback_completion_stop">Stop</string>
     <string name="playback_settings_cancel">Cancel</string>
+    <string name="playback_decoder_title">Decoder preference</string>
+    <string name="playback_decoder_auto">Automatic (recommended)</string>
+    <string name="playback_decoder_prefer_hardware">Prefer hardware decoding</string>
+    <string name="playback_decoder_prefer_software">Prefer software decoding</string>
+    <string name="playback_decoder_restart_hint">Takes effect when you reopen the player; another decoder may be used if no preferred decoder is available</string>
 </resources>

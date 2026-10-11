@@ -28,4 +28,9 @@
     <string name="playback_completion_repeat">单集循环</string>
     <string name="playback_completion_stop">停止</string>
     <string name="playback_settings_cancel">取消</string>
+    <string name="playback_decoder_title">解码器偏好</string>
+    <string name="playback_decoder_auto">自动（推荐）</string>
+    <string name="playback_decoder_prefer_hardware">优先硬件解码</string>
+    <string name="playback_decoder_prefer_software">优先软件解码</string>
+    <string name="playback_decoder_restart_hint">重新进入播放页后生效；没有匹配的解码器时仍可能使用其它解码器</string>
 </resources>
