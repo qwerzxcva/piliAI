@@ -65,15 +65,26 @@ jobs:
 
       - name: Build pinned native dependencies
         run: |
-          python3 scripts/build_native_dependencies.py --lock scripts/native-dependencies.lock.json 2> >(while IFS= read -r line; do echo "::error::$line"; done)
-          LOG=".aharou/native-build/logs/build.log"
-          echo "::error::=== build.log tail ==="
-          [ -f "$LOG" ] && tail -6 "$LOG" | while IFS= read -r line; do echo "::error::$line"; done || true
-          MLOG=$(find .aharou/native-build -name 'meson-log.txt' -newermt '-30 minutes' 2>/dev/null | head -1)
-          if [ -n "$MLOG" ]; then
-            echo "::error::=== $MLOG tail ==="
-            tail -30 "$MLOG" | while IFS= read -r line; do echo "::error::$line"; done
+          # 这一段绝不能被 bash -e 提前杀掉：先关掉 errexit，失败也要把
+          # build.log 与各 meson-log.txt 完整打进日志，便于无 admin 的定位。
+          set +e
+          python3 scripts/build_native_dependencies.py --lock scripts/native-dependencies.lock.json
+          status=$?
+          if [ $status -ne 0 ]; then
+            echo "=== build.log tail ==="
+            LOG=".aharou/native-build/logs/build.log"
+            [ -f "$LOG" ] && tail -50 "$LOG"
+            for MLOG in $(find .aharou/native-build -name 'meson-log.txt' 2>/dev/null); do
+              echo "=== $MLOG tail ==="
+              tail -60 "$MLOG"
+            done
+            # 组件 configure 日志（ffmpeg 等）同样兜底输出
+            for CLOG in $(find .aharou/native-build -name 'config.log' -o -name 'ffbuild/config.log' 2>/dev/null); do
+              echo "=== $CLOG tail ==="
+              tail -40 "$CLOG"
+            done
           fi
+          exit $status
 
 
       - name: Build Rust library for arm64-v8a
