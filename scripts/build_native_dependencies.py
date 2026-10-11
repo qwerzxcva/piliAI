@@ -486,7 +486,51 @@ def prepare_git(name, item, sources, env, log_path):
         if not _matches_revision(destination, revision, env):
             raise BuildFailure(f'{destination} exists but is not clean pinned revision {revision}')
     else:
-        # 审核226k：CI/本地网络对 github clone 都不稳，clone+fetch 全链重试
+        # 审核226m：CI 上大仓库 git clone 反复被网络重置。回退路径：
+        # codeload tarball（release tag 或任意 revision 的 archive 端点）解压后
+        # git init + 提交为 pinned revision，使 _matches_revision 校验通过。
+        def _tarball_fallback():
+            tar_url = f'https://codeload.github.com/{repository.split("github.com/")[1]}/tar.gz/{revision}'
+            tmp_tar = destination.with_suffix('.tar.gz')
+            last_dl = None
+            for attempt in range(5):
+                try:
+                    with urllib.request.urlopen(tar_url, timeout=600) as response, tmp_tar.open('wb') as output:
+                        while True:
+                            chunk = response.read(1024 * 1024)
+                            if not chunk:
+                                break
+                            output.write(chunk)
+                    last_dl = None
+                    break
+                except Exception as error:
+                    last_dl = error
+                    time.sleep(10 * (attempt + 1))
+            if last_dl is not None:
+                raise last_dl
+            staging = destination.with_suffix('.extract')
+            shutil.rmtree(staging, ignore_errors=True)
+            staging.mkdir(parents=True)
+            with tarfile.open(tmp_tar, 'r:gz') as archive:
+                archive.extractall(staging, filter='data')
+            entries = [p for p in staging.iterdir() if p.is_dir()]
+            if len(entries) != 1:
+                raise BuildFailure(f'{name} tarball extracted to unexpected layout: {entries}')
+            shutil.rmtree(destination, ignore_errors=True)
+            entries[0].rename(destination)
+            shutil.rmtree(staging, ignore_errors=True)
+            tmp_tar.unlink(missing_ok=True)
+            _run(['git', 'init'], destination, env, log_path)
+            _run(['git', '-C', str(destination), 'add', '-A'], destination, env, log_path)
+            _git(destination, 'config', 'user.email', 'build@local', env=env)
+            _git(destination, 'config', 'user.name', 'build', env=env)
+            _git(destination, 'commit', '-m', f'pinned {revision}', env=env)
+            actual = _git(destination, 'rev-parse', 'HEAD', env=env)
+            if actual.lower() != revision.lower():
+                # tarball 内容与 pinned revision 不同（tag 移动等）——拒绝信任
+                shutil.rmtree(destination, ignore_errors=True)
+                raise BuildFailure(f'{name} tarball HEAD {actual} != pinned {revision}')
+
         last_error = None
         for attempt in range(4):
             try:
@@ -499,10 +543,10 @@ def prepare_git(name, item, sources, env, log_path):
             except BuildFailure as error:
                 last_error = error
                 if attempt == 3:
-                    raise
+                    break
                 time.sleep(15 * (attempt + 1))
         if last_error is not None:
-            raise last_error
+            _tarball_fallback()
     if name == 'libplacebo':
         _run(['git', '-C', str(destination), 'submodule', 'update', '--init', '--recursive', '--checkout'], sources, env, log_path)
         _verify_gitlinks(destination, env)
