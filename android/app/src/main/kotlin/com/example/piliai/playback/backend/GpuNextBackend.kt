@@ -30,6 +30,28 @@ class GpuNextBackend(
         bridge.setOption("vo", "gpu-next")
         bridge.setOption("hwdec", "auto-safe")
         bridge.setOption("gpu-context", "android")
+        // 审核224：把 piliAI 渲染设置映射到 mpv/libplacebo（与 Media3 路径的
+        // setVideoEffects/音量归一化等价——两条后端体验对齐）
+        runCatching {
+            val prefs = com.example.piliai.utils.RendererPrefs
+            // 音量归一化：mpv 动态范围压缩 + loudnorm
+            if (prefs.audioNormalization) {
+                bridge.setOption("af", "loudnorm=I=-16:TP=-1.5:LRA=11")
+            }
+            // 超分：libplacebo 自带的上采样（同档位映射）
+            when (prefs.superResolutionMode) {
+                "efficiency" -> bridge.setOption("scale", "spline36")
+                "quality" -> {
+                    bridge.setOption("scale", "ewa_lanczossharp")
+                    bridge.setOption("scale-blur", "sjam")
+                }
+            }
+            // HDR 色调映射（libplacebo 强项：BT.2446a + 峰值检测）
+            if (prefs.hdrToneMappingEnabled) {
+                bridge.setOption("tone-mapping", "bt.2446a")
+                bridge.setOption("hdr-compute-peak", "yes")
+            }
+        }
         if (request.userAgent.isNotBlank()) bridge.setOption("user-agent", request.userAgent)
         request.headers["Referer"]?.let { bridge.setOption("referrer", it) }
         request.audioUri?.let { bridge.setOption("audio-files", it.toString()) }
