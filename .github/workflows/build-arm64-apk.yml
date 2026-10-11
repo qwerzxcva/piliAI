@@ -79,6 +79,10 @@ jobs:
               grep -aE 'ERROR|Error|error:|FATAL|failed|FAILED|BUILT|Traceback|BuildFailure|command failed' "$LOG" | tail -40 | while IFS= read -r L; do
                 echo "::error::${L:0:300}"
               done
+              # 审核226j：日志最后 60 行原文逐行进注解（configure 真实失败点往往不在 grep 关键词里）
+              tail -60 "$LOG" | while IFS= read -r L; do
+                [ -n "$L" ] && echo "::error::TAIL ${L:0:280}"
+              done
             fi
             for MLOG in $(find .aharou/native-build -name 'meson-log.txt' 2>/dev/null); do
               echo "=== $MLOG tail ==="
