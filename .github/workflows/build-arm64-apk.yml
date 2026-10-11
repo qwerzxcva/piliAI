@@ -52,8 +52,23 @@ jobs:
           $SDKMANAGER --sdk_root=$ANDROID_HOME "ndk;${{ env.ANDROID_NDK_VERSION }}" 2>&1
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/${{ env.ANDROID_NDK_VERSION }}" >> $GITHUB_ENV
 
+      - name: Validate pinned native dependency plan
+        run: python3 scripts/build_native_dependencies.py --plan --lock scripts/native-dependencies.lock.json
+
       - name: Build pinned native dependencies
         run: python3 scripts/build_native_dependencies.py --lock scripts/native-dependencies.lock.json
+
+      # 审核226：native 编译失败时日志（脚本写 .aharou/native-build/logs/build.log）附到
+      # Job Summary，避免无仓库 admin 权限时无法诊断 CI 红。
+      - name: Dump native build log on failure
+        if: failure()
+        run: |
+          LOG=".aharou/native-build/logs/build.log"
+          if [ -f "$LOG" ]; then
+            { echo "=== native build log (tail 300) ==="; echo '```'; tail -300 "$LOG"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "no native build log produced" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Build Rust library for arm64-v8a
         run: |
