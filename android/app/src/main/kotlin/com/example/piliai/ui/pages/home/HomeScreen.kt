@@ -71,6 +71,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.piliai.data.model.VideoItem
 import com.example.piliai.utils.toHttpsUrl
+import com.example.piliai.utils.toCoverUrl
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -276,7 +277,7 @@ private fun HeroCarousel(
                     .clickable { onItemClick(item) }
             ) {
                 AsyncImage(
-                    model = item.pic.ifBlank { item.cover }.toHttpsUrl(),
+                    model = item.pic.ifBlank { item.cover }.toCoverUrl(),
                     contentDescription = item.title,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
@@ -366,7 +367,7 @@ private fun VideoCardItem(card: VideoItem, onClick: () -> Unit) {
             Box {
                 AsyncImage(
                     model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
-                        .data(card.pic.toHttpsUrl())
+                        .data(card.pic.toCoverUrl())
                         .crossfade(180)
                         .build(),
                     contentDescription = card.title,
@@ -443,7 +444,7 @@ private fun VideoCardItem(card: VideoItem, onClick: () -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (card.authorFace.isNotBlank()) {
                         AsyncImage(
-                            model = card.authorFace.toHttpsUrl(),
+                            model = card.authorFace.toCoverUrl(),
                             contentDescription = null,
                             modifier = Modifier
                                 .size(18.dp)

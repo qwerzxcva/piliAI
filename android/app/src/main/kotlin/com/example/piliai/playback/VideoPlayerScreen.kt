@@ -374,19 +374,35 @@ fun VideoPlayerScreen(
             viewModel.updateSubtitleAt(state.currentTime)
         }
         if (subtitle.isNotEmpty() && !isInPiP) {
+            // 审核235：字幕细节设置真实生效（字号/边距/背景透明度/阴影/加粗）
+            val subScale = state.subtitleScale
+            val subPadH = state.subtitlePaddingH
+            val subPadB = state.subtitlePaddingB
+            val subBg = state.subtitleBgOpacity
+            val subStroke = state.subtitleStroke
+            val subBold = state.subtitleBold
             Box(
-                Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                Modifier.fillMaxSize().padding(horizontal = subPadH.dp),
                 contentAlignment = Alignment.BottomCenter
             ) {
                 Surface(
-                    color = Color.Black.copy(alpha = 0.6f),
+                    color = Color.Black.copy(alpha = subBg),
                     shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.padding(bottom = 64.dp)
+                    modifier = Modifier.padding(bottom = subPadB.dp)
                 ) {
                     Text(
                         subtitle,
                         color = Color.White,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontSize = MaterialTheme.typography.bodyMedium.fontSize * subScale,
+                            fontWeight = if (subBold) androidx.compose.ui.text.font.FontWeight.Bold
+                                else MaterialTheme.typography.bodyMedium.fontWeight,
+                            shadow = if (subStroke > 0f) androidx.compose.ui.graphics.Shadow(
+                                androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.9f),
+                                offset = androidx.compose.ui.geometry.Offset(1f, 1f),
+                                blurRadius = subStroke * 4f
+                            ) else null,
+                        ),
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                     )
                 }

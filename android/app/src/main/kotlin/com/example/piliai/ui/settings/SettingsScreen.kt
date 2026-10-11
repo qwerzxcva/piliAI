@@ -57,6 +57,7 @@ fun SettingsScreen(
     var showCellularCodecDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
     var showAccentDialog by remember { mutableStateOf(false) }
+    var showPicQualityDialog by remember { mutableStateOf(false) }  // 审核235
     var showAboutDialog by remember { mutableStateOf(false) }
     var showRendererDialog by remember { mutableStateOf(false) }
     var showBackendDialog by remember { mutableStateOf(false) }
@@ -612,6 +613,83 @@ fun SettingsScreen(
                     onChange = { viewModel.setAmoled(it) }
                 )
             }
+            // 审核235：图片质量（B站图床 @Nq.webp 压缩，省流量加快加载）
+            item {
+                SettingRow(
+                    title = "图片质量",
+                    subtitle = when (state.picQuality) {
+                        0 -> "原图"
+                        100 -> "原图"
+                        else -> "${state.picQuality}% 压缩"
+                    },
+                    icon = Icons.Default.Image,
+                    onClick = { showPicQualityDialog = true }
+                )
+            }
+        }
+        fun LazyListScope.subtitleSection() {
+            // ===== 审核235：字幕细节（PiliPlus 对齐，真实作用于播放页字幕渲染）=====
+            item { SectionTitle("字幕") }
+            item {
+                SettingSlider(
+                    title = "字幕字号缩放",
+                    icon = Icons.Default.TextFields,
+                    value = state.subtitleScale,
+                    valueRange = 0.5f..2f,
+                    steps = 5,
+                    displayValue = String.format(java.util.Locale.ROOT, "%.1fx", state.subtitleScale),
+                    onValueChange = { viewModel.setSubtitleScale(it) }
+                )
+            }
+            item {
+                SettingSlider(
+                    title = "字幕水平边距",
+                    icon = Icons.Default.SettingsOverscan,
+                    value = state.subtitlePaddingH,
+                    valueRange = 0f..40f,
+                    displayValue = "${state.subtitlePaddingH.toInt()}dp",
+                    onValueChange = { viewModel.setSubtitlePaddingH(it) }
+                )
+            }
+            item {
+                SettingSlider(
+                    title = "字幕底部边距",
+                    icon = Icons.Default.VerticalAlignBottom,
+                    value = state.subtitlePaddingB,
+                    valueRange = 0f..200f,
+                    displayValue = "${state.subtitlePaddingB.toInt()}dp",
+                    onValueChange = { viewModel.setSubtitlePaddingB(it) }
+                )
+            }
+            item {
+                SettingSlider(
+                    title = "字幕背景不透明度",
+                    icon = Icons.Default.Layers,
+                    value = state.subtitleBgOpacity,
+                    valueRange = 0f..1f,
+                    displayValue = "${(state.subtitleBgOpacity * 100).toInt()}%",
+                    onValueChange = { viewModel.setSubtitleBgOpacity(it) }
+                )
+            }
+            item {
+                SettingSlider(
+                    title = "字幕阴影强度",
+                    icon = Icons.Default.WbSunny,
+                    value = state.subtitleStroke,
+                    valueRange = 0f..3f,
+                    steps = 5,
+                    displayValue = String.format(java.util.Locale.ROOT, "%.1f", state.subtitleStroke),
+                    onValueChange = { viewModel.setSubtitleStroke(it) }
+                )
+            }
+            item {
+                SettingSwitch(
+                    title = "字幕加粗",
+                    icon = Icons.Default.FormatBold,
+                    checked = state.subtitleBold,
+                    onChange = { viewModel.setSubtitleBold(it) }
+                )
+            }
         }
         fun LazyListScope.aboutSection() {
             // ===== 关于 =====
@@ -642,11 +720,11 @@ fun SettingsScreen(
             ) {
                 when (category) {
                     1 -> playSection()
-                    2 -> dmSection()
+                    2 -> { dmSection(); subtitleSection() }
                     3 -> styleSection()
                     4 -> aboutSection()
                     else -> {
-                        playSection(); dmSection(); styleSection(); aboutSection()
+                        playSection(); dmSection(); subtitleSection(); styleSection(); aboutSection()
                     }
                 }
             }
@@ -867,6 +945,37 @@ fun SettingsScreen(
     }
 
     // 关于弹窗
+    // 审核235：图片质量选择
+    if (showPicQualityDialog) {
+        val options = listOf(100 to "原图（最快加载）", 80 to "80% 高清", 50 to "50% 均衡", 25 to "25% 省流")
+        AlertDialog(
+            onDismissRequest = { showPicQualityDialog = false },
+            title = { Text("图片质量") },
+            text = {
+                Column {
+                    options.forEach { (v, label) ->
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .clickable {
+                                    viewModel.setPicQuality(v)
+                                    showPicQualityDialog = false
+                                }
+                                .padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = state.picQuality == v, onClick = {
+                                viewModel.setPicQuality(v); showPicQualityDialog = false
+                            })
+                            Spacer(Modifier.width(8.dp))
+                            Text(label)
+                        }
+                    }
+                }
+            },
+            confirmButton = {}
+        )
+    }
+
     if (showAboutDialog) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { showAboutDialog = false },

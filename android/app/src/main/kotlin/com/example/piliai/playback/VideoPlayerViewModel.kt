@@ -100,6 +100,13 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         val danmakuStrokeWidth: Float = 1.5f,
         val danmakuMerge: Boolean = false,
         val danmakuMassiveMode: Boolean = false,
+        // 审核235：字幕细节
+        val subtitleScale: Float = 1f,
+        val subtitlePaddingH: Float = 10f,
+        val subtitlePaddingB: Float = 64f,
+        val subtitleBgOpacity: Float = 0.6f,
+        val subtitleStroke: Float = 0.5f,
+        val subtitleBold: Boolean = false,
         val brightness: Float = 0.5f,
         val gestureSeekDeltaMs: Long = 0L,
         val qualities: List<QualityOption> = emptyList(),
@@ -126,6 +133,11 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         val mode: Int = 1
     )
     
+    /** 审核235：字幕偏好打包（combine 上限5个 Flow） */
+    private data class SubtitlePrefs(
+        val scale: Float, val padH: Float, val padB: Float, val bg: Float, val stroke: Float,
+    )
+
     // 审核233：相关视频过滤配置（combine 收集，DataStore 持久化）
     private var relatedApplyFilter: Boolean = true
     private var relatedMinDuration: Int = 0
@@ -182,6 +194,24 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
             storage.dmMassiveModeFlow.collect { on ->
                 _state.value = _state.value.copy(danmakuMassiveMode = on)
             }
+        }
+        // 审核235：字幕细节
+        viewModelScope.launch {
+            kotlinx.coroutines.flow.combine(
+                storage.subtitleScaleFlow, storage.subtitlePaddingHFlow,
+                storage.subtitlePaddingBFlow, storage.subtitleBgOpacityFlow,
+                storage.subtitleStrokeFlow,
+            ) { a, b, c, d, e -> SubtitlePrefs(a, b, c, d, e) }
+                .collect { sp ->
+                    _state.value = _state.value.copy(
+                        subtitleScale = sp.scale, subtitlePaddingH = sp.padH,
+                        subtitlePaddingB = sp.padB, subtitleBgOpacity = sp.bg,
+                        subtitleStroke = sp.stroke,
+                    )
+                }
+        }
+        viewModelScope.launch {
+            storage.subtitleBoldFlow.collect { _state.value = _state.value.copy(subtitleBold = it) }
         }
         // 审核233：相关视频过滤配置收集
         viewModelScope.launch {

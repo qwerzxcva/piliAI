@@ -84,6 +84,14 @@ class SettingsViewModel(context: Context) : ViewModel() {
         val exemptFilterForFollowed: Boolean = true,
         val applyFilterToRelatedVideos: Boolean = true,
         val banWordForRecommend: String = "",
+        // 审核235：图片质量 + 字幕细节
+        val picQuality: Int = 100,
+        val subtitleScale: Float = 1f,
+        val subtitlePaddingH: Float = 10f,
+        val subtitlePaddingB: Float = 64f,
+        val subtitleBgOpacity: Float = 0.6f,
+        val subtitleStroke: Float = 0.5f,
+        val subtitleBold: Boolean = false,
     )
 
     init {
@@ -240,6 +248,31 @@ class SettingsViewModel(context: Context) : ViewModel() {
         viewModelScope.launch {
             storage.banWordForRecommendFlow.collect { _state.value = _state.value.copy(banWordForRecommend = it) }
         }
+        // ===== 审核235 collect =====
+        viewModelScope.launch {
+            storage.picQualityFlow.collect {
+                com.example.piliai.utils.ImageQuality.qualityPercent = if (it == 0) 100 else it
+                _state.value = _state.value.copy(picQuality = it)
+            }
+        }
+        viewModelScope.launch {
+            storage.subtitleScaleFlow.collect { _state.value = _state.value.copy(subtitleScale = it) }
+        }
+        viewModelScope.launch {
+            storage.subtitlePaddingHFlow.collect { _state.value = _state.value.copy(subtitlePaddingH = it) }
+        }
+        viewModelScope.launch {
+            storage.subtitlePaddingBFlow.collect { _state.value = _state.value.copy(subtitlePaddingB = it) }
+        }
+        viewModelScope.launch {
+            storage.subtitleBgOpacityFlow.collect { _state.value = _state.value.copy(subtitleBgOpacity = it) }
+        }
+        viewModelScope.launch {
+            storage.subtitleStrokeFlow.collect { _state.value = _state.value.copy(subtitleStroke = it) }
+        }
+        viewModelScope.launch {
+            storage.subtitleBoldFlow.collect { _state.value = _state.value.copy(subtitleBold = it) }
+        }
     }
 
     // ===== 审核233 setters =====
@@ -262,6 +295,17 @@ class SettingsViewModel(context: Context) : ViewModel() {
     fun setExemptFilterForFollowed(v: Boolean) = viewModelScope.launch { storage.setExemptFilterForFollowed(v) }
     fun setApplyFilterToRelatedVideos(v: Boolean) = viewModelScope.launch { storage.setApplyFilterToRelatedVideos(v) }
     fun setBanWordForRecommend(v: String) = viewModelScope.launch { storage.setBanWordForRecommend(v) }
+    // ===== 审核235 =====
+    fun setPicQuality(v: Int) = viewModelScope.launch {
+        com.example.piliai.utils.ImageQuality.qualityPercent = if (v == 0) 100 else v
+        storage.setPicQuality(v)
+    }
+    fun setSubtitleScale(v: Float) = viewModelScope.launch { storage.setSubtitleScale(v) }
+    fun setSubtitlePaddingH(v: Float) = viewModelScope.launch { storage.setSubtitlePaddingH(v) }
+    fun setSubtitlePaddingB(v: Float) = viewModelScope.launch { storage.setSubtitlePaddingB(v) }
+    fun setSubtitleBgOpacity(v: Float) = viewModelScope.launch { storage.setSubtitleBgOpacity(v) }
+    fun setSubtitleStroke(v: Float) = viewModelScope.launch { storage.setSubtitleStroke(v) }
+    fun setSubtitleBold(v: Boolean) = viewModelScope.launch { storage.setSubtitleBold(v) }
 
     fun setAutoPlay(v: Boolean) = viewModelScope.launch { storage.setAutoPlay(v) }
     fun setLowLatencyAudio(v: Boolean) = viewModelScope.launch { storage.setLowLatencyAudio(v) }

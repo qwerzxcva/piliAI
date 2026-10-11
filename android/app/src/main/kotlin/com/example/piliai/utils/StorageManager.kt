@@ -102,6 +102,14 @@ class StorageManager(private val context: Context) {
         private val EXEMPT_FOLLOWED_KEY = booleanPreferencesKey("exemptFilterForFollowed")
         private val FILTER_RELATED_KEY = booleanPreferencesKey("applyFilterToRelatedVideos")
         private val BAN_WORD_RCMD_KEY = stringPreferencesKey("banWordForRecommend")
+        // 审核235：图片质量（PiliPlus defaultPicQa；0=100原图 2/4/10 压缩档）+字幕细节6键
+        private val PIC_QUALITY_KEY = intPreferencesKey("defaultPicQa")
+        private val SUB_SCALE_KEY = floatPreferencesKey("subtitleFontScale")
+        private val SUB_PAD_H_KEY = floatPreferencesKey("subtitlePaddingH")
+        private val SUB_PAD_B_KEY = floatPreferencesKey("subtitlePaddingB")
+        private val SUB_BG_OPACITY_KEY = floatPreferencesKey("subtitleBgOpacity")
+        private val SUB_STROKE_KEY = floatPreferencesKey("subtitleStrokeWidth")
+        private val SUB_BOLD_KEY = booleanPreferencesKey("subtitleFontWeight")
         
         // HDR 色调映射设置
         private val HDR_ENABLED_KEY = booleanPreferencesKey("hdrToneMappingEnabled")
@@ -610,6 +618,63 @@ class StorageManager(private val context: Context) {
 
     suspend fun setBanWordForRecommend(words: String) {
         context.dataStore.edit { it[BAN_WORD_RCMD_KEY] = words }
+    }
+
+    // ===== 审核235：图片质量 + 字幕细节 =====
+    val picQualityFlow: Flow<Int> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[PIC_QUALITY_KEY] ?: 100 }
+
+    suspend fun setPicQuality(q: Int) {
+        context.dataStore.edit { it[PIC_QUALITY_KEY] = q.coerceIn(0, 100) }
+    }
+
+    val subtitleScaleFlow: Flow<Float> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[SUB_SCALE_KEY] ?: 1f }
+
+    suspend fun setSubtitleScale(v: Float) {
+        context.dataStore.edit { it[SUB_SCALE_KEY] = v.coerceIn(0.5f, 2f) }
+    }
+
+    val subtitlePaddingHFlow: Flow<Float> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[SUB_PAD_H_KEY] ?: 10f }
+
+    suspend fun setSubtitlePaddingH(v: Float) {
+        context.dataStore.edit { it[SUB_PAD_H_KEY] = v.coerceIn(0f, 40f) }
+    }
+
+    val subtitlePaddingBFlow: Flow<Float> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[SUB_PAD_B_KEY] ?: 64f }
+
+    suspend fun setSubtitlePaddingB(v: Float) {
+        context.dataStore.edit { it[SUB_PAD_B_KEY] = v.coerceIn(0f, 200f) }
+    }
+
+    val subtitleBgOpacityFlow: Flow<Float> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[SUB_BG_OPACITY_KEY] ?: 0.6f }
+
+    suspend fun setSubtitleBgOpacity(v: Float) {
+        context.dataStore.edit { it[SUB_BG_OPACITY_KEY] = v.coerceIn(0f, 1f) }
+    }
+
+    val subtitleStrokeFlow: Flow<Float> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[SUB_STROKE_KEY] ?: 0.5f }
+
+    suspend fun setSubtitleStroke(v: Float) {
+        context.dataStore.edit { it[SUB_STROKE_KEY] = v.coerceIn(0f, 3f) }
+    }
+
+    val subtitleBoldFlow: Flow<Boolean> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[SUB_BOLD_KEY] ?: false }
+
+    suspend fun setSubtitleBold(v: Boolean) {
+        context.dataStore.edit { it[SUB_BOLD_KEY] = v }
     }
 
     /**
