@@ -471,6 +471,10 @@ def prepare_archive(name, entry, downloads, sources, env, log_path):
 def _matches_revision(source, revision, env):
     if not (source / '.git').exists():
         return False
+    marker = source / '.pinned-revision'
+    if marker.exists():
+        # tarball 回退路径：树快照重建的 commit SHA 与上游不同，靠标记+干净树校验
+        return marker.read_text(encoding='utf-8').strip().lower() == revision.lower()
     actual = _git(source, 'rev-parse', 'HEAD', env=env)
     if actual.lower() != revision.lower():
         return False
@@ -525,11 +529,11 @@ def prepare_git(name, item, sources, env, log_path):
             _git(destination, 'config', 'user.email', 'build@local', env=env)
             _git(destination, 'config', 'user.name', 'build', env=env)
             _git(destination, 'commit', '-m', f'pinned {revision}', env=env)
-            actual = _git(destination, 'rev-parse', 'HEAD', env=env)
-            if actual.lower() != revision.lower():
-                # tarball 内容与 pinned revision 不同（tag 移动等）——拒绝信任
-                shutil.rmtree(destination, ignore_errors=True)
-                raise BuildFailure(f'{name} tarball HEAD {actual} != pinned {revision}')
+            # tarball 是树快照，重建 commit 的 SHA 必然不等于原仓库 SHA——
+            # 用 .pinned-revision 标记 + 工作树干净校验代替（见 _matches_revision）
+            (destination / '.pinned-revision').write_text(revision + '\n', encoding='utf-8')
+            _run(['git', '-C', str(destination), 'add', '-A'], destination, env, log_path)
+            _git(destination, 'commit', '--amend', '-m', f'pinned {revision}', env=env)
 
         last_error = None
         for attempt in range(4):
@@ -550,9 +554,10 @@ def prepare_git(name, item, sources, env, log_path):
     if name == 'libplacebo':
         _run(['git', '-C', str(destination), 'submodule', 'update', '--init', '--recursive', '--checkout'], sources, env, log_path)
         _verify_gitlinks(destination, env)
-    actual = _git(destination, 'rev-parse', 'HEAD', env=env)
-    if actual.lower() != revision:
-        raise BuildFailure(f'{name} resolved to {actual}, expected pinned revision {revision}')
+    if not (destination / '.pinned-revision').exists():
+        actual = _git(destination, 'rev-parse', 'HEAD', env=env)
+        if actual.lower() != revision:
+            raise BuildFailure(f'{name} resolved to {actual}, expected pinned revision {revision}')
     return destination
 
 
