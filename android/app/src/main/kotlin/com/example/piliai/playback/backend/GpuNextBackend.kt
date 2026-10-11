@@ -23,7 +23,7 @@ class GpuNextBackend(
     override val isPlayingFlow: StateFlow<Boolean> = _isPlaying
 
     // 实际使用单例 RustGpuNextBridge（所有操作最终走 JNI）
-    private val bridge = RustGpuNextBridge
+    private val bridge: GpuNextBridge = RustGpuNextBridge as GpuNextBridge
 
     override fun prepare(request: PlaybackRequest) {
         bridge.open()

@@ -137,6 +137,17 @@ class Media3Backend(
     /** Media3 原生 Player 实例（用于 PlayerView 绑定） */
     fun nativePlayer(): ExoPlayer? = player
 
+    /**
+     * 订阅源专用播放方法（已构建好 MediaSource）。
+     * 用于兼容旧的订阅源播放链路（已构建好 MergingMediaSource）。
+     */
+    fun prepareMediaSource(mediaSource: androidx.media3.exoplayer.source.MediaSource, playWhenReady: Boolean) {
+        val p = player ?: return
+        p.setMediaSource(mediaSource)
+        p.playWhenReady = playWhenReady
+        p.prepare()
+    }
+
     private inner class ExoPlayerListener : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             _isPlaying.value = isPlaying

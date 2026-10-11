@@ -25,9 +25,12 @@ import com.example.piliai.danmaku.toParsedDanmaku
 import com.example.piliai.data.remote.AccountSession
 import com.example.piliai.data.remote.BiliApiClient
 import com.example.piliai.data.repository.VideoRepository
+import com.example.piliai.playback.backend.PlaybackBackend
+import com.example.piliai.playback.backend.PlaybackEventListener
+import com.example.piliai.playback.backend.PlaybackRequest
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
-class VideoPlayerViewModel(context: Context) : ViewModel(), Player.Listener {
+class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListener {
     companion object {
         // 审核77：Gson 线程安全，全 VM 复用单实例
         private val GSON = com.google.gson.Gson()
@@ -35,7 +38,7 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), Player.Listener {
     // 审核27：ViewModel 生命周期长于 Activity，持有 applicationContext 防内存泄漏
     private val appContext: Context = context.applicationContext
     
-    private var _player: ExoPlayer? = null
+    private var backend: PlaybackBackend? = null
     private val sourceHttpClient = okhttp3.OkHttpClient.Builder()
         .connectTimeout(15L, java.util.concurrent.TimeUnit.SECONDS)
         .readTimeout(20L, java.util.concurrent.TimeUnit.SECONDS)
@@ -47,7 +50,11 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), Player.Listener {
     private var playbackSpeedRestoreJob: Job? = null
     private var playbackSpeedGeneration = 0L
     private var loadGeneration = 0L
-    val player: ExoPlayer? get() = _player
+    
+    /** 兼容层：UI 与 PlayerView 仍需要 ExoPlayer 实例，仅当后端为 Media3 时非空 */
+    val player: androidx.media3.exoplayer.ExoPlayer?
+        get() = (backend as? com.example.piliai.playback.backend.Media3Backend)?.nativePlayer()
+    
     val activeBackend: String
         get() = com.example.piliai.playback.backend.PlaybackBackends.resolve(
             com.example.piliai.utils.RendererPrefs.playbackBackend
@@ -108,61 +115,6 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), Player.Listener {
     )
     
     init {
-        // Kazumi 特性：低延迟音频。
-        // Media3 里 AudioAttributes 只能在 Builder 上设置（ExoPlayer 无 setAudioAttributes）。
-        // 低延迟模式下不走音频焦点让位（handleAudioFocus=false），避免焦点切换造成的
-        // 输出重开与缓冲重置，从而降低音画延迟；代价是与其他音频应用同时发声。
-        val audioAttrs = androidx.media3.common.AudioAttributes.Builder()
-            .setUsage(androidx.media3.common.C.USAGE_MEDIA)
-            .setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MOVIE)
-            .build()
-        // 审核轮210：音量归一化（1.3.1 Builder 无 setAudioSink，走 RenderersFactory
-        // 覆盖 buildAudioSink 注入 AudioNormalizationProcessor——分帧动态增益+EQ+限幅）
-        val audioNormEnabled = com.example.piliai.utils.RendererPrefs.audioNormalization
-        val renderersFactory: androidx.media3.exoplayer.RenderersFactory =
-            if (audioNormEnabled) object : androidx.media3.exoplayer.DefaultRenderersFactory(appContext) {
-                @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
-                override fun buildAudioSink(
-                    context: android.content.Context,
-                    enableFloatOutput: Boolean,
-                    enableAudioTrackPlaybackParams: Boolean
-                ): androidx.media3.exoplayer.audio.AudioSink {
-                    val processor = com.example.piliai.piliplus.AudioNormalizationProcessor().apply {
-                        setConfiguration(
-                            com.example.piliai.piliplus.AudioNormalizationConfiguration(
-                                dynamic = true, targetRmsDb = -16.0, maxGain = 10.0
-                            )
-                        )
-                    }
-                    return androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(appContext)
-                        .setAudioProcessors(arrayOf(processor))
-                        .setEnableFloatOutput(enableFloatOutput)
-                        .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-                        .build()
-                }
-            } else androidx.media3.exoplayer.DefaultRenderersFactory(appContext)
-
-        val playerBuilder = ExoPlayer.Builder(appContext, renderersFactory)
-            .setHandleAudioBecomingNoisy(true)
-            .setWakeMode(android.os.PowerManager.PARTIAL_WAKE_LOCK)
-            // 移植：接入 VOD 缓冲策略（原先 Media3BufferPolicy 是孤儿代码，
-            // 播放器从未设置 LoadControl）。默认 16s / 4MiB，可在设置页调整。
-            .setLoadControl(
-                com.example.piliai.piliplus.Media3LoadControlFactory.create(
-                    bufferDurationMs = com.example.piliai.utils.RendererPrefs.bufferDurationMs,
-                )
-            )
-            .setAudioAttributes(
-                audioAttrs,
-                !com.example.piliai.utils.RendererPrefs.lowLatencyAudio
-            )
-        
-        // 审核轮210（更正旧注释）：javap 实测 Media3 1.3.1 的 ExoPlayer **有**
-        // setVideoEffects(List<Effect>)——超分辨率已在 onVideoSizeChanged 真实接入
-        //（Media3SuperResolutionApplier，GL 上采样替代 1.5+ 才有的 LanczosResample）。
-        // HDR 色调映射 GL shader 仍需 1.5+（配置通道保留）。
-        _player = playerBuilder.build()
-        _player?.addListener(this)
         // 读取 DataStore 持久化设置：默认清晰度 + 弹幕开关（真实作用于播放链路）
         val storage = com.example.piliai.utils.StorageManager.getInstance(appContext)
         viewModelScope.launch {
@@ -350,9 +302,10 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), Player.Listener {
                         currentPart = if (bvid.isEmpty()) 1 else _state.value.currentPart,
                         currentPartTitle = if (bvid.isEmpty()) "" else _state.value.currentPartTitle
                     )
-                    _player?.setMediaSource(mediaSource)
-                    _player?.playWhenReady = autoPlay
-                    _player?.prepare()
+                    // 订阅源播放通过 Media3Backend
+                    ensureBackend()
+                    val media3 = backend as? com.example.piliai.playback.backend.Media3Backend
+                    media3?.prepareMediaSource(mediaSource, autoPlay)
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -703,6 +656,23 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), Player.Listener {
 
     /** 组装 MergingMediaSource 并启动播放（可带恢复进度） */
     @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    /**
+     * 创建播放后端（根据设置选择 Media3 或 GPU-next）。
+     * 每次起播前调用，确保使用最新配置。
+     */
+    private fun ensureBackend() {
+        if (backend != null) return  // 已创建，复用
+        
+        val backendId = com.example.piliai.playback.backend.PlaybackBackends.resolve(
+            com.example.piliai.utils.RendererPrefs.playbackBackend
+        )
+        
+        backend = when (backendId) {
+            "gpu-next" -> com.example.piliai.playback.backend.GpuNextBackend(this)
+            else -> com.example.piliai.playback.backend.Media3Backend(appContext, this)
+        }
+    }
+    
     private fun startPlayback(
         videoUrl: String,
         audioUrl: String?,
@@ -752,14 +722,29 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), Player.Listener {
             videoSource
         }
 
-        _player?.setMediaSource(merged, resumePositionMs)
-        _player?.prepare()
-        _player?.playWhenReady = playWhenReady
+        // 已废弃：直接使用 Media3 API 的旧代码路径。
+        // 现已改用 startPlaybackWithMediaSource
+        throw UnsupportedOperationException("Use startPlayback() or startPlaybackWithMediaSource() instead")
+    }
+
+    /**
+     * 订阅源专用播放方法（已构建好 MediaSource）。
+     * 只支持 Media3Backend，GPU-next 不支持此路径。
+     */
+    private fun startPlaybackWithMediaSource(
+        mediaSource: androidx.media3.exoplayer.source.MediaSource,
+        autoPlay: Boolean = true
+    ) {
+        ensureBackend()
+        val media3 = backend as? com.example.piliai.playback.backend.Media3Backend
+            ?: run {
+                setError("订阅源播放仅支持 Media3 后端")
+                return
+            }
+        media3.prepareMediaSource(mediaSource, autoPlay)
         _state.value = _state.value.copy(
-            isPlaying = playWhenReady, isBuffering = true,
-            error = null, duration = 0L,
-            qualities = availableQualities, currentQn = currentQn,
-            brightness = _state.value.brightness
+            isPlaying = autoPlay, isBuffering = true,
+            error = null, duration = 0L
         )
     }
 
@@ -770,8 +755,8 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), Player.Listener {
                 com.example.piliai.utils.StorageManager.getInstance(appContext)
                     .pauseOnMinimizeFlow.first()
             }.getOrDefault(false)
-            if (pause && _player?.isPlaying == true) {
-                _player?.pause()
+            if (pause && backend?.isPlaying() == true) {
+                backend?.pause()
                 _state.value = _state.value.copy(isPlaying = false)
             }
         }
@@ -785,21 +770,21 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), Player.Listener {
 
     fun play() {
         viewModelScope.launch {
-            _player?.play()
+            backend?.play()
             _state.value = _state.value.copy(isPlaying = true)
         }
     }
     
     fun pause() {
         viewModelScope.launch {
-            _player?.pause()
+            backend?.pause()
             _state.value = _state.value.copy(isPlaying = false)
         }
     }
     
     fun seekTo(positionMs: Long) {
         viewModelScope.launch {
-            _player?.seekTo(positionMs)
+            backend?.seekTo(positionMs)
             _state.value = _state.value.copy(currentTime = positionMs)
         }
     }
@@ -807,7 +792,7 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), Player.Listener {
     fun setVolume(volume: Float) {
         val clamped = volume.coerceIn(0f, 1f)
         viewModelScope.launch {
-            _player?.volume = clamped
+            backend?.setVolume(clamped)
             _state.value = _state.value.copy(
                 volume = clamped, isMuted = clamped == 0f
             )
@@ -840,9 +825,7 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), Player.Listener {
     }
 
     private fun applyPlaybackSpeed(speed: Float) {
-        _player?.playbackParameters = androidx.media3.common.PlaybackParameters(
-            speed, _player?.playbackParameters?.pitch ?: 1.0f
-        )
+        backend?.setSpeed(speed)
         _state.value = _state.value.copy(playbackSpeed = speed)
     }
 
@@ -867,7 +850,7 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), Player.Listener {
     fun toggleMute() {
         viewModelScope.launch {
             val newMuted = !_state.value.isMuted
-            _player?.volume = if (newMuted) 0f else 1f
+            backend?.setVolume(if (newMuted) 0f else 1f)
             _state.value = if (newMuted) {
                 _state.value.copy(isMuted = true, volume = 0f)
             } else {
@@ -947,25 +930,8 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), Player.Listener {
     }
     
     // 审核轮210：超分辨率真接入（Media3 1.3.1 已有 setVideoEffects，javap 验证；
-    // LanczosResample 需 1.5+，用 ScaleAndRotateTransformation GL 上采样替代）
-    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
-    override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
-        super.onVideoSizeChanged(videoSize)
-        if (videoSize.width <= 0 || videoSize.height <= 0) return
-        val effects = com.example.piliai.piliplus.Media3SuperResolutionApplier
-            .resolve(videoSize.width, videoSize.height).orEmpty()
-        // 审核轮214：HDR 内容检测真实消费（HDR 开启且内容为 HDR 时记日志；
-        // GL tone-map shader 需 1.5+ 的 HlgToSdrEffect，配置通道已就绪）
-        _player?.videoFormat?.let { fmt ->
-            if (com.example.piliai.utils.RendererPrefs.hdrToneMappingEnabled &&
-                com.example.piliai.piliplus.isHdrContent(fmt.colorInfo)
-            ) {
-                android.util.Log.i("PiliPlayer", "HDR 内容（tone-mapping 待 Media3 1.5+）")
-            }
-        }
-        _player?.setVideoEffects(effects)
-    }
-
+    // ==================== PlaybackEventListener 实现 ====================
+    
     override fun onIsPlayingChanged(isPlaying: Boolean) {
         _state.value = _state.value.copy(isPlaying = isPlaying)
     }
@@ -974,28 +940,43 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), Player.Listener {
         _state.value = _state.value.copy(isBuffering = isLoading)
     }
     
-    override fun onPlaybackStateChanged(state: Int) {
-        when (state) {
-            Player.STATE_BUFFERING -> _state.value = _state.value.copy(isBuffering = true)
-            Player.STATE_READY -> _state.value = _state.value.copy(
-                isBuffering = false, duration = _player?.duration ?: 0L
-            )
-            Player.STATE_ENDED -> onPlaybackEnded()
-            // 审核：补全 Player.STATE_IDLE 分支（消除 lint SwitchIntDef）
-            Player.STATE_IDLE -> _state.value = _state.value.copy(isPlaying = false, isBuffering = false)
+    override fun onBuffering(isBuffering: Boolean) {
+        _state.value = _state.value.copy(isBuffering = isBuffering)
+    }
+    
+    override fun onDurationChanged(durationMs: Long) {
+        _state.value = _state.value.copy(duration = durationMs)
+    }
+    
+    override fun onPositionChanged(positionMs: Long) {
+        _state.value = _state.value.copy(currentTime = positionMs)
+    }
+    
+    override fun onPlaybackEnded() {
+        viewModelScope.launch {
+            onPlaybackEndedInternal()
         }
     }
     
-    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-        setError(error.message ?: "Playback error")
+    override fun onError(message: String) {
+        setError(message)
     }
     
-    override fun onPositionDiscontinuity(
-        newPosition: androidx.media3.common.Player.PositionInfo,
-        oldPosition: androidx.media3.common.Player.PositionInfo,
-        reason: Int
-    ) {
-        _state.value = _state.value.copy(currentTime = newPosition.positionMs)
+    override fun onVideoSizeChanged(width: Int, height: Int) {
+        if (width <= 0 || height <= 0) return
+        val effects = com.example.piliai.piliplus.Media3SuperResolutionApplier
+            .resolve(width, height).orEmpty()
+        // 审核轮214：HDR 内容检测（Media3 特定）
+        (backend as? com.example.piliai.playback.backend.Media3Backend)?.let { media3 ->
+            media3.nativePlayer()?.videoFormat?.let { fmt ->
+                if (com.example.piliai.utils.RendererPrefs.hdrToneMappingEnabled &&
+                    com.example.piliai.piliplus.isHdrContent(fmt.colorInfo)
+                ) {
+                    android.util.Log.i("PiliPlayer", "HDR 内容（tone-mapping 待 Media3 1.5+）")
+                }
+            }
+            media3.setVideoEffects(effects)
+        }
     }
     
     override fun onCleared() {
@@ -1006,10 +987,9 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), Player.Listener {
         subtitleListJob?.cancel()
         subtitleBodyJob?.cancel()
         try {
-            _player?.removeListener(this)
-            _player?.release()
+            backend?.release()
         } finally {
-            _player = null
+            backend = null
             sourceHttpClient.dispatcher.cancelAll()
             sourceHttpClient.connectionPool.evictAll()
             sourceHttpClient.dispatcher.executorService.shutdown()
@@ -1141,7 +1121,7 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), Player.Listener {
             if (!AccountSession.isLogin) { setError("请先登录后发弹幕"); return@launch }
             val cid = effectiveCid
             if (cid == 0L || currentBvid.isEmpty()) { setError("弹幕发送失败（视频未就绪）"); return@launch }
-            val progress = _player?.currentPosition ?: 0L
+            val progress = backend?.positionMs() ?: 0L
             BiliApiClient().sendVideoDanmaku(cid, currentBvid, text.trim(), progress, mode, color)
                 .onSuccess { ok ->
                     if (ok) {
@@ -1353,7 +1333,7 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), Player.Listener {
         if (qn == currentQn) return
         val target = dashVideos.firstOrNull { it.id == qn } ?: return
         currentQn = qn
-        val pos = _player?.currentPosition ?: 0L
+        val pos = backend?.positionMs() ?: 0L
         val playing = _state.value.isPlaying
         viewModelScope.launch {
             val audio = bestAudio()
@@ -1443,10 +1423,8 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), Player.Listener {
         }
     }
 
-    private fun onPlaybackEnded() {
+    private fun onPlaybackEndedInternal() {
         completionJob?.cancel()
-        val endedPlayer = _player ?: return
-        val endedMedia = endedPlayer.currentMediaItem
         val generation = loadGeneration
         val partIndex = currentPartIndex
         _state.value = _state.value.copy(isPlaying = false, isBuffering = false)
@@ -1459,15 +1437,11 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), Player.Listener {
             } catch (_: Exception) {
                 "stop"
             }
-            if (generation != loadGeneration || _player !== endedPlayer ||
-                endedPlayer.currentMediaItem != endedMedia ||
-                currentPartIndex != partIndex ||
-                endedPlayer.playbackState != Player.STATE_ENDED
-            ) return@launch
+            if (generation != loadGeneration || currentPartIndex != partIndex) return@launch
             when (action) {
                 "repeat" -> {
-                    endedPlayer.seekTo(0L)
-                    endedPlayer.play()
+                    seekTo(0L)
+                    play()
                     _state.value = _state.value.copy(currentTime = 0L)
                 }
                 "next" -> when {
@@ -1549,5 +1523,5 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), Player.Listener {
         }
     }
 
-    private fun duration(): Long = _player?.duration?.takeIf { it > 0 } ?: _state.value.duration
+    private fun duration(): Long = backend?.durationMs() ?: _state.value.duration
 }
