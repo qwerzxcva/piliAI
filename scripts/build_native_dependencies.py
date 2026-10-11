@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import time
 import os
 import re
 import shlex
@@ -396,12 +397,21 @@ def prepare_archive(name, entry, downloads, sources, env, log_path):
     else:
         temporary = archive_path.with_suffix(archive_path.suffix + '.partial')
         try:
-            with urllib.request.urlopen(entry['url'], timeout=120) as response, temporary.open('wb') as output:
-                while True:
-                    chunk = response.read(1024 * 1024)
-                    if not chunk:
-                        break
-                    output.write(chunk)
+            last_error = None
+            for attempt in range(5):
+                try:
+                    with urllib.request.urlopen(entry['url'], timeout=300) as response, temporary.open('wb') as output:
+                        while True:
+                            chunk = response.read(1024 * 1024)
+                            if not chunk:
+                                break
+                            output.write(chunk)
+                    break
+                except Exception as error:
+                    last_error = error
+                    if attempt == 4:
+                        raise
+                    time.sleep(10 * (attempt + 1))
             actual = _sha256(temporary)
             if actual != expected:
                 raise BuildFailure(f'{name} downloaded archive checksum mismatch: expected {expected}, got {actual}')
