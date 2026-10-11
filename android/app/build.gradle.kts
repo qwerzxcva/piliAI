@@ -76,6 +76,10 @@ android {
 
     lint {
         abortOnError = true
+        // 审核225：CI lint 门禁 0 warning。PluralsCandidate 对"话数 N"这类
+        // 中文计数文案是误报（英文 en 资源同样式），ChromeOS x86_64 提示与
+        // 纯 ARMv8 定位冲突（用户要求：只保留 ARMv8）。
+        disable += listOf("PluralsCandidate", "ChromeOsAbiSupport")
     }
 
     kotlinOptions {
