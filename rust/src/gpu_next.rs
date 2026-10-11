@@ -60,6 +60,7 @@ pub enum BridgeError {
 }
 
 impl BridgeError {
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn code(&self) -> i32 {
         match self {
             BridgeError::InvalidArgument(_) => -1001,
@@ -107,9 +108,6 @@ enum InstancePhase {
 
 struct SurfaceBinding<S> {
     surface: S,
-    /// Raw global jobject bits passed to libmpv as `wid`.
-    #[cfg_attr(not(target_os = "android"), allow(dead_code))]
-    wid: i64,
 }
 
 struct MpvInstance<S> {
@@ -322,7 +320,7 @@ impl<S> HandleRegistry<S> {
         if let Err(error) = instance.native.set_wid(wid) {
             return Err((error, surface));
         }
-        let previous = instance.surface.replace(SurfaceBinding { surface, wid });
+        let previous = instance.surface.replace(SurfaceBinding { surface });
         Ok(previous.map(|binding| binding.surface))
     }
 

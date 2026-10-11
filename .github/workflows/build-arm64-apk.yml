@@ -16,7 +16,7 @@ env:
 jobs:
   build-rust-native:
     name: Build Rust native library (arm64-v8a)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
 
@@ -76,9 +76,9 @@ jobs:
           # 审核226p：脚本 stdout/stderr 全捕获（BuildFailure 一句话根因 + traceback）
           python3 scripts/build_native_dependencies.py --lock scripts/native-dependencies.lock.json > /tmp/native_out.txt 2>&1
           status=$?
-          # 审核231：无论成败都 dump 末尾输出到注解（exit 2 之类无 STDERR 的失败也要能看见）
+          # stdout/stderr is retained in the job log; only failure diagnostics use annotations.
           tail -25 /tmp/native_out.txt | while IFS= read -r L; do
-            [ -n "$L" ] && echo "::error::OUT ${L:0:280}"
+            [ -n "$L" ] && echo "NATIVE ${L:0:280}"
           done
           if [ $status -ne 0 ]; then
             echo "=== build.log tail ==="
@@ -87,17 +87,17 @@ jobs:
             # 审核226i：无 admin 拉不到 job 日志，把报错行转成 ::error:: 注解（API 可读）
             if [ -f "$LOG" ]; then
               grep -aE 'ERROR|Error|error:|FATAL|failed|FAILED|BUILT|Traceback|BuildFailure|command failed' "$LOG" | tail -40 | while IFS= read -r L; do
-                echo "::error::${L:0:300}"
+                echo "NATIVE-ERROR ${L:0:300}"
               done
               # 审核226j：日志最后 60 行进注解，但过滤 install 噪音（注解总量有 ~50 上限，噪音会挤掉真报错）
               tail -60 "$LOG" | grep -av 'Installing ' | while IFS= read -r L; do
-                [ -n "$L" ] && echo "::error::TAIL ${L:0:280}"
+                [ -n "$L" ] && echo "NATIVE-LOG ${L:0:280}"
               done
             fi
             for MLOG in $(find .aharou/native-build -name 'meson-log.txt' 2>/dev/null); do
               # 审核229：meson-log 最后 30 行全量进注解（探测噪音在前面，fatal 在尾部）
               tail -30 "$MLOG" | while IFS= read -r L; do
-                [ -n "$L" ] && echo "::error::MLOG ${L:0:280}"
+                [ -n "$L" ] && echo "NATIVE-MESON ${L:0:280}"
               done
             done
             # 组件 configure 日志（ffmpeg 等）同样兜底输出
@@ -126,7 +126,7 @@ jobs:
           cargo ndk -t arm64-v8a --platform 36 -o ../android/app/src/main/jniLibs build --locked --release > /tmp/rust_build.txt 2>&1
           status=$?
           tail -30 /tmp/rust_build.txt | while IFS= read -r L; do
-            [ -n "$L" ] && echo "::error::RUST ${L:0:280}"
+            [ -n "$L" ] && echo "RUST ${L:0:280}"
           done
           [ $status -ne 0 ] && exit $status
           find "$MPV_PREFIX/lib" -maxdepth 1 \( -type f -o -type l \) -name '*.so*' -exec cp -L {} ../android/app/src/main/jniLibs/arm64-v8a/ \;
@@ -150,7 +150,7 @@ jobs:
           cargo clippy --locked --all-targets -- -D warnings 2>&1
 
       - name: Upload Rust artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v8
         with:
           name: rust-lib-arm64
           path: android/app/src/main/jniLibs/arm64-v8a/
@@ -160,7 +160,7 @@ jobs:
   build-apk:
     name: Build APK (Android 16 ARM64)
     needs: [build-rust-native]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
 
@@ -172,7 +172,7 @@ jobs:
           cache: 'gradle'
 
       - name: Download Rust library
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: rust-lib-arm64
           path: android/app/src/main/jniLibs/arm64-v8a
@@ -208,7 +208,7 @@ jobs:
 
       - name: Upload lint report
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v8
         with:
           name: lint-debug
           path: |
@@ -247,7 +247,7 @@ jobs:
           ls -la apk_output/
 
       - name: Upload Debug APK
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v8
         with:
           name: pilinara-debug
           path: apk_output/
@@ -257,9 +257,9 @@ jobs:
   verify:
     name: Verify Build
     needs: [build-apk]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts/
       

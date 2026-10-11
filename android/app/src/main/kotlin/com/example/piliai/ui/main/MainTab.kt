@@ -12,7 +12,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import com.example.piliai.R
 
 enum class MainTab(
-    @StringRes val labelRes: Int,
+    @param:StringRes val labelRes: Int,
     val iconOutlined: ImageVector,
     val iconFilled: ImageVector,
 ) {
