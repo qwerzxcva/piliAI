@@ -43,7 +43,8 @@ class SubscribeViewModel(
         val isRefreshing: Boolean = false,
         val errorMessage: String? = null,
         val infoMessage: String? = null,
-        val isSearching: Boolean = false
+        val isSearching: Boolean = false,
+        val bangumiCandidates: List<com.example.piliai.data.remote.BangumiApi.Subject> = emptyList()
     )
 
     private val _state = MutableStateFlow(UiState())
@@ -329,7 +330,7 @@ class SubscribeViewModel(
                         link = item.link,
                         desc = item.desc,
                         episode = item.episode,
-                        sourceName = source.name
+                        sourceName = "rss"
                     )
                 }
                 if (parsed.items.isEmpty()) {
@@ -563,20 +564,24 @@ class SubscribeViewModel(
         bangumiLookupJob = viewModelScope.launch {
             val context = com.example.piliai.AppContext.get()
             try {
-                val subject = com.example.piliai.data.remote.BangumiApi.searchSubject(query)
+                val candidates = com.example.piliai.data.remote.BangumiApi.searchSubjects(query)
                 kotlinx.coroutines.currentCoroutineContext().ensureActive()
-                val matched = subject?.takeIf {
-                    it.id > 0L && (it.title.equals(query, ignoreCase = true) ||
-                        it.name.equals(query, ignoreCase = true))
+                val exact = candidates.firstOrNull {
+                    it.title.equals(query, ignoreCase = true) ||
+                        it.name.equals(query, ignoreCase = true)
                 }
-                if (matched == null) {
-                    _state.value = _state.value.copy(
+                when {
+                    exact != null -> onFound(exact.id)
+                    candidates.isEmpty() -> _state.value = _state.value.copy(
+                        bangumiCandidates = emptyList(),
                         infoMessage = context.getString(
                             com.example.piliai.R.string.bangumi_no_exact_match
                         )
                     )
-                } else {
-                    onFound(matched.id)
+                    else -> _state.value = _state.value.copy(
+                        bangumiCandidates = candidates,
+                        infoMessage = null
+                    )
                 }
             } catch (error: kotlinx.coroutines.CancellationException) {
                 throw error
@@ -588,6 +593,10 @@ class SubscribeViewModel(
                 )
             }
         }
+    }
+
+    fun dismissBangumiCandidates() {
+        _state.value = _state.value.copy(bangumiCandidates = emptyList())
     }
 
     fun setLibraryQuery(query: String) {

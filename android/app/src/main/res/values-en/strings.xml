@@ -20,7 +20,9 @@
     <string name="subscribe_search_library">Search imported subscription content</string>
     <string name="subscribe_search_rss_hint">RSS sources search the imported feed and return entries.</string>
     <string name="subscribe_search_rss_and_web_hint">RSS and web-selector sources search the imported source; web sources continue through subject, episode, and playback extraction.</string>
-    <string name="bangumi_no_exact_match">No exact matching subject found on Bangumi</string>
+    <string name="bangumi_no_exact_match">No matching subject found on Bangumi</string>
+    <string name="bangumi_pick_subject">Choose a Bangumi subject</string>
+    <string name="bangumi_episodes">%1$d episodes</string>
     <string name="playback_backend_title">Playback engine</string>
     <string name="playback_backend_media3">Media3 (default, hardware decoding)</string>
     <string name="playback_backend_gpu_next_ready">GPU-next (libplacebo rendering)</string>

@@ -32,11 +32,12 @@ class GpuNextBackend(
         bridge.setOption("gpu-context", "android")
         if (request.userAgent.isNotBlank()) bridge.setOption("user-agent", request.userAgent)
         request.headers["Referer"]?.let { bridge.setOption("referrer", it) }
+        request.audioUri?.let { bridge.setOption("audio-files", it.toString()) }
+        if (request.resumePositionMs > 0L) {
+            bridge.setOption("start", (request.resumePositionMs / 1000.0).toString())
+        }
         bridge.initialize()
         bridge.command("loadfile", request.videoUri.toString(), "replace")
-        if (request.resumePositionMs > 0L) {
-            bridge.setProperty("start", (request.resumePositionMs / 1000.0).toString())
-        }
         val shouldPause = !request.playWhenReady
         bridge.setProperty("pause", if (shouldPause) "yes" else "no")
         _isPlaying.value = request.playWhenReady

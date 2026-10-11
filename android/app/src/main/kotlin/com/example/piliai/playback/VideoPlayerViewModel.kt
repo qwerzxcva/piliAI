@@ -18,6 +18,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import com.example.piliai.data.model.formatCount
 import com.example.piliai.data.model.toParsed
@@ -50,6 +51,10 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     private var playbackSpeedRestoreJob: Job? = null
     private var playbackSpeedGeneration = 0L
     private var loadGeneration = 0L
+    private var clockJob: Job? = null
+    private var introSkippedForGeneration = -1L
+    private var outroSkippedForGeneration = -1L
+    private var pendingGpuSurface: android.view.Surface? = null
     
     /** 兼容层：UI 与 PlayerView 仍需要 ExoPlayer 实例，仅当后端为 Media3 时非空 */
     val player: androidx.media3.exoplayer.ExoPlayer?
@@ -89,6 +94,7 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         val danmakuOn: Boolean = true,
         val danmakuAlpha: Float = 1f,
         val danmakuScale: Float = 1f,
+        val danmakuSpeed: Float = 1f,
         val brightness: Float = 0.5f,
         val gestureSeekDeltaMs: Long = 0L,
         val qualities: List<QualityOption> = emptyList(),
@@ -96,6 +102,7 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         val related: List<RelatedItem> = emptyList(),
         // 批次L40：实时在线人数
         val onlineCount: Long = 0L,
+        val dmTotalCount: Int = 0,  // 审核222：弹幕总数（enableDmCount）
         // Kazumi 特性：低延迟音频 + 视频渲染器（0=SurfaceView 1=TextureView）
         val lowLatencyAudio: Boolean = false,
         val renderer: Int = 0,
@@ -115,6 +122,7 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     )
     
     init {
+        startPositionClock()
         // 读取 DataStore 持久化设置：默认清晰度 + 弹幕开关（真实作用于播放链路）
         val storage = com.example.piliai.utils.StorageManager.getInstance(appContext)
         viewModelScope.launch {
@@ -137,6 +145,11 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         viewModelScope.launch {
             storage.danmakuScaleFlow.collect { s ->
                 _state.value = _state.value.copy(danmakuScale = s)
+            }
+        }
+        viewModelScope.launch {
+            storage.danmakuSpeedFlow.collect { speed ->
+                _state.value = _state.value.copy(danmakuSpeed = speed)
             }
         }
         // Kazumi：低延迟音频 + 渲染器（持久化设置，实时作用于播放链路）
@@ -292,6 +305,7 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
                         dashVideos = emptyList()
                         availableQualities = emptyList()
                         _danmakuQueue.clear()
+                        _state.value = _state.value.copy(dmTotalCount = 0)
                     }
                     _state.value = _state.value.copy(
                         isPlaying = false, isBuffering = true,
@@ -471,7 +485,7 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
                     mode = p.mode,
                 )
             }
-            addDanmakuEvents(danmakuEvents)
+            addDanmakuEvents(danmakuEvents, replace = false)
         }
     }
 
@@ -654,6 +668,49 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     /** 按当前秒数取缩略图帧 (url, col, row) */
     fun shotFrameAt(second: Long): Triple<String, Int, Int>? = _videoShot.value?.frameAt(second)
 
+    /** 播放进度自己走，片头片尾只在每集各跳一次 */
+    private fun startPositionClock() {
+        clockJob?.cancel()
+        clockJob = viewModelScope.launch {
+            while (true) {
+                delay(400L)
+                val pos = backend?.positionMs() ?: continue
+                val dur = backend?.durationMs()?.takeIf { it > 0L } ?: _state.value.duration
+                if (pos != _state.value.currentTime || (dur > 0L && dur != _state.value.duration)) {
+                    _state.value = _state.value.copy(currentTime = pos, duration = dur)
+                }
+                maybeSkipIntroOutro(pos, dur)
+            }
+        }
+    }
+
+    private fun maybeSkipIntroOutro(pos: Long, dur: Long) {
+        val introMs = com.example.piliai.utils.RendererPrefs.skipIntroSec * 1000L
+        val outroMs = com.example.piliai.utils.RendererPrefs.skipOutroSec * 1000L
+        if (introMs > 0L && pos in 0L until introMs && introSkippedForGeneration != loadGeneration) {
+            introSkippedForGeneration = loadGeneration
+            seekTo(introMs)
+            return
+        }
+        if (outroMs > 0L && dur > introMs + outroMs + 5_000L &&
+            pos >= dur - outroMs && outroSkippedForGeneration != loadGeneration
+        ) {
+            outroSkippedForGeneration = loadGeneration
+            seekTo(dur)
+        }
+    }
+
+    /** GPU-next 的 Surface 由播放器页持有，Media3 仍走 PlayerView */
+    fun attachVideoSurface(surface: android.view.Surface) {
+        pendingGpuSurface = surface
+        backend?.attachSurface(surface)
+    }
+
+    fun detachVideoSurface() {
+        pendingGpuSurface = null
+        backend?.detachSurface()
+    }
+
     /** 组装 MergingMediaSource 并启动播放（可带恢复进度） */
     @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     /**
@@ -722,9 +779,31 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
             videoSource
         }
 
-        // 已废弃：直接使用 Media3 API 的旧代码路径。
-        // 现已改用 startPlaybackWithMediaSource
-        throw UnsupportedOperationException("Use startPlayback() or startPlaybackWithMediaSource() instead")
+        ensureBackend()
+        val current = backend
+        if (current is com.example.piliai.playback.backend.GpuNextBackend) {
+            val request = PlaybackRequest(
+                videoUri = videoUri,
+                audioUri = audioUrl?.takeIf { it.isNotEmpty() }?.let { raw ->
+                    if (raw.startsWith("/")) Uri.fromFile(java.io.File(raw)) else raw.toUri()
+                },
+                headers = headers,
+                userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+                    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                resumePositionMs = resumePositionMs,
+                playWhenReady = playWhenReady
+            )
+            current.prepare(request)
+            pendingGpuSurface?.let { current.attachSurface(it) }
+        } else {
+            (current as? com.example.piliai.playback.backend.Media3Backend)
+                ?.prepareMediaSource(merged, playWhenReady)
+            if (resumePositionMs > 0L) current?.seekTo(resumePositionMs)
+        }
+        _state.value = _state.value.copy(
+            isPlaying = playWhenReady, isBuffering = true,
+            error = null, duration = 0L
+        )
     }
 
     /**
@@ -886,8 +965,7 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         }
     }
 
-    fun addDanmakuEvents(events: List<DanmakuEvent>) {
-        _danmakuQueue.clear()
+    fun addDanmakuEvents(events: List<DanmakuEvent>, replace: Boolean = true) {
         // 批次audit25：屏蔽规则批量过滤优先走 Rust（万条×多规则 CPU 密集下沉），失败回退 Kotlin 逐条
         val filtered = runCatching {
             val lib = com.example.piliai.danmaku.DanmakuNativeLib()
@@ -903,9 +981,14 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
             (0 until kept.length()).map { i -> events[kept.getInt(i)] }
         }.getOrNull()
             ?: events.filterNot { com.example.piliai.ui.settings.DanmakuBlockViewModel.shouldBlock(it.content, it.uid) }
+        if (replace) {
+            _danmakuQueue.clear()
+        }
         _danmakuQueue.addAll(filtered)
+        // 总数跟队列走，不能在清空后又按入参累加（DanDan 补充源会覆盖主弹幕）
+        _state.value = _state.value.copy(dmTotalCount = _danmakuQueue.size)
         // 批次L42：计算弹幕密度热力曲线（下沉 Rust，失败保留旧曲线）
-        computeHeatCurve(filtered)
+        computeHeatCurve(_danmakuQueue.toList())
     }
 
     /** 批次L42：调用 Rust 计算高能进度条曲线 */
@@ -981,6 +1064,7 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     
     override fun onCleared() {
         ++playbackSpeedGeneration
+        clockJob?.cancel()
         playbackSpeedRestoreJob?.cancel()
         completionJob?.cancel()
         loadJob?.cancel()

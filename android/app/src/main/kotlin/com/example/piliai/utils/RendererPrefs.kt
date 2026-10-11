@@ -39,6 +39,14 @@ object RendererPrefs {
     var bufferDurationMs: Int = 16_000
         private set
 
+    @Volatile
+    var skipIntroSec: Int = 0
+        private set
+
+    @Volatile
+    var skipOutroSec: Int = 0
+        private set
+
     /** 审核轮210：超分辨率模式（disable/efficiency/quality），供播放器 setVideoEffects 读取 */
     @Volatile
     var superResolutionMode: String = "disable"
@@ -106,6 +114,12 @@ object RendererPrefs {
             storage.bufferDurationFlow.collectLatest { v ->
                 bufferDurationMs = v
             }
+        }
+        scope.launch {
+            storage.skipIntroSecFlow.collectLatest { skipIntroSec = it }
+        }
+        scope.launch {
+            storage.skipOutroSecFlow.collectLatest { skipOutroSec = it }
         }
         scope.launch {
             storage.superResolutionFlow.collectLatest { v ->

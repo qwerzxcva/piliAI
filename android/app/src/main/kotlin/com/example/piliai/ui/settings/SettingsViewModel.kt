@@ -57,7 +57,10 @@ class SettingsViewModel(context: Context) : ViewModel() {
         // 审核221：蜂窝网络覆盖项（空=跟随 WiFi 设置）
         val videoQaCellular: String = "",
         val audioQaCellular: String = "",
-        val preferCodecCellular: String = ""
+        val preferCodecCellular: String = "",
+        val dmCountEnabled: Boolean = false,   // 审核222：播放器显示弹幕总数
+        val skipIntroSec: Int = 0,
+        val skipOutroSec: Int = 0,
     )
 
     init {
@@ -84,6 +87,15 @@ class SettingsViewModel(context: Context) : ViewModel() {
         }
         viewModelScope.launch {
             storage.preferCodecCellularFlow.collect { _state.value = _state.value.copy(preferCodecCellular = it) }
+        }
+        viewModelScope.launch {
+            storage.dmCountEnabledFlow.collect { _state.value = _state.value.copy(dmCountEnabled = it) }
+        }
+        viewModelScope.launch {
+            storage.skipIntroSecFlow.collect { _state.value = _state.value.copy(skipIntroSec = it) }
+        }
+        viewModelScope.launch {
+            storage.skipOutroSecFlow.collect { _state.value = _state.value.copy(skipOutroSec = it) }
         }
         viewModelScope.launch {
             storage.autoPlayFlow.collect { _state.value = _state.value.copy(autoPlay = it) }
@@ -213,4 +225,7 @@ class SettingsViewModel(context: Context) : ViewModel() {
     fun setVideoQaCellular(v: String) = viewModelScope.launch { storage.setVideoQaCellular(v) }
     fun setAudioQaCellular(v: String) = viewModelScope.launch { storage.setAudioQaCellular(v) }
     fun setPreferCodecCellular(v: String) = viewModelScope.launch { storage.setPreferCodecCellular(v) }
+    fun setDmCountEnabled(v: Boolean) = viewModelScope.launch { storage.setDmCountEnabled(v) }
+    fun setSkipIntroSec(v: Int) = viewModelScope.launch { storage.setSkipIntroSec(v) }
+    fun setSkipOutroSec(v: Int) = viewModelScope.launch { storage.setSkipOutroSec(v) }
 }

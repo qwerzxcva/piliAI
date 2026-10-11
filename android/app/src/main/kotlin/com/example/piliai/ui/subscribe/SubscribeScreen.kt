@@ -317,6 +317,43 @@ fun SubscribeScreen(
         )
     }
 
+    if (state.bangumiCandidates.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissBangumiCandidates() },
+            title = { Text(stringResource(com.example.piliai.R.string.bangumi_pick_subject)) },
+            text = {
+                Column {
+                    state.bangumiCandidates.forEach { subject ->
+                        Text(
+                            text = buildString {
+                                append(subject.title)
+                                if (subject.date.isNotBlank()) append(" · ").append(subject.date)
+                                if (subject.rating.score > 0) {
+                                    append(" · ").append(String.format(java.util.Locale.ROOT, "%.1f", subject.rating.score))
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    viewModel.dismissBangumiCandidates()
+                                    onOpenSubject(subject.id)
+                                }
+                                .padding(vertical = 10.dp),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissBangumiCandidates() }) {
+                    Text(stringResource(com.example.piliai.R.string.bangumi_back))
+                }
+            }
+        )
+    }
+
     webTarget?.let { target ->
         SearchInSourceDialog(
             sourceName = target.title,
@@ -590,7 +627,17 @@ private fun SubscribeItemCard(
                         }
                     }
                 }
-                if (item.sourceName.isNotBlank()) {
+                if (item.desc.isNotBlank() && item.sourceName != "rss" && item.sourceName != "episode") {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = item.desc,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (item.sourceName.isNotBlank() && item.sourceName != "rss") {
                     Spacer(Modifier.height(2.dp))
                     Text(
                         text = item.sourceName,

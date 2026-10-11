@@ -281,13 +281,40 @@ fun VideoPlayerScreen(
             lifecycleOwner.lifecycle.addObserver(observer)
             onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
         }
-        // Video Surface
-        AndroidView(
-            factory = { ctx ->
-                createPlayerView(ctx, viewModel.player).also { playerViewRef = it }
-            },
-            modifier = Modifier.fillMaxSize()
-        )
+        // 画面：Media3 走 PlayerView；GPU-next 走独立 Surface，交给 libmpv 的 vo=gpu-next
+        val backendId = viewModel.activeBackend
+        if (backendId == "gpu-next") {
+            AndroidView(
+                factory = { ctx ->
+                    android.view.SurfaceView(ctx).apply {
+                        holder.addCallback(object : android.view.SurfaceHolder.Callback {
+                            override fun surfaceCreated(holder: android.view.SurfaceHolder) {
+                                viewModel.attachVideoSurface(holder.surface)
+                            }
+                            override fun surfaceChanged(
+                                holder: android.view.SurfaceHolder,
+                                format: Int,
+                                width: Int,
+                                height: Int
+                            ) {
+                                viewModel.attachVideoSurface(holder.surface)
+                            }
+                            override fun surfaceDestroyed(holder: android.view.SurfaceHolder) {
+                                viewModel.detachVideoSurface()
+                            }
+                        })
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            AndroidView(
+                factory = { ctx ->
+                    createPlayerView(ctx, viewModel.player).also { playerViewRef = it }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+        }
         
         // Danmaku Overlay（批次L14 真实渲染接线）
         var dmViewRef by remember { mutableStateOf<com.example.piliai.danmaku.DanmakuView?>(null) }
@@ -298,6 +325,7 @@ fun VideoPlayerScreen(
             update = { v ->
                 v.alphaFactor = state.danmakuAlpha
                 v.scaleFactor = state.danmakuScale
+                v.speedFactor = state.danmakuSpeed
                 v.visibility = if (isInPiP) android.view.View.INVISIBLE else android.view.View.VISIBLE
                 v.setRunning(state.isPlaying && !isInPiP)
             },
@@ -897,6 +925,19 @@ fun VideoPlayerScreen(
                         Spacer(Modifier.height(2.dp))
                         Text(
                             "👁 ${state.onlineCount} 人正在看",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    // 审核222：弹幕总数（enableDmCount 设置控制）
+                    val showDmCount by androidx.compose.runtime.produceState(initialValue = false) {
+                        com.example.piliai.utils.StorageManager.getInstance(com.example.piliai.AppContext.get())
+                            .dmCountEnabledFlow.collect { value = it }
+                    }
+                    if (state.dmTotalCount > 0 && showDmCount) {
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            "💬 ${state.dmTotalCount} 条弹幕",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary
                         )

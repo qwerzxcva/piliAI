@@ -73,6 +73,11 @@ class StorageManager(private val context: Context) {
         private val VIDEO_QA_CELLULAR_KEY = stringPreferencesKey("defaultVideoQaCellular")
         private val AUDIO_QA_CELLULAR_KEY = stringPreferencesKey("defaultAudioQaCellular")
         private val PREFER_CODEC_CELLULAR_KEY = stringPreferencesKey("preferCodecsCellular")
+        // 审核222：播放器显示弹幕总数（Flutter enableDmCount）
+        private val DM_COUNT_KEY = booleanPreferencesKey("enableDmCount")
+        // 片头片尾跳过（秒，0 关闭）
+        private val SKIP_INTRO_KEY = intPreferencesKey("skipIntroSec")
+        private val SKIP_OUTRO_KEY = intPreferencesKey("skipOutroSec")
         
         // HDR 色调映射设置
         private val HDR_ENABLED_KEY = booleanPreferencesKey("hdrToneMappingEnabled")
@@ -389,6 +394,31 @@ class StorageManager(private val context: Context) {
 
     suspend fun setPreferCodecCellular(codec: String) {
         context.dataStore.edit { it[PREFER_CODEC_CELLULAR_KEY] = codec }
+    }
+
+    // 审核222：播放器显示弹幕总数
+    val dmCountEnabledFlow: Flow<Boolean> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[DM_COUNT_KEY] ?: false }
+
+    suspend fun setDmCountEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[DM_COUNT_KEY] = enabled }
+    }
+
+    val skipIntroSecFlow: Flow<Int> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[SKIP_INTRO_KEY] ?: 0 }
+
+    val skipOutroSecFlow: Flow<Int> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[SKIP_OUTRO_KEY] ?: 0 }
+
+    suspend fun setSkipIntroSec(sec: Int) {
+        context.dataStore.edit { it[SKIP_INTRO_KEY] = sec.coerceIn(0, 180) }
+    }
+
+    suspend fun setSkipOutroSec(sec: Int) {
+        context.dataStore.edit { it[SKIP_OUTRO_KEY] = sec.coerceIn(0, 180) }
     }
 
     /**

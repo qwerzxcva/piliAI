@@ -16,7 +16,9 @@
     <string name="subscribe_search_library">搜索已导入的订阅内容</string>
     <string name="subscribe_search_rss_hint">RSS 源会从订阅源搜索并返回条目。</string>
     <string name="subscribe_search_rss_and_web_hint">RSS 源和网页刮削源都会从已导入订阅源搜索；网页源会继续解析作品、剧集和播放地址。</string>
-    <string name="bangumi_no_exact_match">Bangumi 上没有找到精确匹配的条目</string>
+    <string name="bangumi_no_exact_match">Bangumi 上没有找到匹配的条目</string>
+    <string name="bangumi_pick_subject">选择 Bangumi 条目</string>
+    <string name="bangumi_episodes">话数 %1$d</string>
     <string name="playback_backend_title">播放引擎</string>
     <string name="playback_backend_media3">Media3（默认，硬件解码）</string>
     <string name="playback_backend_gpu_next_ready">GPU-next（libplacebo 渲染）</string>

@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
  * 包装现有 ExoPlayer 逻辑，实现统一的 PlaybackBackend 接口。
  * 硬件解码、低功耗、兼容性最佳。
  */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class Media3Backend(
     private val context: Context,
     private val listener: PlaybackEventListener

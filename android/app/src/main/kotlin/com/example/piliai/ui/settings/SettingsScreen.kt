@@ -62,6 +62,7 @@ fun SettingsScreen(
     var showBackendDialog by remember { mutableStateOf(false) }
     var showCompletionDialog by remember { mutableStateOf(false) }
     var showBufferDialog by remember { mutableStateOf(false) }
+    var showSkipDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -154,6 +155,14 @@ fun SettingsScreen(
                     subtitle = bufferLabel(state.bufferDurationMs),
                     icon = Icons.Default.Storage,
                     onClick = { showBufferDialog = true }
+                )
+            }
+            item {
+                SettingRow(
+                    title = "跳过片头片尾",
+                    subtitle = "片头 ${state.skipIntroSec} 秒 · 片尾 ${state.skipOutroSec} 秒",
+                    icon = Icons.Default.SkipNext,
+                    onClick = { showSkipDialog = true }
                 )
             }
             item {
@@ -332,6 +341,16 @@ fun SettingsScreen(
                     valueRange = 0.5f..2.5f,
                     displayValue = String.format(Locale.ROOT, "%.1fx", state.danmakuSpeed),
                     onValueChange = { viewModel.setDanmakuSpeed(it) }
+                )
+            }
+            item {
+                // 审核222：Flutter enableDmCount
+                SettingSwitch(
+                    title = "显示弹幕总数",
+                    subtitle = "播放页展示该视频的弹幕总量",
+                    icon = Icons.Default.Numbers,
+                    checked = state.dmCountEnabled,
+                    onChange = { viewModel.setDmCountEnabled(it) }
                 )
             }
             item {
@@ -846,6 +865,48 @@ fun SettingsScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showBufferDialog = false }) { Text("取消") }
+            }
+        )
+    }
+
+    if (showSkipDialog) {
+        var intro by remember(state.skipIntroSec) { mutableIntStateOf(state.skipIntroSec) }
+        var outro by remember(state.skipOutroSec) { mutableIntStateOf(state.skipOutroSec) }
+        AlertDialog(
+            onDismissRequest = { showSkipDialog = false },
+            title = { Text("跳过片头片尾") },
+            text = {
+                Column {
+                    Text("片头 ${intro} 秒", style = MaterialTheme.typography.bodyMedium)
+                    androidx.compose.material3.Slider(
+                        value = intro.toFloat(),
+                        onValueChange = { intro = it.toInt() },
+                        valueRange = 0f..90f,
+                        steps = 17
+                    )
+                    Text("片尾 ${outro} 秒", style = MaterialTheme.typography.bodyMedium)
+                    androidx.compose.material3.Slider(
+                        value = outro.toFloat(),
+                        onValueChange = { outro = it.toInt() },
+                        valueRange = 0f..90f,
+                        steps = 17
+                    )
+                    Text(
+                        "0 秒表示不跳。只在每集开头和结尾各跳一次，拖回去不会反复跳。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.setSkipIntroSec(intro)
+                    viewModel.setSkipOutroSec(outro)
+                    showSkipDialog = false
+                }) { Text("保存") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSkipDialog = false }) { Text("取消") }
             }
         )
     }

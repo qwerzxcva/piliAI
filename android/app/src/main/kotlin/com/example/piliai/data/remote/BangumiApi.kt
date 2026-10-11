@@ -55,6 +55,7 @@ object BangumiApi {
         @SerialName("name_cn") val nameCn: String = "",
         val summary: String = "",
         val date: String = "",
+        @SerialName("eps") val episodeCount: Int = 0,
         val images: Images = Images(),
         val rating: Rating = Rating()
     ) {
@@ -72,15 +73,18 @@ object BangumiApi {
     private data class SearchResponse(val data: List<Subject> = emptyList())
 
     /** 按关键字找最匹配的条目，找不到返回 null。 */
-    suspend fun searchSubject(keyword: String): Subject? = withContext(Dispatchers.IO) {
+    suspend fun searchSubject(keyword: String): Subject? = searchSubjects(keyword).firstOrNull()
+
+    /** 动画类型候选，供订阅条目挑 Bangumi 介绍。 */
+    suspend fun searchSubjects(keyword: String, limit: Int = 8): List<Subject> = withContext(Dispatchers.IO) {
         require(keyword.isNotBlank())
         val text = client.post("https://api.bgm.tv/v0/search/subjects") {
-            parameter("limit", 10)
+            parameter("limit", limit.coerceIn(1, 20))
             contentType(ContentType.Application.Json)
             header("User-Agent", "QWERZXCVA/piliAI (https://github.com/qwerzxcva/piliai)")
             setBody(json.encodeToString(SearchRequest(keyword.trim(), "match", SearchFilter())))
         }.bodyAsText()
-        json.decodeFromString<SearchResponse>(text).data.firstOrNull()
+        json.decodeFromString<SearchResponse>(text).data.filter { it.id > 0L }
     }
 
     /** 条目详情：封面、评分、简介、开播日期。 */

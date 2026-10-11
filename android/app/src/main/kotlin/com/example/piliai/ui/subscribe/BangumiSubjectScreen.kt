@@ -108,6 +108,9 @@ fun BangumiSubjectScreen(subjectId: Long, onBack: () -> Unit) {
                             metadata.add(stringResource(R.string.bangumi_rank, s.rating.rank))
                         }
                         if (s.date.isNotBlank()) metadata.add(s.date)
+                        if (s.episodeCount > 0) {
+                            metadata.add(stringResource(R.string.bangumi_episodes, s.episodeCount))
+                        }
                         Text(
                             metadata.joinToString(" · "),
                             style = MaterialTheme.typography.bodyMedium,
