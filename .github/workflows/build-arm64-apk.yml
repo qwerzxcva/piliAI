@@ -56,19 +56,11 @@ jobs:
         run: python3 scripts/build_native_dependencies.py --plan --lock scripts/native-dependencies.lock.json
 
       - name: Build pinned native dependencies
-        run: python3 scripts/build_native_dependencies.py --lock scripts/native-dependencies.lock.json
-
-      # 审核226：native 编译失败时日志（脚本写 .aharou/native-build/logs/build.log）附到
-      # Job Summary，避免无仓库 admin 权限时无法诊断 CI 红。
-      - name: Dump native build log on failure
-        if: failure()
         run: |
+          python3 scripts/build_native_dependencies.py --lock scripts/native-dependencies.lock.json 2> >(while IFS= read -r line; do echo "::error::$line"; done)
           LOG=".aharou/native-build/logs/build.log"
-          if [ -f "$LOG" ]; then
-            tail -120 "$LOG" | while IFS= read -r line; do echo "::error::$line"; done
-          else
-            echo "::error::no native build log produced under .aharou/native-build/logs/"
-          fi
+          [ -f "$LOG" ] && tail -120 "$LOG" | while IFS= read -r line; do echo "::error::$line"; done || true
+
 
       - name: Build Rust library for arm64-v8a
         run: |
