@@ -67,7 +67,13 @@ jobs:
         run: |
           python3 scripts/build_native_dependencies.py --lock scripts/native-dependencies.lock.json 2> >(while IFS= read -r line; do echo "::error::$line"; done)
           LOG=".aharou/native-build/logs/build.log"
-          [ -f "$LOG" ] && tail -120 "$LOG" | while IFS= read -r line; do echo "::error::$line"; done || true
+          echo "::error::=== build.log tail ==="
+          [ -f "$LOG" ] && tail -6 "$LOG" | while IFS= read -r line; do echo "::error::$line"; done || true
+          MLOG=$(find .aharou/native-build -name 'meson-log.txt' -newermt '-30 minutes' 2>/dev/null | head -1)
+          if [ -n "$MLOG" ]; then
+            echo "::error::=== $MLOG tail ==="
+            tail -30 "$MLOG" | while IFS= read -r line; do echo "::error::$line"; done
+          fi
 
 
       - name: Build Rust library for arm64-v8a
