@@ -39,18 +39,31 @@ class DanmakuView @JvmOverloads constructor(
     var alphaFactor: Float = 1f     // 0..1 全局透明度
     var scaleFactor: Float = 1f     // 0.5..2 全局大小倍率
     var speedFactor: Float = 1f     // 速度倍率
+    // 审核233：PiliPlus 弹幕细节对齐
+    var showAreaFactor: Float = 1f      // 0.1..1 显示区域（可用轨道占比，PiliPlus danmakuShowArea）
+    var strokeWidthFactor: Float = 1.5f // 描边宽度（PiliPlus danmakuStrokeWidth，0=无描边）
+    var lineHeightFactor: Float = 1.4f  // 行高倍率（PiliPlus danmakuLineHeight）
+    var mergeDanmaku: Boolean = false   // 审核233：相同文本弹幕去重（PiliPlus mergeDanmaku）
+    var massiveMode: Boolean = false    // 审核233：海量模式（不限制轨道行数）
+    private val mergedTexts = HashSet<String>()
+    private var lastFontSizePx = 0f
 
     /** 计算落点轨道：找一条已腾出的行，满了就重叠最少的一行 */
     private fun pickRow(width: Float): Int {
-        val rows = FloatArray(maxRows)
+        // 审核233：showArea 限制可用轨道数（例如 0.5 = 只用上半屏 4/8 行）；massiveMode 按屏幕高度全量铺轨
+        val effectiveMax = if (massiveMode && measuredHeight > 0 && lastFontSizePx > 0f) {
+            (measuredHeight / (lastFontSizePx * lineHeightFactor)).toInt().coerceAtLeast(maxRows)
+        } else maxRows
+        val usableRows = (effectiveMax * showAreaFactor).toInt().coerceIn(1, effectiveMax)
+        val rows = FloatArray(usableRows)
         for (d in active) {
-            val r = d.row.coerceIn(0, maxRows - 1)
+            val r = d.row.coerceIn(0, usableRows - 1)
             rows[r] = maxOf(rows[r], d.x + d.width)
         }
         val edge = measuredWidth.toFloat()
         var best = 0
         var bestRight = Float.MAX_VALUE
-        for (i in 0 until maxRows) {
+        for (i in 0 until usableRows) {
             if (rows[i] < edge) return i
             if (rows[i] < bestRight) { bestRight = rows[i]; best = i }
         }
@@ -63,7 +76,12 @@ class DanmakuView @JvmOverloads constructor(
         // 仍入列，x 不滚动（onDraw 里 running=false 时不动），恢复后继续滚。
         if (text.isBlank() || measuredWidth <= 0) return
         if (com.example.piliai.ui.settings.DanmakuBlockViewModel.shouldBlock(text, uid)) return
+        // 审核233：合并重复弹幕——同文本在屏期间只显示一条（滚出屏后允许再次出现）
+        if (mergeDanmaku) {
+            if (!mergedTexts.add(text)) return
+        }
         val fs = fontSizeSp * resources.displayMetrics.density * scaleFactor
+        lastFontSizePx = fs
         paint.textSize = fs
         val w = paint.measureText(text)
         val row = pickRow(w)
@@ -82,6 +100,7 @@ class DanmakuView @JvmOverloads constructor(
     /** 清空（seek/切P/弹幕开关） */
     fun clearAll() {
         active.clear()
+        mergedTexts.clear()
         invalidate()
     }
 
@@ -91,17 +110,30 @@ class DanmakuView @JvmOverloads constructor(
         val dt = if (lastFrame == 0L) 16L else min(now - lastFrame, 100L)
         lastFrame = if (running) now else lastFrame
         val baseTextSize = active.firstOrNull()?.fontSizePx ?: (40f * scaleFactor)
-        val rowH = baseTextSize * 1.4f
+        val rowH = baseTextSize * lineHeightFactor
         var needInvalidate = running && active.isNotEmpty()
         val it2 = active.iterator()
         while (it2.hasNext()) {
             val d = it2.next()
             if (running) d.x -= d.speed * dt
-            if (d.x + d.width < 0) { it2.remove(); continue }
+            if (d.x + d.width < 0) {
+                it2.remove()
+                if (mergeDanmaku) mergedTexts.remove(d.text)
+                continue
+            }
             // 审核轮194：textSize 变化才赋值（反复 set 触发内部 measure，弱机掉帧）
             if (paint.textSize != d.fontSizePx) paint.textSize = d.fontSizePx
-            paint.color = d.color
             paint.alpha = (alphaFactor * 255).toInt().coerceIn(0, 255)
+            // 审核233：描边（PiliPlus danmakuStrokeWidth——黑描边提升可读性，0 关闭）
+            val sw = strokeWidthFactor * resources.displayMetrics.density
+            if (sw > 0f) {
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = sw
+                paint.color = android.graphics.Color.BLACK
+                canvas.drawText(d.text, d.x, rowH * (d.row + 1), paint)
+                paint.style = Paint.Style.FILL
+            }
+            paint.color = d.color
             canvas.drawText(d.text, d.x, rowH * (d.row + 1), paint)
             // 审核轮194：暂停时弹幕尚未滚出屏，仍需持续绘制（否则一帧后消失）
             if (!running) needInvalidate = true

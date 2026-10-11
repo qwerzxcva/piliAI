@@ -80,6 +80,28 @@ class StorageManager(private val context: Context) {
         // 片头片尾跳过（秒，0 关闭）
         private val SKIP_INTRO_KEY = intPreferencesKey("skipIntroSec")
         private val SKIP_OUTRO_KEY = intPreferencesKey("skipOutroSec")
+        // 审核233：弹幕细节（PiliPlus danmakuShowArea/danmakuStrokeWidth/danmakuFontWeight/danmakuLineHeight/danmakuMassiveMode/showVipDanmaku/mergeDanmaku/enableTapDm）
+        private val DM_SHOW_AREA_KEY = floatPreferencesKey("danmakuShowArea")
+        private val DM_STROKE_WIDTH_KEY = floatPreferencesKey("danmakuStrokeWidth")
+        private val DM_FONT_WEIGHT_KEY = intPreferencesKey("danmakuFontWeight")
+        private val DM_LINE_HEIGHT_KEY = floatPreferencesKey("danmakuLineHeight")
+        private val DM_MASSIVE_MODE_KEY = booleanPreferencesKey("danmakuMassiveMode")
+        private val DM_VIP_KEY = booleanPreferencesKey("showVipDanmaku")
+        private val DM_MERGE_KEY = booleanPreferencesKey("mergeDanmaku")
+        private val DM_TAP_KEY = booleanPreferencesKey("enableTapDm")
+        // 审核233：播放行为（PiliPlus continuePlayingPart/continuePlayInBackground/directExitOnBack/enableAutoLongPressSpeed/longPressSpeedDefault）
+        private val CONTINUE_PART_KEY = booleanPreferencesKey("continuePlayingPart")
+        private val BG_PLAY_KEY = booleanPreferencesKey("continuePlayInBackground")
+        private val DIRECT_EXIT_KEY = booleanPreferencesKey("directExitOnBack")
+        private val LONG_PRESS_SPEED_KEY = booleanPreferencesKey("enableAutoLongPressSpeed")
+        private val LONG_PRESS_SPEED_VAL_KEY = floatPreferencesKey("longPressSpeedDefault")
+        // 审核233：推荐过滤（PiliPlus recommend_filter 全套）
+        private val MIN_DURATION_RCMD_KEY = intPreferencesKey("minDurationForRcmd")
+        private val MIN_PLAY_RCMD_KEY = intPreferencesKey("minPlayForRcmd")
+        private val MIN_LIKE_RATIO_RCMD_KEY = intPreferencesKey("minLikeRatioForRecommend")
+        private val EXEMPT_FOLLOWED_KEY = booleanPreferencesKey("exemptFilterForFollowed")
+        private val FILTER_RELATED_KEY = booleanPreferencesKey("applyFilterToRelatedVideos")
+        private val BAN_WORD_RCMD_KEY = stringPreferencesKey("banWordForRecommend")
         
         // HDR 色调映射设置
         private val HDR_ENABLED_KEY = booleanPreferencesKey("hdrToneMappingEnabled")
@@ -433,6 +455,161 @@ class StorageManager(private val context: Context) {
 
     suspend fun setSkipOutroSec(sec: Int) {
         context.dataStore.edit { it[SKIP_OUTRO_KEY] = sec.coerceIn(0, 180) }
+    }
+
+    // ===== 审核233：弹幕细节（PiliPlus 对齐）=====
+    val dmShowAreaFlow: Flow<Float> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[DM_SHOW_AREA_KEY] ?: 0.5f }
+
+    suspend fun setDmShowArea(v: Float) {
+        context.dataStore.edit { it[DM_SHOW_AREA_KEY] = v.coerceIn(0.1f, 1f) }
+    }
+
+    val dmStrokeWidthFlow: Flow<Float> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[DM_STROKE_WIDTH_KEY] ?: 1.5f }
+
+    suspend fun setDmStrokeWidth(v: Float) {
+        context.dataStore.edit { it[DM_STROKE_WIDTH_KEY] = v.coerceIn(0f, 5f) }
+    }
+
+    val dmFontWeightFlow: Flow<Int> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[DM_FONT_WEIGHT_KEY] ?: 5 }
+
+    suspend fun setDmFontWeight(v: Int) {
+        context.dataStore.edit { it[DM_FONT_WEIGHT_KEY] = v.coerceIn(1, 9) }
+    }
+
+    val dmLineHeightFlow: Flow<Float> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[DM_LINE_HEIGHT_KEY] ?: 1.6f }
+
+    suspend fun setDmLineHeight(v: Float) {
+        context.dataStore.edit { it[DM_LINE_HEIGHT_KEY] = v.coerceIn(1f, 3f) }
+    }
+
+    val dmMassiveModeFlow: Flow<Boolean> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[DM_MASSIVE_MODE_KEY] ?: false }
+
+    suspend fun setDmMassiveMode(enabled: Boolean) {
+        context.dataStore.edit { it[DM_MASSIVE_MODE_KEY] = enabled }
+    }
+
+    val showVipDanmakuFlow: Flow<Boolean> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[DM_VIP_KEY] ?: true }
+
+    suspend fun setShowVipDanmaku(enabled: Boolean) {
+        context.dataStore.edit { it[DM_VIP_KEY] = enabled }
+    }
+
+    val mergeDanmakuFlow: Flow<Boolean> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[DM_MERGE_KEY] ?: false }
+
+    suspend fun setMergeDanmaku(enabled: Boolean) {
+        context.dataStore.edit { it[DM_MERGE_KEY] = enabled }
+    }
+
+    val enableTapDanmakuFlow: Flow<Boolean> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[DM_TAP_KEY] ?: true }
+
+    suspend fun setEnableTapDanmaku(enabled: Boolean) {
+        context.dataStore.edit { it[DM_TAP_KEY] = enabled }
+    }
+
+    // ===== 审核233：播放行为 =====
+    val continuePlayingPartFlow: Flow<Boolean> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[CONTINUE_PART_KEY] ?: true }
+
+    suspend fun setContinuePlayingPart(enabled: Boolean) {
+        context.dataStore.edit { it[CONTINUE_PART_KEY] = enabled }
+    }
+
+    val continuePlayInBackgroundFlow: Flow<Boolean> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[BG_PLAY_KEY] ?: false }
+
+    suspend fun setContinuePlayInBackground(enabled: Boolean) {
+        context.dataStore.edit { it[BG_PLAY_KEY] = enabled }
+    }
+
+    val directExitOnBackFlow: Flow<Boolean> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[DIRECT_EXIT_KEY] ?: false }
+
+    suspend fun setDirectExitOnBack(enabled: Boolean) {
+        context.dataStore.edit { it[DIRECT_EXIT_KEY] = enabled }
+    }
+
+    val enableAutoLongPressSpeedFlow: Flow<Boolean> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[LONG_PRESS_SPEED_KEY] ?: false }
+
+    suspend fun setEnableAutoLongPressSpeed(enabled: Boolean) {
+        context.dataStore.edit { it[LONG_PRESS_SPEED_KEY] = enabled }
+    }
+
+    val longPressSpeedDefaultFlow: Flow<Float> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[LONG_PRESS_SPEED_VAL_KEY] ?: 3.0f }
+
+    suspend fun setLongPressSpeedDefault(v: Float) {
+        context.dataStore.edit { it[LONG_PRESS_SPEED_VAL_KEY] = v.coerceIn(1.5f, 5f) }
+    }
+
+    // ===== 审核233：推荐过滤（PiliPlus recommend_filter 全套）=====
+    val minDurationForRcmdFlow: Flow<Int> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[MIN_DURATION_RCMD_KEY] ?: 0 }
+
+    suspend fun setMinDurationForRcmd(sec: Int) {
+        context.dataStore.edit { it[MIN_DURATION_RCMD_KEY] = sec.coerceIn(0, 3600) }
+    }
+
+    val minPlayForRcmdFlow: Flow<Int> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[MIN_PLAY_RCMD_KEY] ?: 0 }
+
+    suspend fun setMinPlayForRcmd(n: Int) {
+        context.dataStore.edit { it[MIN_PLAY_RCMD_KEY] = n.coerceIn(0, 100_000_000) }
+    }
+
+    val minLikeRatioForRecommendFlow: Flow<Int> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[MIN_LIKE_RATIO_RCMD_KEY] ?: 0 }
+
+    suspend fun setMinLikeRatioForRecommend(pct: Int) {
+        context.dataStore.edit { it[MIN_LIKE_RATIO_RCMD_KEY] = pct.coerceIn(0, 100) }
+    }
+
+    val exemptFilterForFollowedFlow: Flow<Boolean> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[EXEMPT_FOLLOWED_KEY] ?: true }
+
+    suspend fun setExemptFilterForFollowed(enabled: Boolean) {
+        context.dataStore.edit { it[EXEMPT_FOLLOWED_KEY] = enabled }
+    }
+
+    val applyFilterToRelatedVideosFlow: Flow<Boolean> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[FILTER_RELATED_KEY] ?: true }
+
+    suspend fun setApplyFilterToRelatedVideos(enabled: Boolean) {
+        context.dataStore.edit { it[FILTER_RELATED_KEY] = enabled }
+    }
+
+    val banWordForRecommendFlow: Flow<String> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[BAN_WORD_RCMD_KEY] ?: "" }
+
+    suspend fun setBanWordForRecommend(words: String) {
+        context.dataStore.edit { it[BAN_WORD_RCMD_KEY] = words }
     }
 
     /**

@@ -307,6 +307,127 @@ fun SettingsScreen(
                     onChange = { viewModel.setShowOnlineTotal(it) }
                 )
             }
+            // ===== 审核233：播放行为（PiliPlus 对齐）=====
+            item {
+                SettingSwitch(
+                    title = "自动连播分P",
+                    subtitle = "播放结束自动切换下一分P",
+                    icon = Icons.Default.PlaylistPlay,
+                    checked = state.continuePlayingPart,
+                    onChange = { viewModel.setContinuePlayingPart(it) }
+                )
+            }
+            item {
+                SettingSwitch(
+                    title = "后台继续播放",
+                    subtitle = "退到后台时保持音频播放（与自动暂停互斥）",
+                    icon = Icons.Default.Headphones,
+                    checked = state.continuePlayInBackground,
+                    onChange = { viewModel.setContinuePlayInBackground(it) }
+                )
+            }
+            item {
+                SettingSwitch(
+                    title = "返回键直接退出",
+                    subtitle = "播放页按返回直接退出而非最小化",
+                    icon = Icons.Default.ExitToApp,
+                    checked = state.directExitOnBack,
+                    onChange = { viewModel.setDirectExitOnBack(it) }
+                )
+            }
+            item {
+                SettingSwitch(
+                    title = "长按倍速",
+                    subtitle = "长按播放器临时加速播放",
+                    icon = Icons.Default.FastForward,
+                    checked = state.enableAutoLongPressSpeed,
+                    onChange = { viewModel.setEnableAutoLongPressSpeed(it) }
+                )
+            }
+            item {
+                SettingSlider(
+                    title = "长按倍速档位",
+                    icon = Icons.Default.Speed,
+                    value = state.longPressSpeedDefault,
+                    valueRange = 1.5f..5f,
+                    steps = 6,
+                    displayValue = String.format(java.util.Locale.ROOT, "%.1fx", state.longPressSpeedDefault),
+                    onValueChange = { viewModel.setLongPressSpeedDefault(it) }
+                )
+            }
+            // ===== 审核233：推荐过滤（PiliPlus recommend_filter 对齐）=====
+            item { SectionTitle("推荐过滤") }
+            item {
+                SettingSlider(
+                    title = "最短时长",
+                    subtitle = "过滤时长小于该值的视频（秒，0 关闭）",
+                    icon = Icons.Default.Timer,
+                    value = state.minDurationForRcmd.toFloat(),
+                    valueRange = 0f..600f,
+                    steps = 19,
+                    displayValue = if (state.minDurationForRcmd == 0) "关闭" else "${state.minDurationForRcmd}s",
+                    onValueChange = { viewModel.setMinDurationForRcmd((it / 10).toInt() * 10) }
+                )
+            }
+            item {
+                SettingSlider(
+                    title = "最低播放量",
+                    subtitle = "过滤播放量低于该值的视频（0 关闭）",
+                    icon = Icons.Default.Visibility,
+                    value = state.minPlayForRcmd.toFloat(),
+                    valueRange = 0f..100000f,
+                    displayValue = if (state.minPlayForRcmd == 0) "关闭" else com.example.piliai.data.model.formatCount(state.minPlayForRcmd.toLong()),
+                    onValueChange = { viewModel.setMinPlayForRcmd((it / 1000).toInt() * 1000) }
+                )
+            }
+            item {
+                SettingSlider(
+                    title = "最低点赞率",
+                    subtitle = "点赞数/播放数 低于该百分比时过滤（0 关闭）",
+                    icon = Icons.Default.ThumbUp,
+                    value = state.minLikeRatioForRecommend.toFloat(),
+                    valueRange = 0f..20f,
+                    steps = 19,
+                    displayValue = if (state.minLikeRatioForRecommend == 0) "关闭" else "${state.minLikeRatioForRecommend}%",
+                    onValueChange = { viewModel.setMinLikeRatioForRecommend(it.toInt()) }
+                )
+            }
+            item {
+                SettingSwitch(
+                    title = "关注内容豁免",
+                    subtitle = "已关注 UP 主的内容不过滤",
+                    icon = Icons.Default.Favorite,
+                    checked = state.exemptFilterForFollowed,
+                    onChange = { viewModel.setExemptFilterForFollowed(it) }
+                )
+            }
+            item {
+                SettingSwitch(
+                    title = "过滤相关视频",
+                    subtitle = "播放页相关视频列表同样应用过滤",
+                    icon = Icons.Default.FilterList,
+                    checked = state.applyFilterToRelatedVideos,
+                    onChange = { viewModel.setApplyFilterToRelatedVideos(it) }
+                )
+            }
+            item {
+                // 屏蔽词（正则）输入
+                var showBanDialog by remember { mutableStateOf(false) }
+                SettingRow(
+                    title = "标题屏蔽词",
+                    subtitle = if (state.banWordForRecommend.isBlank()) "未设置（支持正则，大小写不敏感）"
+                        else state.banWordForRecommend.take(24),
+                    icon = Icons.Default.TextFields,
+                    onClick = { showBanDialog = true }
+                )
+                if (showBanDialog) {
+                    BanWordDialog(
+                        initial = state.banWordForRecommend,
+                        onSave = { viewModel.setBanWordForRecommend(it) },
+                        onDismiss = { showBanDialog = false }
+                    )
+                }
+            }
         }
         fun LazyListScope.dmSection() {
             // ===== 弹幕设置 =====
@@ -389,6 +510,77 @@ fun SettingsScreen(
                 if (showBlacklist) {
                     BlacklistDialog(onDismiss = { showBlacklist = false })
                 }
+            }
+            // ===== 审核233：弹幕细节（PiliPlus 对齐）=====
+            item {
+                SettingSlider(
+                    title = "弹幕显示区域",
+                    subtitle = "限制弹幕占用屏幕高度比例",
+                    icon = Icons.Default.VerticalAlignTop,
+                    value = state.dmShowArea,
+                    valueRange = 0.1f..1f,
+                    displayValue = "${(state.dmShowArea * 100).toInt()}%",
+                    onValueChange = { viewModel.setDmShowArea(it) }
+                )
+            }
+            item {
+                SettingSlider(
+                    title = "弹幕描边宽度",
+                    subtitle = "黑描边提升可读性（0 关闭）",
+                    icon = Icons.Default.BorderColor,
+                    value = state.dmStrokeWidth,
+                    valueRange = 0f..5f,
+                    displayValue = String.format(java.util.Locale.ROOT, "%.1f", state.dmStrokeWidth),
+                    onValueChange = { viewModel.setDmStrokeWidth(it) }
+                )
+            }
+            item {
+                SettingSlider(
+                    title = "弹幕行高",
+                    icon = Icons.Default.FormatLineSpacing,
+                    value = state.dmLineHeight,
+                    valueRange = 1f..3f,
+                    displayValue = String.format(java.util.Locale.ROOT, "%.1f", state.dmLineHeight),
+                    onValueChange = { viewModel.setDmLineHeight(it) }
+                )
+            }
+            item {
+                SettingSlider(
+                    title = "弹幕字重",
+                    icon = Icons.Default.FormatBold,
+                    value = state.dmFontWeight.toFloat(),
+                    valueRange = 1f..9f,
+                    steps = 7,
+                    displayValue = "${state.dmFontWeight}",
+                    onValueChange = { viewModel.setDmFontWeight(it.toInt()) }
+                )
+            }
+            item {
+                SettingSwitch(
+                    title = "弹幕海量模式",
+                    subtitle = "同屏弹幕过多时仍全部渲染",
+                    icon = Icons.Default.Layers,
+                    checked = state.dmMassiveMode,
+                    onChange = { viewModel.setDmMassiveMode(it) }
+                )
+            }
+            item {
+                SettingSwitch(
+                    title = "合并重复弹幕",
+                    subtitle = "相同内容的弹幕只显示一条",
+                    icon = Icons.Default.MergeType,
+                    checked = state.mergeDanmaku,
+                    onChange = { viewModel.setMergeDanmaku(it) }
+                )
+            }
+            item {
+                SettingSwitch(
+                    title = "点击弹幕交互",
+                    subtitle = "点击弹幕可暂停/查看详情",
+                    icon = Icons.Default.TouchApp,
+                    checked = state.enableTapDanmaku,
+                    onChange = { viewModel.setEnableTapDanmaku(it) }
+                )
             }
         }
         fun LazyListScope.styleSection() {
@@ -1099,6 +1291,7 @@ private fun SettingSlider(
     valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
     steps: Int = 0,
     displayValue: String? = null,
+    subtitle: String? = null,
     onValueChange: (Float) -> Unit
 ) {
     ListItem(
@@ -1111,6 +1304,13 @@ private fun SettingSlider(
                         displayValue ?: String.format(Locale.ROOT, "%.0f%%", value * 100),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                if (subtitle != null) {
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Slider(
@@ -1127,6 +1327,38 @@ private fun SettingSlider(
     )
 }
 
+
+/** 审核233：推荐流标题屏蔽词（正则）输入对话框 */
+@Composable
+private fun BanWordDialog(initial: String, onSave: (String) -> Unit, onDismiss: () -> Unit) {
+    var text by remember { mutableStateOf(initial) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("标题屏蔽词") },
+        text = {
+            Column {
+                Text(
+                    "正则表达式，大小写不敏感；命中标题的推荐视频将被隐藏。留空关闭。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                androidx.compose.material3.OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = { onSave(text.trim()); onDismiss() }) { Text("保存") }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) { Text("取消") }
+        }
+    )
+}
 
 /** 审核轮204：黑名单管理对话框（列表 + 分页 + 移除） */
 @Composable

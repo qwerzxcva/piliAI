@@ -326,6 +326,11 @@ fun VideoPlayerScreen(
                 v.alphaFactor = state.danmakuAlpha
                 v.scaleFactor = state.danmakuScale
                 v.speedFactor = state.danmakuSpeed
+                // 审核233：显示区域 + 描边（PiliPlus 弹幕细节）
+                v.showAreaFactor = state.danmakuShowArea
+                v.strokeWidthFactor = state.danmakuStrokeWidth
+                v.mergeDanmaku = state.danmakuMerge
+                v.massiveMode = state.danmakuMassiveMode
                 v.visibility = if (isInPiP) android.view.View.INVISIBLE else android.view.View.VISIBLE
                 v.setRunning(state.isPlaying && !isInPiP)
             },

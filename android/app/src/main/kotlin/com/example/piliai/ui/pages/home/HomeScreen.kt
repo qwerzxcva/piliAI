@@ -84,7 +84,17 @@ fun HomeScreen(
     onBangumiClick: () -> Unit = {},
     onStoryClick: () -> Unit = {},
     onTodayWatchClick: () -> Unit = {},
-    viewModel: HomeViewModel = viewModel(),
+    viewModel: HomeViewModel = viewModel(
+        factory = run {
+            val app = androidx.compose.ui.platform.LocalContext.current.applicationContext
+            object : androidx.lifecycle.ViewModelProvider.Factory {
+                override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                    @Suppress("UNCHECKED_CAST")
+                    return HomeViewModel(storage = com.example.piliai.utils.StorageManager.getInstance(app)) as T
+                }
+            }
+        },
+    ),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val gridState = rememberLazyGridState()

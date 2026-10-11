@@ -95,6 +95,11 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         val danmakuAlpha: Float = 1f,
         val danmakuScale: Float = 1f,
         val danmakuSpeed: Float = 1f,
+        // 审核233：弹幕细节（PiliPlus 对齐）
+        val danmakuShowArea: Float = 1f,
+        val danmakuStrokeWidth: Float = 1.5f,
+        val danmakuMerge: Boolean = false,
+        val danmakuMassiveMode: Boolean = false,
         val brightness: Float = 0.5f,
         val gestureSeekDeltaMs: Long = 0L,
         val qualities: List<QualityOption> = emptyList(),
@@ -121,6 +126,11 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         val mode: Int = 1
     )
     
+    // 审核233：相关视频过滤配置（combine 收集，DataStore 持久化）
+    private var relatedApplyFilter: Boolean = true
+    private var relatedMinDuration: Int = 0
+    private var relatedBanWords: String = ""
+
     init {
         startPositionClock()
         // 读取 DataStore 持久化设置：默认清晰度 + 弹幕开关（真实作用于播放链路）
@@ -151,6 +161,40 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
             storage.danmakuSpeedFlow.collect { speed ->
                 _state.value = _state.value.copy(danmakuSpeed = speed)
             }
+        }
+        // 审核233：弹幕显示区域 + 描边宽度
+        viewModelScope.launch {
+            storage.dmShowAreaFlow.collect { area ->
+                _state.value = _state.value.copy(danmakuShowArea = area)
+            }
+        }
+        viewModelScope.launch {
+            storage.dmStrokeWidthFlow.collect { sw ->
+                _state.value = _state.value.copy(danmakuStrokeWidth = sw)
+            }
+        }
+        viewModelScope.launch {
+            storage.mergeDanmakuFlow.collect { on ->
+                _state.value = _state.value.copy(danmakuMerge = on)
+            }
+        }
+        viewModelScope.launch {
+            storage.dmMassiveModeFlow.collect { on ->
+                _state.value = _state.value.copy(danmakuMassiveMode = on)
+            }
+        }
+        // 审核233：相关视频过滤配置收集
+        viewModelScope.launch {
+            kotlinx.coroutines.flow.combine(
+                storage.applyFilterToRelatedVideosFlow,
+                storage.minDurationForRcmdFlow,
+                storage.banWordForRecommendFlow,
+            ) { apply, minDur, ban -> Triple(apply, minDur, ban) }
+                .collect { (apply, minDur, ban) ->
+                    relatedApplyFilter = apply
+                    relatedMinDuration = minDur
+                    relatedBanWords = ban
+                }
         }
         // Kazumi：低延迟音频 + 渲染器（持久化设置，实时作用于播放链路）
         viewModelScope.launch {
@@ -1434,8 +1478,16 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         viewModelScope.launch {
             runCatching {
                 val list = BiliApiClient().getRelatedVideos(bvid).getOrNull().orEmpty()
+                // 审核233：相关视频应用推荐过滤（PiliPlus applyFilterToRelatedVideos；
+                // RelatedItem 无点赞数字段，只做时长+标题屏蔽词两维过滤）
+                val config = com.example.piliai.utils.RecommendFilter.Config(
+                    minDurationSec = relatedMinDuration, banWords = relatedBanWords,
+                )
+                val filtered = if (relatedApplyFilter && config.enabled)
+                    list.filter { v -> !config.filterDuration(v.duration) && !config.filterTitle(v.title) }
+                else list
                 _state.value = _state.value.copy(
-                    related = list.map {
+                    related = filtered.map {
                         RelatedItem(
                             bvid = it.bvid, cid = it.cid, title = it.title, pic = it.pic,
                             author = it.owner?.name ?: "",

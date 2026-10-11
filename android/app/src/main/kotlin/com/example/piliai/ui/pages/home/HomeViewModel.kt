@@ -17,7 +17,36 @@ sealed interface HomeUiState {
 
 class HomeViewModel(
     private val repo: HomeRepository = HomeRepository(),
+    // 审核233：推荐过滤配置（PiliPlus recommend_filter 移植），storage 为空时不过滤
+    storage: com.example.piliai.utils.StorageManager? = null,
 ) : ViewModel() {
+
+    private var filterConfig: com.example.piliai.utils.RecommendFilter.Config =
+        com.example.piliai.utils.RecommendFilter.Config()
+
+    init {
+        if (storage != null) {
+            viewModelScope.launch {
+                kotlinx.coroutines.flow.combine(
+                    storage.minDurationForRcmdFlow,
+                    storage.minPlayForRcmdFlow,
+                    storage.minLikeRatioForRecommendFlow,
+                    storage.banWordForRecommendFlow,
+                    storage.exemptFilterForFollowedFlow,
+                ) { minDur, minPlay, minLike, banWords, exempt ->
+                    com.example.piliai.utils.RecommendFilter.Config(
+                        minDurationSec = minDur, minPlay = minPlay.toLong(),
+                        minLikeRatioPercent = minLike, banWords = banWords,
+                        exemptFilterForFollowed = exempt,
+                    )
+                }.collect { filterConfig = it }
+            }
+        }
+    }
+
+    /** 审核233：按当前过滤配置筛选 */
+    private fun applyFilter(items: List<com.example.piliai.data.model.VideoItem>) =
+        com.example.piliai.utils.RecommendFilter.filter(items, filterConfig)
     private val _state = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
     val state: StateFlow<HomeUiState> = _state.asStateFlow()
 
@@ -39,7 +68,7 @@ class HomeViewModel(
                     }
             }
             repo.refresh()
-                .onSuccess { _state.value = HomeUiState.Success(it) }
+                .onSuccess { _state.value = HomeUiState.Success(applyFilter(it)) }
                 .onFailure { _state.value = HomeUiState.Error(it.message ?: "网络请求失败") }
         }
     }
@@ -50,7 +79,7 @@ class HomeViewModel(
         loadingMore = true
         viewModelScope.launch {
             repo.loadMore(current.size / 20 + 1)
-                .onSuccess { _state.value = HomeUiState.Success(it) }
+                .onSuccess { _state.value = HomeUiState.Success(applyFilter(it)) }
                 .onFailure { /* 加载更多失败静默保留当前列表 */ }
             loadingMore = false
         }

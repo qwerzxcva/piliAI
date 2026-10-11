@@ -62,6 +62,28 @@ class SettingsViewModel(context: Context) : ViewModel() {
         val dmCountEnabled: Boolean = false,   // 审核222：播放器显示弹幕总数
         val skipIntroSec: Int = 0,
         val skipOutroSec: Int = 0,
+        // 审核233：弹幕细节（PiliPlus 对齐）
+        val dmShowArea: Float = 0.5f,
+        val dmStrokeWidth: Float = 1.5f,
+        val dmFontWeight: Int = 5,
+        val dmLineHeight: Float = 1.6f,
+        val dmMassiveMode: Boolean = false,
+        val showVipDanmaku: Boolean = true,
+        val mergeDanmaku: Boolean = false,
+        val enableTapDanmaku: Boolean = true,
+        // 审核233：播放行为
+        val continuePlayingPart: Boolean = true,
+        val continuePlayInBackground: Boolean = false,
+        val directExitOnBack: Boolean = false,
+        val enableAutoLongPressSpeed: Boolean = false,
+        val longPressSpeedDefault: Float = 3.0f,
+        // 审核233：推荐过滤
+        val minDurationForRcmd: Int = 0,
+        val minPlayForRcmd: Int = 0,
+        val minLikeRatioForRecommend: Int = 0,
+        val exemptFilterForFollowed: Boolean = true,
+        val applyFilterToRelatedVideos: Boolean = true,
+        val banWordForRecommend: String = "",
     )
 
     init {
@@ -160,7 +182,86 @@ class SettingsViewModel(context: Context) : ViewModel() {
         viewModelScope.launch {
             storage.dandanDanmakuFlow.collect { _state.value = _state.value.copy(dandanDanmakuEnabled = it) }
         }
+        // ===== 审核233 collect =====
+        viewModelScope.launch {
+            storage.dmShowAreaFlow.collect { _state.value = _state.value.copy(dmShowArea = it) }
+        }
+        viewModelScope.launch {
+            storage.dmStrokeWidthFlow.collect { _state.value = _state.value.copy(dmStrokeWidth = it) }
+        }
+        viewModelScope.launch {
+            storage.dmFontWeightFlow.collect { _state.value = _state.value.copy(dmFontWeight = it) }
+        }
+        viewModelScope.launch {
+            storage.dmLineHeightFlow.collect { _state.value = _state.value.copy(dmLineHeight = it) }
+        }
+        viewModelScope.launch {
+            storage.dmMassiveModeFlow.collect { _state.value = _state.value.copy(dmMassiveMode = it) }
+        }
+        viewModelScope.launch {
+            storage.showVipDanmakuFlow.collect { _state.value = _state.value.copy(showVipDanmaku = it) }
+        }
+        viewModelScope.launch {
+            storage.mergeDanmakuFlow.collect { _state.value = _state.value.copy(mergeDanmaku = it) }
+        }
+        viewModelScope.launch {
+            storage.enableTapDanmakuFlow.collect { _state.value = _state.value.copy(enableTapDanmaku = it) }
+        }
+        viewModelScope.launch {
+            storage.continuePlayingPartFlow.collect { _state.value = _state.value.copy(continuePlayingPart = it) }
+        }
+        viewModelScope.launch {
+            storage.continuePlayInBackgroundFlow.collect { _state.value = _state.value.copy(continuePlayInBackground = it) }
+        }
+        viewModelScope.launch {
+            storage.directExitOnBackFlow.collect { _state.value = _state.value.copy(directExitOnBack = it) }
+        }
+        viewModelScope.launch {
+            storage.enableAutoLongPressSpeedFlow.collect { _state.value = _state.value.copy(enableAutoLongPressSpeed = it) }
+        }
+        viewModelScope.launch {
+            storage.longPressSpeedDefaultFlow.collect { _state.value = _state.value.copy(longPressSpeedDefault = it) }
+        }
+        viewModelScope.launch {
+            storage.minDurationForRcmdFlow.collect { _state.value = _state.value.copy(minDurationForRcmd = it) }
+        }
+        viewModelScope.launch {
+            storage.minPlayForRcmdFlow.collect { _state.value = _state.value.copy(minPlayForRcmd = it) }
+        }
+        viewModelScope.launch {
+            storage.minLikeRatioForRecommendFlow.collect { _state.value = _state.value.copy(minLikeRatioForRecommend = it) }
+        }
+        viewModelScope.launch {
+            storage.exemptFilterForFollowedFlow.collect { _state.value = _state.value.copy(exemptFilterForFollowed = it) }
+        }
+        viewModelScope.launch {
+            storage.applyFilterToRelatedVideosFlow.collect { _state.value = _state.value.copy(applyFilterToRelatedVideos = it) }
+        }
+        viewModelScope.launch {
+            storage.banWordForRecommendFlow.collect { _state.value = _state.value.copy(banWordForRecommend = it) }
+        }
     }
+
+    // ===== 审核233 setters =====
+    fun setDmShowArea(v: Float) = viewModelScope.launch { storage.setDmShowArea(v) }
+    fun setDmStrokeWidth(v: Float) = viewModelScope.launch { storage.setDmStrokeWidth(v) }
+    fun setDmFontWeight(v: Int) = viewModelScope.launch { storage.setDmFontWeight(v) }
+    fun setDmLineHeight(v: Float) = viewModelScope.launch { storage.setDmLineHeight(v) }
+    fun setDmMassiveMode(v: Boolean) = viewModelScope.launch { storage.setDmMassiveMode(v) }
+    fun setShowVipDanmaku(v: Boolean) = viewModelScope.launch { storage.setShowVipDanmaku(v) }
+    fun setMergeDanmaku(v: Boolean) = viewModelScope.launch { storage.setMergeDanmaku(v) }
+    fun setEnableTapDanmaku(v: Boolean) = viewModelScope.launch { storage.setEnableTapDanmaku(v) }
+    fun setContinuePlayingPart(v: Boolean) = viewModelScope.launch { storage.setContinuePlayingPart(v) }
+    fun setContinuePlayInBackground(v: Boolean) = viewModelScope.launch { storage.setContinuePlayInBackground(v) }
+    fun setDirectExitOnBack(v: Boolean) = viewModelScope.launch { storage.setDirectExitOnBack(v) }
+    fun setEnableAutoLongPressSpeed(v: Boolean) = viewModelScope.launch { storage.setEnableAutoLongPressSpeed(v) }
+    fun setLongPressSpeedDefault(v: Float) = viewModelScope.launch { storage.setLongPressSpeedDefault(v) }
+    fun setMinDurationForRcmd(v: Int) = viewModelScope.launch { storage.setMinDurationForRcmd(v) }
+    fun setMinPlayForRcmd(v: Int) = viewModelScope.launch { storage.setMinPlayForRcmd(v) }
+    fun setMinLikeRatioForRecommend(v: Int) = viewModelScope.launch { storage.setMinLikeRatioForRecommend(v) }
+    fun setExemptFilterForFollowed(v: Boolean) = viewModelScope.launch { storage.setExemptFilterForFollowed(v) }
+    fun setApplyFilterToRelatedVideos(v: Boolean) = viewModelScope.launch { storage.setApplyFilterToRelatedVideos(v) }
+    fun setBanWordForRecommend(v: String) = viewModelScope.launch { storage.setBanWordForRecommend(v) }
 
     fun setAutoPlay(v: Boolean) = viewModelScope.launch { storage.setAutoPlay(v) }
     fun setLowLatencyAudio(v: Boolean) = viewModelScope.launch { storage.setLowLatencyAudio(v) }
