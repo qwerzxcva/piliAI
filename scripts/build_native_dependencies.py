@@ -915,7 +915,8 @@ def build_component(name, source, work, environment, cross_file, log_path, lock_
         _run([
             'make', '-C', tree, f'-j{jobs}', 'PLAT=linux', 'LUA_T=', 'LUAC_T=',
             f'CC={environment["CC"]}', f'AR={environment["AR"]} rc', f'RANLIB={environment["RANLIB"]}',
-            'MYCFLAGS=-fPIC -Dgetlocaledecpoint()=(46) -Dlua_fseek',
+            # 审核230：括号宏必须单引号包住，否则 make 展开进 /bin/sh 时 Syntax error
+            "MYCFLAGS=-fPIC '-Dgetlocaledecpoint()=(46)' -Dlua_fseek",
         ], tree, environment, log_path)
         _run([
             'make', '-C', tree, 'install',
