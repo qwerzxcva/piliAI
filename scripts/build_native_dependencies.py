@@ -684,7 +684,17 @@ def make_environment(ndk, toolchain, build_tools, prefix):
 
 def _meson_string_list(values):
     # meson machine files reject double-quoted strings; use single quotes
-    return '[' + ', '.join("'" + value.replace("'", "'\\''") + "'" for value in values) + ']'
+    def _escape(value):
+        # meson single-quoted strings cannot contain a literal single quote
+        # (no escape sequence exists for one); reject rather than emit a
+        # machine file that fails the meson lexer with an opaque error.
+        if "'" in value:
+            raise BuildFailure(
+                f'meson machine-file value cannot contain a single quote: {value!r}'
+            )
+        return "'" + value.replace("\\", "\\\\") + "'"
+
+    return '[' + ', '.join(_escape(value) for value in values) + ']'
 
 
 def write_cross_file(path, environment):
