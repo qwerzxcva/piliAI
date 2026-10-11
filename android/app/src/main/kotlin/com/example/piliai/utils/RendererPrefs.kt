@@ -39,6 +39,11 @@ object RendererPrefs {
     var bufferDurationMs: Int = 16_000
         private set
 
+    /** bv P2：硬件解码模式（auto/hardware/software），供 ExoPlayer RenderersFactory 读取 */
+    @Volatile
+    var hardwareDecodeMode: String = "auto"
+        private set
+
     @Volatile
     var skipIntroSec: Int = 0
         private set
@@ -116,6 +121,11 @@ object RendererPrefs {
             }
         }
         scope.launch {
+            storage.hardwareDecodeFlow.collectLatest { v ->
+                hardwareDecodeMode = v
+            }
+        }
+        scope.launch {
             storage.skipIntroSecFlow.collectLatest { skipIntroSec = it }
         }
         scope.launch {
@@ -171,6 +181,11 @@ object RendererPrefs {
     /** 更新缓冲时长缓存（下次进入播放器生效） */
     fun updateBufferDuration(ms: Int) {
         bufferDurationMs = ms
+    }
+
+    /** bv P2：更新硬件解码模式缓存（下次进入播放器生效） */
+    fun updateHardwareDecodeMode(mode: String) {
+        hardwareDecodeMode = mode
     }
 
     /** 审核轮210：更新音量归一化缓存 */

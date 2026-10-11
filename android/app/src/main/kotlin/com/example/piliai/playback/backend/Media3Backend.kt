@@ -13,6 +13,9 @@ import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import com.example.piliai.piliplus.Media3LoadControlFactory
 import com.example.piliai.utils.RendererPrefs
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,7 +49,7 @@ class Media3Backend(
         // 审核轮（bv P1）：此前 LoadControl 是孤儿代码，设置页的「缓冲时长」从未生效。
         // 现在把 Media3LoadControlFactory 真正接到 Builder；与 AudioAttributes 同为
         // Builder 期设置，运行中修改缓冲偏好需重建播放器才生效。
-        player = ExoPlayer.Builder(context)
+        player = ExoPlayer.Builder(context, buildRenderersFactory())
             .setAudioAttributes(audioAttributes, true)
             .setLoadControl(
                 Media3LoadControlFactory.create(bufferDurationMs = RendererPrefs.bufferDurationMs)
@@ -198,6 +201,49 @@ class Media3Backend(
         override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
             if (videoSize.width <= 0 || videoSize.height <= 0) return
             listener.onVideoSizeChanged(videoSize.width, videoSize.height)
+        }
+    }
+
+    /**
+     * bv P2：硬件解码模式。
+     * - auto（默认）：交给 Media3 默认选择
+     * - hardware：优先硬解（同名优先 hardware=true 的解码器）
+     * - software：强制软解（设备硬解 4K/HEVC 出绿屏/崩溃时绕行）
+     * 通过自定义 MediaCodecSelector 重排解码器优先级；Builder 期设置，重建播放器生效。
+     */
+    private fun buildRenderersFactory(): DefaultRenderersFactory {
+        val mode = RendererPrefs.hardwareDecodeMode
+        if (mode == "auto") return DefaultRenderersFactory(context)
+        val preferHardware = (mode == "hardware")
+        val selector = object : MediaCodecSelector {
+            override fun getDecoderInfos(
+                mimeType: String,
+                requiresSecureDecoder: Boolean,
+                requiresTunnelingDecoder: Boolean
+            ): MutableList<MediaCodecInfo> {
+                val base = MediaCodecSelector.DEFAULT.getDecoderInfos(
+                    mimeType, requiresSecureDecoder, requiresTunnelingDecoder
+                )
+                // hardware=true 表示平台硬解；按偏好把目标组排到前面，保持组内原顺序
+                return base.sortedBy { it.hardwareAccelerated != preferHardware }.toMutableList()
+            }
+        }
+        return object : DefaultRenderersFactory(context) {
+            override fun buildVideoRenderers(
+                context: Context,
+                extensionRendererMode: Int,
+                mediaCodecSelector: MediaCodecSelector,
+                enableDecoderFallback: Boolean,
+                eventHandler: android.os.Handler,
+                eventListener: androidx.media3.exoplayer.video.VideoRendererEventListener,
+                allowedVideoJoiningTimeMs: Long,
+                out: java.util.ArrayList<androidx.media3.exoplayer.Renderer>
+            ) {
+                super.buildVideoRenderers(
+                    context, extensionRendererMode, selector, enableDecoderFallback,
+                    eventHandler, eventListener, allowedVideoJoiningTimeMs, out
+                )
+            }
         }
     }
 

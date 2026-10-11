@@ -30,6 +30,7 @@ class SettingsViewModel(context: Context) : ViewModel() {
         val videoQuality: String = "auto",   // auto/1080p/720p/480p
         val playbackSpeed: Float = 1.0f,
         val bufferDurationMs: Int = 16_000,  // VOD 缓冲时长（LoadControl，移植自 piliplus）
+        val hardwareDecodeMode: String = "auto",  // bv P2：硬件解码 auto/hardware/software
         val superResolutionMode: String = "disable",  // 审核轮210：超分辨率（disable/efficiency/quality）
         val audioNormalization: Boolean = false,  // 审核轮210：音量归一化
         // HDR 色调映射（移植自 piliplus，配置通道已就位，实际 GL shader 待 Media3 1.5+）
@@ -142,6 +143,9 @@ class SettingsViewModel(context: Context) : ViewModel() {
             storage.audioNormFlow.collect { _state.value = _state.value.copy(audioNormalization = it) }
         }
         viewModelScope.launch {
+            storage.hardwareDecodeFlow.collect { _state.value = _state.value.copy(hardwareDecodeMode = it) }
+        }
+        viewModelScope.launch {
             storage.hdrEnabledFlow.collect { _state.value = _state.value.copy(hdrEnabled = it) }
         }
         viewModelScope.launch {
@@ -174,6 +178,11 @@ class SettingsViewModel(context: Context) : ViewModel() {
     fun setBufferDuration(v: Int) = viewModelScope.launch {
         com.example.piliai.utils.RendererPrefs.updateBufferDuration(v)
         storage.setBufferDuration(v)
+    }
+    /** bv P2：切换硬件解码模式（重建播放器生效） */
+    fun setHardwareDecodeMode(mode: String) = viewModelScope.launch {
+        com.example.piliai.utils.RendererPrefs.updateHardwareDecodeMode(mode)
+        storage.setHardwareDecodeMode(mode)
     }
     /** 审核轮210：切换音量归一化 */
     fun setAudioNormalization(v: Boolean) = viewModelScope.launch {

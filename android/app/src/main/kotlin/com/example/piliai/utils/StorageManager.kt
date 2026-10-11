@@ -60,6 +60,8 @@ class StorageManager(private val context: Context) {
         private val TODAY_WATCH_MODE_KEY = stringPreferencesKey("todayWatchMode")
         private val TODAY_WATCH_STRATEGY_KEY = stringPreferencesKey("todayWatchStrategy")
         private val BUFFER_DURATION_KEY = intPreferencesKey("bufferDurationMs")
+        // bv P2：硬件解码开关（auto/hardware/software）
+        private val HW_DECODE_KEY = stringPreferencesKey("hardwareDecodeMode")
         private val DANDAN_DANMAKU_KEY = booleanPreferencesKey("dandanDanmakuEnabled")
         // 审核216：第一批 Flutter 高频设置项（PiliPlus enableAutoEnter/pauseOnMinimize/enableOnlineTotal）
         private val AUTO_ENTER_KEY = booleanPreferencesKey("enableAutoEnter")
@@ -324,6 +326,18 @@ class StorageManager(private val context: Context) {
     }
     suspend fun setBufferDuration(ms: Int) {
         context.dataStore.edit { preferences -> preferences[BUFFER_DURATION_KEY] = ms }
+    }
+
+    /**
+     * 硬件解码模式（bv P2）："auto"（默认，交给 Media3）/ "hardware"（强制优先硬解）/
+     * "software"（强制软解）。作用于 ExoPlayer 的 MediaCodecSelector，需重建播放器生效。
+     */
+    val hardwareDecodeFlow: Flow<String> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[HW_DECODE_KEY] ?: "auto" }
+
+    suspend fun setHardwareDecodeMode(mode: String) {
+        context.dataStore.edit { it[HW_DECODE_KEY] = mode }
     }
 
     // 审核216：自动全屏（进入播放页即全屏，PiliPlus enableAutoEnter）

@@ -62,6 +62,7 @@ fun SettingsScreen(
     var showBackendDialog by remember { mutableStateOf(false) }
     var showCompletionDialog by remember { mutableStateOf(false) }
     var showBufferDialog by remember { mutableStateOf(false) }
+    var showHwDecodeDialog by remember { mutableStateOf(false) }
     var showSkipDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -155,6 +156,19 @@ fun SettingsScreen(
                     subtitle = bufferLabel(state.bufferDurationMs),
                     icon = Icons.Default.Storage,
                     onClick = { showBufferDialog = true }
+                )
+            }
+            item {
+                // bv P2：硬件解码开关（重建播放器生效）
+                SettingRow(
+                    title = "硬件解码",
+                    subtitle = when (state.hardwareDecodeMode) {
+                        "hardware" -> "强制硬解（4K/HEVC 流畅）"
+                        "software" -> "强制软解（硬解异常时绕行）"
+                        else -> "自动（推荐）"
+                    },
+                    icon = Icons.Default.Memory,
+                    onClick = { showHwDecodeDialog = true }
                 )
             }
             item {
@@ -865,6 +879,49 @@ fun SettingsScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showBufferDialog = false }) { Text("取消") }
+            }
+        )
+    }
+
+    if (showHwDecodeDialog) {
+        AlertDialog(
+            onDismissRequest = { showHwDecodeDialog = false },
+            title = { Text("硬件解码") },
+            text = {
+                Column {
+                    listOf(
+                        "auto" to "自动（推荐，交给系统选择）",
+                        "hardware" to "强制硬解（4K/HEVC 更流畅、省电）",
+                        "software" to "强制软解（硬解绿屏/花屏/崩溃时绕行）"
+                    ).forEach { (mode, label) ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    viewModel.setHardwareDecodeMode(mode)
+                                    showHwDecodeDialog = false
+                                }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            androidx.compose.material3.RadioButton(
+                                selected = state.hardwareDecodeMode == mode,
+                                onClick = { viewModel.setHardwareDecodeMode(mode); showHwDecodeDialog = false }
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(label, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "修改后需重新进入播放页生效",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showHwDecodeDialog = false }) { Text("取消") }
             }
         )
     }
