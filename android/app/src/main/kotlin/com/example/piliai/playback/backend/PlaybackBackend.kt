@@ -63,6 +63,11 @@ interface PlaybackEventListener {
     fun onPlaybackEnded()
     fun onError(message: String)
     fun onVideoSizeChanged(width: Int, height: Int)
+    /**
+     * 审核242：解码器持续过载（连续丢帧）。
+     * 播放层据此提示用户降低画质/关闭超分，而非默默卡顿。
+     */
+    fun onDecoderOverloaded() {}
 }
 
 /**

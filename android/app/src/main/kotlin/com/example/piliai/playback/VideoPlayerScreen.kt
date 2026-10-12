@@ -1193,12 +1193,25 @@ fun VideoPlayerScreen(
                         onDragCancel = { viewModel.cancelGestureSeek() },
                         onDrag = { change, drag ->
                             change.consume()
+                            // 审核242（手势安全区）：边缘手势不触发。
+                            // bv BvPlayerController.kt:901-915/938-944 用水平 10% /
+                            // 垂直 20% 边缘豁免 + 20px 方向阈值，否则用户在屏幕边缘
+                            // 只想轻推一下却莫名跳进度/改音量。
+                            val startX = change.position.x
+                            val startY = change.position.y
+                            val edgeX = size.width * GESTURE_EDGE_HORIZONTAL
+                            val edgeY = size.height * GESTURE_EDGE_VERTICAL
+                            if (startX < edgeX || startX > size.width - edgeX ||
+                                startY < edgeY || startY > size.height - edgeY
+                            ) {
+                                return@detectDragGestures
+                            }
                             val horizontal = kotlin.math.abs(drag.x) > kotlin.math.abs(drag.y)
                             if (horizontal) {
                                 viewModel.onGestureSeek(drag.x, size.width.toFloat())
                             } else {
                                 viewModel.onVerticalDrag(
-                                    change.position.x < size.width / 2,
+                                    startX < size.width / 2,
                                     drag.y, size.height.toFloat()
                                 )
                             }
@@ -1314,6 +1327,14 @@ private fun PlayerView?.pipAspectRatio(): Rational {
         else -> Rational(numerator, 10_000)
     }
 }
+
+/**
+ * 审核242：播放器手势安全区（bv BvPlayerController.kt:901-915/938-944）。
+ * 水平 10% / 垂直 20% 边缘内不响应拖拽手势，避免用户只想轻推
+ * 却莫名跳进度/改音量。
+ */
+private const val GESTURE_EDGE_HORIZONTAL = 0.10f
+private const val GESTURE_EDGE_VERTICAL = 0.20f
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 private fun PlayerView?.buildPipParams(

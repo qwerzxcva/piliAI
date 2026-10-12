@@ -1,5 +1,6 @@
 package com.example.piliai.playback.backend
 
+import android.app.ActivityManager
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.StateFlow
  * 一个 Handler 轮询 [RustGpuNextBridge.pollEvent] 把事件取走并分派给监听器。
  */
 class GpuNextBackend(
+    private val context: android.content.Context,
     private val listener: PlaybackEventListener
 ) : PlaybackBackend {
 
@@ -79,11 +81,16 @@ class GpuNextBackend(
         // 稳定拿到 MediaCodec 零拷贝；不带 copy 后缀可在老芯片上失败时直接报错。
         bridge.setOption("hwdec", "mediacodec,mediacodec-copy")
         bridge.setOption("hwdec-codecs", "h264,hevc,mpeg4,mpeg2video,vp8,vp9,av1")
-        // demuxer 缓存：不配置时 mpv 默认只有几秒，弱网必卡
-        bridge.setOption("demuxer-max-bytes", "64MiB")
-        bridge.setOption("demuxer-max-back-bytes", "16MiB")
+        // demuxer 缓存：不配置时 mpv 默认只有几秒，弱网必卡。
+        // 审核242：按设备内存分档（bv MpvCachePolicy.kt:31-86）。B站 DASH 用
+        // audio-files 播两条流，最坏是配置值两倍；1GB 盒子上固定 64MiB
+        // 可达 ~190MiB 被系统杀进程，4GB 设备上对 4K 又偏小。
+        val cache = MpvCachePolicy.resolve(context)
+        bridge.setOption("demuxer-max-bytes", cache.maxBytes)
+        bridge.setOption("demuxer-max-back-bytes", cache.maxBackBytes)
         bridge.setOption("cache", "yes")
-        bridge.setOption("cache-secs", "60")
+        bridge.setOption("cache-secs", cache.cacheSecs.toString())
+        bridge.setOption("cache-pause-wait", "%.1f".format(java.util.Locale.US, cache.pauseWait))
         // 音频后端：Android 上 audiotrack 优先（opensles 兼容老设备）
         bridge.setOption("ao", "audiotrack,opensles")
         // 审核224：把 piliAI 渲染设置映射到 mpv/libplacebo（与 Media3 路径的
@@ -342,4 +349,60 @@ internal object MpvConstants {
     const val EVENT_VIDEO_RECONFIG = 17
     const val EVENT_SEEK = 20
     const val EVENT_PLAYBACK_RESTART = 21
+}
+
+/**
+ * 审核242：mpv demuxer 缓存分档（移植 bv `MpvCachePolicy.kt:31-86`）。
+ *
+ * 为什么要分档：B 站 DASH 走 `--audio-file` 播视频+音频两条流，实际占用
+ * 最坏是配置值的两倍。bv 实测 1GB 盒子上固定 64/32 MiB 可达 ~190 MiB
+ * 被系统杀进程，而 4GB 设备上同一配置对 4K 又偏小。
+ */
+internal data class MpvCacheConfig(
+    val maxBytes: String,
+    val maxBackBytes: String,
+    val cacheSecs: Int,
+    val pauseWait: Double
+)
+
+internal object MpvCachePolicy {
+
+    /** 直播缓存更小：追帧比重播更重要（bv MpvCachePolicy.kt 直播档） */
+    fun live(base: MpvCacheConfig): MpvCacheConfig = MpvCacheConfig(
+        maxBytes = "${maxOf(base.mib() / 2, 8)}MiB",
+        maxBackBytes = "4MiB",
+        cacheSecs = 30,
+        pauseWait = 1.5
+    )
+
+    /** 用户手动「加大缓冲」：bv expandBuffer 档 */
+    fun expanded(base: MpvCacheConfig): MpvCacheConfig = MpvCacheConfig(
+        maxBytes = "${minOf(base.mib() * 4, 256)}MiB",
+        maxBackBytes = "${base.mib()}MiB",
+        cacheSecs = 300,
+        pauseWait = 3.0
+    )
+
+    fun resolve(context: android.content.Context): MpvCacheConfig {
+        val activityManager = context.getSystemService(android.content.Context.ACTIVITY_SERVICE)
+            as? android.app.ActivityManager
+        val memInfo = android.app.ActivityManager.MemoryInfo()
+        activityManager?.getMemoryInfo(memInfo)
+        val totalBytes = activityManager?.let { am ->
+            val info = android.app.ActivityManager.MemoryInfo()
+            am.getMemoryInfo(info)
+            info.totalMem
+        } ?: 0L
+        val lowRam = memInfo.lowMemory
+        val totalMiB = (totalBytes / (1024 * 1024)).toInt()
+        return when {
+            lowRam || totalMiB in 1 until 1536 -> MpvCacheConfig("16MiB", "8MiB", 120, 3.0)
+            totalMiB in 1536 until 3072 -> MpvCacheConfig("32MiB", "16MiB", 120, 3.0)
+            totalMiB >= 3072 -> MpvCacheConfig("64MiB", "32MiB", 120, 3.0)
+            // totalMem 取不到时的保守默认（中端档）
+            else -> MpvCacheConfig("32MiB", "16MiB", 120, 3.0)
+        }
+    }
+
+    private fun MpvCacheConfig.mib(): Int = maxBytes.removeSuffix("MiB").toIntOrNull() ?: 32
 }

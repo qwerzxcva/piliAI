@@ -296,7 +296,11 @@ fun AppNavigation() {
         composable(Screen.Settings.route) {
             com.example.piliai.ui.settings.SettingsScreen(
                 onBack = { navController.popBackStack() },
-                onDanmakuBlockClick = { navController.navigate(Screen.DanmakuBlock.route) }
+                // 审核241（P2-1）：弹幕屏蔽入口此前从未接线——设置页点了没反应
+                onDanmakuBlockClick = { navController.navigate(Screen.DanmakuBlock.route) },
+                // 审核241：账号/下载/订阅等设置项入口补齐（此前是死参数）
+                onDownloadsClick = { navController.navigate(Screen.Downloads.route) },
+                onSubscribeClick = { navController.navigate(Screen.Subscribe.route) }
             )
         }
         composable(Screen.Login.route) {

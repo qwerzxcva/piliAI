@@ -39,7 +39,10 @@ import com.example.piliai.ui.theme.accentFromHex
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
-    onDanmakuBlockClick: () -> Unit = {}
+    onDanmakuBlockClick: () -> Unit = {},
+    // 审核241：离线/订阅入口（此前无参数，设置页这两项点了没反应）
+    onDownloadsClick: () -> Unit = {},
+    onSubscribeClick: () -> Unit = {}
 ) {
     // 审核轮106：用全局 Application 而非 LocalContext（Activity 旋转重建时 factory 不会捕获旧 Activity）
     val viewModel: SettingsViewModel = viewModel(factory = object : androidx.lifecycle.ViewModelProvider.Factory {

@@ -54,6 +54,8 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     private var clockJob: Job? = null
     private var introSkippedForGeneration = -1L
     private var outroSkippedForGeneration = -1L
+    /** 审核242：解码器过载提示只报一次（换片/切画质后重置） */
+    private var decoderOverloadReported = false
     private var pendingGpuSurface: android.view.Surface? = null
     
     /** 兼容层：UI 与 PlayerView 仍需要 ExoPlayer 实例，仅当后端为 Media3 时非空 */
@@ -802,7 +804,7 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         )
         
         backend = when (backendId) {
-            "gpu-next" -> com.example.piliai.playback.backend.GpuNextBackend(this)
+            "gpu-next" -> com.example.piliai.playback.backend.GpuNextBackend(appContext, this)
             else -> com.example.piliai.playback.backend.Media3Backend(appContext, this)
         }
     }
@@ -1095,7 +1097,23 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     
     // 审核轮210：超分辨率真接入（Media3 1.3.1 已有 setVideoEffects，javap 验证；
     // ==================== PlaybackEventListener 实现 ====================
-    
+
+    /**
+     * 审核242：解码器过载提示（bv ExoMediaPlayer.kt:71-90 的丢帧上报）。
+     * 只提示一次，由用户决定是否降档；不自动改画质（会打断播放）。
+     */
+    override fun onDecoderOverloaded() {
+        if (decoderOverloadReported) return
+        decoderOverloadReported = true
+        val superResOn = com.example.piliai.utils.RendererPrefs.superResolutionMode != "off"
+        val message = if (superResOn) {
+            "播放卡顿：建议关闭超分辨率"
+        } else {
+            "播放卡顿：建议降低画质"
+        }
+        showToast(message)
+    }
+
     override fun onIsPlayingChanged(isPlaying: Boolean) {
         _state.value = _state.value.copy(isPlaying = isPlaying)
     }

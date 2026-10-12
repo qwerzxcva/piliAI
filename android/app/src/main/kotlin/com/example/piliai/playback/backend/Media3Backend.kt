@@ -59,6 +59,39 @@ class Media3Backend(
             .build()
             .apply {
                 addListener(ExoPlayerListener())
+                // 审核242：丢帧检测（bv ExoMediaPlayer.kt:71-90/643 的
+                // onDroppedVideoFrames 监听）。持续丢帧说明当前画质/超分
+                // 超出设备解码能力，提示用户降档比默默卡死好。
+                addAnalyticsListener(object : androidx.media3.exoplayer.analytics.AnalyticsListener {
+                    private var consecutiveDrops = 0
+                    private var reported = false
+
+                    override fun onDroppedVideoFrames(
+                        eventTime: androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime,
+                        droppedFrames: Int,
+                        elapsedMs: Long
+                    ) {
+                        // 单位时间丢帧超过 5% 才算一次「掉帧事件」
+                        if (elapsedMs <= 0L || droppedFrames * 20 < elapsedMs / 50) {
+                            return
+                        }
+                        consecutiveDrops += 1
+                        // 连续 2 次掉帧才提示，避免偶发单次误报
+                        if (consecutiveDrops >= 2 && !reported) {
+                            reported = true
+                            listener.onDecoderOverloaded()
+                        }
+                    }
+
+                    override fun onRenderedFirstFrame(
+                        eventTime: androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime,
+                        output: Any,
+                        renderTimeMs: Long
+                    ) {
+                        consecutiveDrops = 0
+                        reported = false
+                    }
+                })
             }
     }
 
