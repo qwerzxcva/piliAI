@@ -3,7 +3,9 @@ package com.example.piliai.ui.main
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -15,6 +17,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -24,7 +28,7 @@ import coil.compose.AsyncImage
 import com.example.piliai.data.model.SearchResultItem
 import com.example.piliai.utils.toHttpsUrl
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun SearchScreen(
     initialQuery: String = "",
@@ -181,6 +185,7 @@ fun SearchScreen(
 
                 // 首屏：热搜 + 历史
                 else -> LazyColumn(Modifier.fillMaxSize()) {
+                    // 审核237：搜索历史→胶囊流（B站首页搜索视觉）
                     if (state.history.isNotEmpty()) {
                         item {
                             Row(
@@ -192,16 +197,31 @@ fun SearchScreen(
                                 TextButton(onClick = { viewModel.clearHistory() }) { Text("清空") }
                             }
                         }
-                        items(state.history, key = { it }) { h ->
-                            ListItem(
-                                headlineContent = { Text(h) },
-                                leadingContent = { Icon(Icons.Default.History, null) },
-                                modifier = Modifier.clickable {
-                                    searchQuery = h
-                                    viewModel.setSearchKeyword(h)
-                                    viewModel.performSearch()
+                        item {
+                            FlowRow(
+                                Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                state.history.forEach { h ->
+                                    Text(
+                                        h,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 1,
+                                        modifier = Modifier
+                                            .clickable {
+                                                searchQuery = h
+                                                viewModel.setSearchKeyword(h)
+                                                viewModel.performSearch()
+                                            }
+                                            .background(
+                                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                                RoundedCornerShape(50)
+                                            )
+                                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                                    )
                                 }
-                            )
+                            }
                         }
                     }
                     item {
@@ -211,21 +231,46 @@ fun SearchScreen(
                             modifier = Modifier.padding(16.dp, 12.dp)
                         )
                     }
-                    items(state.trending, key = { it.keyword }) { t ->
-                        ListItem(
-                            headlineContent = {
-                                Text(t.show_name.ifEmpty { t.keyword }, maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis)
-                            },
-                            supportingContent = {
-                                if (t.recommend_reason != null) Text(t.recommend_reason)
-                            },
-                            modifier = Modifier.clickable {
-                                searchQuery = t.keyword
-                                viewModel.setSearchKeyword(t.keyword)
-                                viewModel.performSearch()
+                    // 审核237：热搜带排名序号（前三热色）
+                    itemsIndexed(state.trending, key = { _, t -> t.keyword }) { idx, t ->
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .clickable {
+                                    searchQuery = t.keyword
+                                    viewModel.setSearchKeyword(t.keyword)
+                                    viewModel.performSearch()
+                                }
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val rank = idx + 1
+                            Text(
+                                "$rank",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = when {
+                                    rank == 1 -> Color(0xFFFB7299)
+                                    rank == 2 -> Color(0xFFFF8C42)
+                                    rank == 3 -> Color(0xFFF5C518)
+                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                                modifier = Modifier.width(28.dp)
+                            )
+                            Text(
+                                t.show_name.ifEmpty { t.keyword },
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            if (t.recommend_reason != null) {
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    t.recommend_reason,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    maxLines = 1
+                                )
                             }
-                        )
+                        }
                     }
                 }
             }

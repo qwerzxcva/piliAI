@@ -107,6 +107,9 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         val subtitleBgOpacity: Float = 0.6f,
         val subtitleStroke: Float = 0.5f,
         val subtitleBold: Boolean = false,
+        // 审核237：手势调节时间戳（递增 tick，UI 据此显示浮标 1s）
+        val volumeTouchedTick: Long = 0L,
+        val brightnessTouchedTick: Long = 0L,
         val brightness: Float = 0.5f,
         val gestureSeekDeltaMs: Long = 0L,
         val qualities: List<QualityOption> = emptyList(),
@@ -1682,11 +1685,24 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         val delta = -deltaY / heightPx
         if (leftSide) {
             val nv = (_state.value.brightness + delta).coerceIn(0.05f, 1f)
-            _state.value = _state.value.copy(brightness = nv)
+            _state.value = _state.value.copy(
+                brightness = nv,
+                brightnessTouchedTick = _state.value.brightnessTouchedTick + 1,
+            )
             brightnessTouched = true
         } else {
-            setVolume((_state.value.volume + delta).coerceIn(0f, 1f))
+            val nv = (_state.value.volume + delta).coerceIn(0f, 1f)
+            viewModelScope.launch { backend?.setVolume(nv) }
+            _state.value = _state.value.copy(
+                volume = nv, isMuted = nv == 0f,
+                volumeTouchedTick = _state.value.volumeTouchedTick + 1,
+            )
         }
+    }
+
+    /** 审核237：手势浮标显示完毕后清 tick */
+    fun clearGestureTicks() {
+        _state.value = _state.value.copy(volumeTouchedTick = 0L, brightnessTouchedTick = 0L)
     }
 
     private fun duration(): Long = backend?.durationMs() ?: _state.value.duration

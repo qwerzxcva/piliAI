@@ -17,9 +17,19 @@ data class CommentResponse(
 data class CommentData(
     val upper: UpperInfo? = null,
     val replay: List<CommentNode> = emptyList(),
+    // 审核237：置顶评论（wbi/main 顶层 top 字段，admin/upper/vote 三种来源）
+    val top: TopCommentInfo? = null,
     val cursor: CursorInfo? = null,
     val count: Int = 0,
     val num: Int = 0
+)
+
+/** 置顶评论容器：{admin:CommentNode?, upper:CommentNode?, vote:CommentNode?} */
+@Serializable
+data class TopCommentInfo(
+    val admin: CommentNode? = null,
+    val upper: CommentNode? = null,
+    val vote: CommentNode? = null
 )
 
 @Serializable

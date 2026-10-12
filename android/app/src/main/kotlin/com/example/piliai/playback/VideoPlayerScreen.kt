@@ -1101,9 +1101,18 @@ fun VideoPlayerScreen(
             }
         }
 
-        // 审核轮156：音量/亮度调节浮标（右侧滑动手势时显示）
+        // 审核237：拖动停止 1s 后浮标消失（tick 归零防重显示）
+        LaunchedEffect(state.volumeTouchedTick, state.brightnessTouchedTick) {
+            if (state.volumeTouchedTick > 0L || state.brightnessTouchedTick > 0L) {
+                kotlinx.coroutines.delay(1000)
+                viewModel.clearGestureTicks()
+            }
+        }
+        // 审核轮156+审核237：手势浮标（音量/亮度竖拖实时反馈）
         val gestureTip = when {
             showSpeedBurst -> "3x 快进中 »"
+            state.brightnessTouchedTick > 0 -> "☀ 亮度 ${(state.brightness * 100).toInt()}%"
+            state.volumeTouchedTick > 0 -> if (state.volume > 0f) "🔊 音量 ${(state.volume * 100).toInt()}%" else "🔇 静音"
             showVolumeSlider -> if (state.volume > 0f) "音量 ${(state.volume * 100).toInt()}%" else "🔇 静音"
             else -> null
         }

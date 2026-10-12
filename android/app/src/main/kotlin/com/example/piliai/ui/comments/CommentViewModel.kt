@@ -24,6 +24,8 @@ class CommentViewModel(private val bvid: String) : ViewModel() {
     data class CommentState(
         val oid: Long = 0L,                 // aid
         val comments: List<CommentNode> = emptyList(),
+        // 审核237：置顶评论（页1固定显示在列表头）
+        val topComment: CommentNode? = null,
         val totalCount: Int = 0,
         val page: Int = 1,
         val hasMore: Boolean = false,
@@ -60,8 +62,11 @@ class CommentViewModel(private val bvid: String) : ViewModel() {
             api.getComments(bvid, oid = oid, page = page, mode = m).onSuccess { resp ->
                 if (resp.code == 0) {
                     val list = resp.data?.replay.orEmpty()
+                    // 审核237：置顶评论取 upper 优先（UP主置顶），无则 admin
+                    val top = resp.data?.top?.let { it.upper ?: it.admin ?: it.vote }
                     _state.value = _state.value.copy(
                         isLoading = false, isLoadingMore = false,
+                        topComment = if (page == 1) top else _state.value.topComment,
                         comments = if (page == 1) list else _state.value.comments + list,
                         totalCount = resp.data?.count ?: 0,
                         page = page,

@@ -1,5 +1,6 @@
 package com.example.piliai.ui.comments
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -8,6 +9,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -15,6 +17,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
@@ -239,20 +242,40 @@ fun CommentScreen(
         }
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            // 排序切换（3=热门 2=最新）
+            // 审核237：排序玻璃分段（BiliPai CommentSortFilterBar 视觉）
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                FilterChip(
-                    selected = state.mode == 3,
-                    onClick = { viewModel.setMode(3) },
-                    label = { Text("热门") }
-                )
-                FilterChip(
-                    selected = state.mode == 2,
-                    onClick = { viewModel.setMode(2) },
-                    label = { Text("最新") }
+                Box(
+                    Modifier
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f), RoundedCornerShape(50))
+                        .padding(3.dp)
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        listOf(3 to "热门", 2 to "最新").forEach { (m, label) ->
+                            val selected = state.mode == m
+                            Text(
+                                label,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (selected) MaterialTheme.colorScheme.onPrimary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .clickable { viewModel.setMode(m) }
+                                    .background(
+                                        if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                        RoundedCornerShape(50)
+                                    )
+                                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.weight(1f))
+                Text(
+                    "${formatCount(state.totalCount.toLong())} 条评论",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
@@ -282,6 +305,35 @@ fun CommentScreen(
                     contentPadding = PaddingValues(12.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    // 审核237：置顶评论固定头
+                    state.topComment?.let { top ->
+                        item(key = "top_${top.rpid}") {
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        "置顶",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier
+                                            .background(
+                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                                RoundedCornerShape(4.dp)
+                                            )
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                CommentRow(
+                                    comment = top,
+                                    liked = top.rpid in state.likedRpid,
+                                    expanded = state.expandedReplies[top.rpid],
+                                    onLike = { viewModel.toggleCommentLike(top.rpid) },
+                                    onExpand = { viewModel.expandReplies(top.rpid) },
+                                    onCollapse = { viewModel.collapseReplies(top.rpid) }
+                                )
+                            }
+                        }
+                    }
                     items(state.comments, key = { it.rpid }) { comment ->
                         CommentRow(
                             comment = comment,
@@ -377,7 +429,13 @@ private fun CommentRow(
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.clickable { onCollapse() }.padding(vertical = 2.dp)
                 )
-                expanded.forEach { reply -> SubReplyRow(reply) }
+                // 审核237：展开楼中楼灰底卡
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) { expanded.forEach { reply -> SubReplyRow(reply) } }
             }
             comment.replyCount > 0 -> {
                 Spacer(Modifier.height(4.dp))
@@ -389,8 +447,14 @@ private fun CommentRow(
                 )
             }
             inlineReplies.isNotEmpty() -> {
-                Spacer(Modifier.height(4.dp))
-                inlineReplies.forEach { reply -> SubReplyRow(reply) }
+                Spacer(Modifier.height(6.dp))
+                // 审核237：楼中楼灰底圆角卡（BiliPai 楼层视觉）
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) { inlineReplies.forEach { reply -> SubReplyRow(reply) } }
             }
         }
     }
