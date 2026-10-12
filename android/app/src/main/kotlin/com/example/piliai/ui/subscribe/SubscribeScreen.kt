@@ -12,6 +12,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import com.example.piliai.utils.toCoverUrl
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -19,8 +26,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -34,12 +41,18 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CardDefaults
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.Composable
@@ -60,6 +73,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.piliai.database.SubscribeItemEntity
 import com.example.piliai.database.SubscribeSourceEntity
+import com.example.piliai.database.SubscribeTitleEntity
 
 /**
  * 订阅页（Animeko「订阅」移植）
@@ -81,7 +95,8 @@ class SubscribeViewModelFactory : androidx.lifecycle.ViewModelProvider.Factory {
             return SubscribeViewModel(
                 com.example.piliai.data.repository.SubscribeRepository(
                     db.subscribeSourceDao(),
-                    db.subscribeItemDao()
+                    db.subscribeItemDao(),
+                    db.subscribeTitleDao()
                 )
             ) as T
         }
@@ -206,11 +221,41 @@ fun SubscribeScreen(
             )
         }
     ) { padding ->
-        PullToRefreshBox(
-            isRefreshing = state.isRefreshing,
-            onRefresh = { viewModel.refreshAll() },
-            modifier = Modifier.fillMaxSize().padding(padding)
-        ) {
+        // 审核240：追番分段筛选（animeko 收藏页 COLLECTION_TABS_SORTED 对齐）
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            val titleFilter by viewModel.titleFilter.collectAsStateWithLifecycle()
+            val followedTitles by viewModel.visibleTitles.collectAsStateWithLifecycle()
+            val unwatchedTotal by viewModel.unwatchedTotal.collectAsStateWithLifecycle()
+            // 有追番才显示筛选条（没追番时保持原有「订阅源条目」视图）
+            if (followedTitles.isNotEmpty() || titleFilter != SubscribeViewModel.TITLE_FILTER_ALL) {
+                val filterLabels = listOf(
+                    "全部",
+                    "想看",
+                    "在看",
+                    "看过",
+                    "搁置",
+                    "抛弃",
+                    "更新" + if (unwatchedTotal > 0) " $unwatchedTotal" else ""
+                )
+                ScrollableTabRow(
+                    selectedTabIndex = titleFilter,
+                    edgePadding = 12.dp,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                ) {
+                    filterLabels.forEachIndexed { index, label ->
+                        Tab(
+                            selected = titleFilter == index,
+                            onClick = { viewModel.setTitleFilter(index) },
+                            text = { Text(label, style = MaterialTheme.typography.labelLarge) }
+                        )
+                    }
+                }
+            }
+            PullToRefreshBox(
+                isRefreshing = state.isRefreshing,
+                onRefresh = { viewModel.refreshAll() },
+                modifier = Modifier.fillMaxSize()
+            ) {
             when {
                 displayItems2.isEmpty() && !state.isRefreshing -> {
                     if (state.isSearching || currentSubject != null || libraryQuery.isNotBlank()) {
@@ -229,6 +274,54 @@ fun SubscribeScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxSize()
                     ) {
+                        // 审核240：追番卡片区（全宽 header + 每部作品一行卡）
+                        if (followedTitles.isNotEmpty()) {
+                            item(span = { GridItemSpan(maxLineSpan) }) {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        "我的追番" + if (unwatchedTotal > 0) " · $unwatchedTotal 集未看" else "",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                            items(followedTitles, key = { it.id }) { title ->
+                                FollowedTitleCard(
+                                    title = title,
+                                    onToggleWatched = {
+                                        // 点「标记看到」：+1 集，到达最新集后归零重看
+                                        val next = if (title.lastWatchedEpisode >= title.latestEpisode) 0
+                                            else title.lastWatchedEpisode + 1
+                                        viewModel.setTitleWatched(title.id, next)
+                                    },
+                                    onCycleCollectionType = {
+                                        // 点击类型 chip：想看→看过→在看→搁置→抛弃→想看
+                                        // （审核240：顺序按 Bangumi 官方编码 1/2/3/4/5）
+                                        val next = when (title.collectionType) {
+                                            SubscribeTitleEntity.COLLECTION_WISH -> SubscribeTitleEntity.COLLECTION_DONE
+                                            SubscribeTitleEntity.COLLECTION_DONE -> SubscribeTitleEntity.COLLECTION_DOING
+                                            SubscribeTitleEntity.COLLECTION_DOING -> SubscribeTitleEntity.COLLECTION_ON_HOLD
+                                            SubscribeTitleEntity.COLLECTION_ON_HOLD -> SubscribeTitleEntity.COLLECTION_DROPPED
+                                            else -> SubscribeTitleEntity.COLLECTION_WISH
+                                        }
+                                        viewModel.setTitleCollectionType(title.id, next)
+                                    },
+                                    onUnfollow = { viewModel.unfollowTitle(title.id) }
+                                )
+                            }
+                            item(span = { GridItemSpan(maxLineSpan) }) {
+                                Text(
+                                    "订阅源条目",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
                         items(displayItems2, key = { item ->
                             buildString {
                                 append(item.sourceId).append(':')
@@ -241,6 +334,28 @@ fun SubscribeScreen(
                                 item = item,
                                 onInfo = if (inEpisodeView) null else {
                                     { viewModel.lookupBangumi(item.title, onOpenSubject) }
+                                },
+                                // 审核240：追番入口。作品条目可追番；剧集/RSS 不显示。
+                                isFollowed = if (inEpisodeView) false else viewModel.isFollowed(
+                                    item.sourceId,
+                                    item.link.ifBlank { item.title }
+                                ),
+                                onFollow = if (inEpisodeView) null else {
+                                    {
+                                        val key = item.link.ifBlank { item.title }
+                                        if (viewModel.isFollowed(item.sourceId, key)) {
+                                            // 已追番：取消（需要 id，由 ViewModel 反查）
+                                            viewModel.unfollowByKey(item.sourceId, key)
+                                        } else {
+                                            viewModel.followTitle(
+                                                sourceId = item.sourceId,
+                                                sourceKey = key,
+                                                name = item.title,
+                                                cover = item.cover,
+                                                intro = item.desc
+                                            )
+                                        }
+                                    }
                                 }
                             ) {
                                 // 审核轮8：不是所有条目都有可播放直链。
@@ -275,6 +390,7 @@ fun SubscribeScreen(
                             }
                         }
                     }
+                }
                 }
             }
         }
@@ -587,6 +703,8 @@ private fun EmptySubscribeHint(onAdd: () -> Unit) {
 private fun SubscribeItemCard(
     item: SubscribeItemEntity,
     onInfo: (() -> Unit)? = null,
+    isFollowed: Boolean = false,
+    onFollow: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
@@ -618,6 +736,18 @@ private fun SubscribeItemCard(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
+                    if (onFollow != null) {
+                        // 审核240：追番按钮（已追番时实心，未追番时空心）
+                        IconButton(onClick = onFollow) {
+                            Icon(
+                                imageVector = if (isFollowed) Icons.Default.Favorite
+                                    else Icons.Default.FavoriteBorder,
+                                contentDescription = if (isFollowed) "取消追番" else "追番",
+                                tint = if (isFollowed) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                     if (onInfo != null) {
                         IconButton(onClick = onInfo) {
                             Icon(
@@ -757,4 +887,109 @@ private fun ManageSourcesDialog(
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } }
     )
+}
+
+/**
+ * 审核240：追番卡片（animeko 收藏页条目）。
+ *
+ * 一屏一部作品：封面 + 名称 + 收藏状态 + 进度。交互：
+ * - 点进度 chip：看到下一集（到最新集后归零，方便重看）
+ * - 点状态 chip：收藏状态循环
+ * - 点右侧关闭：取消追番
+ */
+@Composable
+private fun FollowedTitleCard(
+    title: SubscribeTitleEntity,
+    onToggleWatched: () -> Unit,
+    onCycleCollectionType: () -> Unit,
+    onUnfollow: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AsyncImage(
+                model = title.cover.toCoverUrl(),
+                contentDescription = title.name,
+                modifier = Modifier
+                    .width(64.dp)
+                    .aspectRatio(2f / 3f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                contentScale = ContentScale.Crop
+            )
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = title.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 进度 chip：点一下 +1 集
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        shape = RoundedCornerShape(50),
+                        modifier = Modifier.clickable(onClick = onToggleWatched)
+                    ) {
+                        Text(
+                            text = if (title.latestEpisode > 0)
+                                "${title.lastWatchedEpisode}/${title.latestEpisode}"
+                            else "第 ${title.lastWatchedEpisode} 集",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (title.hasUnwatched) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    // 收藏状态 chip：点一下循环
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        shape = RoundedCornerShape(50),
+                        modifier = Modifier.clickable(onClick = onCycleCollectionType)
+                    ) {
+                        Text(
+                            text = when (title.collectionType) {
+                                SubscribeTitleEntity.COLLECTION_WISH -> "想看"
+                                SubscribeTitleEntity.COLLECTION_DONE -> "看过"
+                                SubscribeTitleEntity.COLLECTION_ON_HOLD -> "搁置"
+                                SubscribeTitleEntity.COLLECTION_DROPPED -> "抛弃"
+                                else -> "在看"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                    if (title.rating > 0) {
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = String.format(java.util.Locale.US, "★ %.1f", title.rating),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            IconButton(onClick = onUnfollow) {
+                Icon(
+                    Icons.Default.Close,
+                    contentDescription = "取消追番",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
 }

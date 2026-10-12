@@ -12,9 +12,13 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -35,6 +39,12 @@ class SubscribeViewModel(
     companion object {
         /** 审核轮15：同时拉取的订阅源上限（防风控限流 + 内存峰值） */
         private const val MAX_CONCURRENT_SYNC = 4
+
+        /** 审核240：追番筛选项。0=全部，1-5 与 Bangumi 收藏类型同编码，6=只看更新。
+         *  注意：必须与 SubscribeTitleEntity 的 COLLECTION_* 分开编号，
+         *  否则「搁置(4)」永远被「只看更新」分支吃掉（子代理调研发现的真实缺陷）。 */
+        const val TITLE_FILTER_ALL = 0
+        const val TITLE_FILTER_UNWATCHED = 6
     }
 
     data class UiState(
@@ -57,6 +67,108 @@ class SubscribeViewModel(
     private val _libraryQuery = MutableStateFlow("")
     val libraryQuery: StateFlow<String> = _libraryQuery.asStateFlow()
 
+    // ==================== 追番（animeko「收藏」移植，审核240）====================
+
+    /** 追番列表（本地 Room，随数据库自动刷新） */
+    private val _titles = MutableStateFlow<List<com.example.piliai.database.SubscribeTitleEntity>>(emptyList())
+    val titles: StateFlow<List<com.example.piliai.database.SubscribeTitleEntity>> = _titles.asStateFlow()
+
+    /**
+     * 追番筛选：0=全部 1=想看 2=在看 3=看过 4=只看更新。
+     * 与 animeko `COLLECTION_TABS_SORTED` 对齐（animeko 收藏页分段按钮）。
+     */
+    private val _titleFilter = MutableStateFlow(TITLE_FILTER_ALL)
+    val titleFilter: StateFlow<Int> = _titleFilter.asStateFlow()
+
+    fun setTitleFilter(filter: Int) {
+        _titleFilter.value = filter.coerceIn(TITLE_FILTER_ALL, TITLE_FILTER_UNWATCHED)
+    }
+
+    /** 当前筛选下的追番列表（UI 直接订阅） */
+    val visibleTitles: StateFlow<List<com.example.piliai.database.SubscribeTitleEntity>> =
+        _titleFilter.combine(_titles) { filter, list ->
+            when (filter) {
+                TITLE_FILTER_ALL -> list
+                TITLE_FILTER_UNWATCHED -> list.filter { it.hasUnwatched }
+                else -> list.filter { it.collectionType == filter }
+            }
+        }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** 未看集数总和（追番入口角标） */
+    val unwatchedTotal: StateFlow<Int> = _titles.map { list -> list.sumOf { it.unwatchedCount } }
+        .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000), 0)
+
+    init {
+        // 追番列表
+        viewModelScope.launch {
+            repository.observeTitles()
+                .catch { e -> _state.value = _state.value.copy(errorMessage = e.message) }
+                .collect { list -> _titles.value = list }
+        }
+    }
+
+    /**
+     * 追番 / 取消追番。
+     *
+     * @param sourceKey 源内稳定标识：web-selector 源用作品页 URL，RSS 源用条目 link
+     */
+    fun followTitle(
+        sourceId: Long,
+        sourceKey: String,
+        name: String,
+        cover: String = "",
+        intro: String = "",
+        latestEpisode: Int = 0,
+        bangumiId: Long = 0L
+    ) {
+        viewModelScope.launch {
+            repository.followTitle(sourceId, sourceKey, name, cover, intro, latestEpisode, bangumiId)
+                .onSuccess {
+                    _state.value = _state.value.copy(infoMessage = "已追番：$name", errorMessage = null)
+                }
+                .onFailure { e ->
+                    _state.value = _state.value.copy(errorMessage = e.message ?: "追番失败")
+                }
+        }
+    }
+
+    fun unfollowTitle(id: Long) {
+        viewModelScope.launch {
+            repository.unfollowTitle(id)
+                .onSuccess {
+                    _state.value = _state.value.copy(infoMessage = "已取消追番")
+                }
+        }
+    }
+
+    /** 按 (sourceId, sourceKey) 取消追番（卡片上的实心爱心用） */
+    fun unfollowByKey(sourceId: Long, sourceKey: String) {
+        viewModelScope.launch {
+            val id = repository.getTitleByKey(sourceId, sourceKey)?.id ?: return@launch
+            repository.unfollowTitle(id)
+                .onSuccess {
+                    _state.value = _state.value.copy(infoMessage = "已取消追番")
+                }
+        }
+    }
+
+    fun setTitleCollectionType(id: Long, type: Int) {
+        viewModelScope.launch { repository.setTitleCollectionType(id, type) }
+    }
+
+    fun setTitleWatched(id: Long, episode: Int) {
+        viewModelScope.launch {
+            repository.setTitleWatched(id, episode)
+                .onSuccess {
+                    _state.value = _state.value.copy(infoMessage = "已标记看到第 ${episode} 集")
+                }
+        }
+    }
+
+    /** 当前作品是否已追番（列表项图标用） */
+    fun isFollowed(sourceId: Long, sourceKey: String): Boolean =
+        _titles.value.any { it.sourceId == sourceId && it.sourceKey == sourceKey }
+
     private var browseJob: Job? = null
     private var browseGeneration = 0L
     private var bangumiLookupJob: Job? = null
@@ -64,6 +176,8 @@ class SubscribeViewModel(
     private var refreshJob: Job? = null
     /** 审核轮103：搜索防重入（快速连点搜索按钮会并发打出多个请求） */
     private var searchJob: Job? = null
+    /** 审核240：Bangumi 收藏同步任务（防重入） */
+    private var bangumiSyncJob: Job? = null
 
     init {
         // 源列表
@@ -261,11 +375,36 @@ class SubscribeViewModel(
                     infoMessage = "Bangumi 登录成功：$name",
                     errorMessage = null
                 )
+                // 审核240：登录后立刻拉一次收藏，让「我的追番」有内容
+                syncBangumi()
             }.onFailure { e ->
                 _state.value = _state.value.copy(
                     errorMessage = e.message ?: "Bangumi 登录失败"
                 )
             }
+        }
+    }
+
+    /** 审核240：拉取 Bangumi 收藏到本地追番表 */
+    fun syncBangumi() {
+        if (bangumiSyncJob?.isActive == true) return
+        bangumiSyncJob = viewModelScope.launch {
+            if (!com.example.piliai.data.remote.BangumiSession.isLogin) return@launch
+            repository.syncBangumiCollections()
+                .onSuccess { count ->
+                    if (count > 0) {
+                        _state.value = _state.value.copy(
+                            infoMessage = "已同步 Bangumi 收藏 $count 部",
+                            errorMessage = null
+                        )
+                    }
+                }
+                .onFailure { e ->
+                    // 不同步不阻塞订阅页：只提示，不动本地数据
+                    _state.value = _state.value.copy(
+                        errorMessage = "Bangumi 收藏同步失败：${e.message ?: "网络错误"}"
+                    )
+                }
         }
     }
 

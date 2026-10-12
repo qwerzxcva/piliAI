@@ -504,12 +504,203 @@ object SubscribeParser {
 
 class SubscribeRepository(
     private val dao: SubscribeSourceDao,
-    private val itemDao: com.example.piliai.database.SubscribeItemDao
+    private val itemDao: com.example.piliai.database.SubscribeItemDao,
+    private val titleDao: com.example.piliai.database.SubscribeTitleDao? = null
 ) {
     /** 事务宿主：保证「删旧 + 写新」原子提交（审核轮3） */
     private val db by lazy {
         com.example.piliai.database.PiliNaraDatabase
             .getDatabase(com.example.piliai.AppContext.get())
+    }
+
+    /**
+     * 追番 DAO：构造时未注入（旧调用点）时按需取默认实例。
+     * 审核240：这是 animeko「收藏」页的数据入口。
+     */
+    private val titles: com.example.piliai.database.SubscribeTitleDao
+        get() = titleDao ?: db.subscribeTitleDao()
+
+    // ==================== 追番（animeko「收藏」移植，审核240）====================
+
+    /** 观察全部追番（UI 直接订阅） */
+    fun observeTitles(): kotlinx.coroutines.flow.Flow<List<com.example.piliai.database.SubscribeTitleEntity>> =
+        titles.observeAll()
+
+    /** 按收藏类型观察 */
+    fun observeTitlesByType(type: Int) = titles.observeByType(type)
+
+    /** 只看有更新的追番 */
+    fun observeUnwatchedTitles() = titles.observeUnwatched()
+
+    /**
+     * 把订阅源里的条目加入追番（或更新已有追番的集数）。
+     *
+     * 以 `(sourceId, sourceKey)` 唯一：同一源内同一作品只占一行，
+     * 重复加入不会产生第二行（UI 上的「追番」按钮可反复点）。
+     * 已存在时**保留**用户的收藏状态与观看进度，只更新源侧信息。
+     */
+    suspend fun followTitle(
+        sourceId: Long,
+        sourceKey: String,
+        name: String,
+        cover: String = "",
+        intro: String = "",
+        latestEpisode: Int = 0,
+        bangumiId: Long = 0L
+    ): Result<Long> = withContext(Dispatchers.IO) {
+        runCatching {
+            require(sourceKey.isNotBlank()) { "追番需要源内标识" }
+            val existing = titles.getByKey(sourceId, sourceKey)
+            val entity = if (existing == null) {
+                com.example.piliai.database.SubscribeTitleEntity(
+                    sourceId = sourceId,
+                    sourceKey = sourceKey,
+                    name = name,
+                    cover = cover,
+                    intro = intro,
+                    bangumiId = bangumiId,
+                    latestEpisode = latestEpisode,
+                    collectionType = com.example.piliai.database.SubscribeTitleEntity.COLLECTION_DOING
+                )
+            } else {
+                existing.copy(
+                    name = name.ifBlank { existing.name },
+                    cover = cover.ifBlank { existing.cover },
+                    intro = intro.ifBlank { existing.intro },
+                    latestEpisode = if (latestEpisode > 0) latestEpisode else existing.latestEpisode,
+                    bangumiId = if (bangumiId > 0) bangumiId else existing.bangumiId,
+                    updatedAt = System.currentTimeMillis()
+                )
+            }
+            titles.upsert(entity)
+        }
+    }
+
+    /** 取消追番（仅删本地记录，不动 Bangumi 侧） */
+    suspend fun unfollowTitle(id: Long): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching { titles.deleteById(id) }
+    }
+
+    /** 改收藏状态（想看/在看/看过/搁置/抛弃） */
+    suspend fun setTitleCollectionType(id: Long, type: Int): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                titles.setCollectionType(
+                    id,
+                    com.example.piliai.database.SubscribeTitleEntity.fromBangumiType(type)
+                )
+            }
+            // 审核240：本地改完顺手推 Bangumi。失败不回滚本地改动，
+            // 网络失败不该把用户刚点的状态撤掉。
+            pushCollectionType(id)
+        }
+
+    /** 标记看到第几集 */
+    suspend fun setTitleWatched(id: Long, episode: Int): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching { titles.setWatchedEpisode(id, episode.coerceAtLeast(0)) }
+        }
+
+    /** 刷新某源全部追番的最新集数（syncSource 成功后调用） */
+    suspend fun refreshTitleEpisode(sourceId: Long, sourceKey: String, latestEpisode: Int) =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                if (latestEpisode <= 0) return@runCatching
+                val existing = titles.getByKey(sourceId, sourceKey) ?: return@runCatching
+                if (latestEpisode != existing.latestEpisode) {
+                    titles.setLatestEpisode(existing.id, latestEpisode)
+                }
+            }
+        }
+
+    /** 删订阅源时清掉它的追番，避免孤儿行 */
+    suspend fun deleteTitlesBySource(sourceId: Long) = withContext(Dispatchers.IO) {
+        runCatching { titles.deleteBySource(sourceId) }
+    }
+
+    suspend fun getTitle(id: Long) = withContext(Dispatchers.IO) {
+        runCatching { titles.getById(id) }.getOrNull()
+    }
+
+    suspend fun getTitleByKey(sourceId: Long, sourceKey: String) = withContext(Dispatchers.IO) {
+        runCatching { titles.getByKey(sourceId, sourceKey) }.getOrNull()
+    }
+
+    /**
+     * 审核240：把 Bangumi 收藏同步进追番表。
+     *
+     * - 匹配键是 `bangumiId`（本地已关联过的作品）
+     * - 未命中则插入新行：sourceId=0（Bangumi 直连，无订阅源），
+     *   sourceKey="bgm:{id}" 保证唯一索引不冲突
+     * - 同步失败/未登录时返回 0，由调用方决定是否提示
+     */
+    suspend fun syncBangumiCollections(): Result<Int> = withContext(Dispatchers.IO) {
+        runCatching {
+            if (!com.example.piliai.data.remote.BangumiSession.isLogin) return@runCatching 0
+            val remote = com.example.piliai.data.remote.BangumiApi.allMyCollections()
+            var touched = 0
+            val now = System.currentTimeMillis()
+            remote.forEach { item ->
+                val subjectId = item.subjectId
+                if (subjectId <= 0L) return@forEach
+                val slim = item.subject
+                val episodes = slim?.eps ?: 0
+                val existing = titles.getByBangumiId(subjectId)
+                val entity = if (existing != null) {
+                    existing.copy(
+                        name = slim?.displayTitle?.takeIf { it.isNotBlank() } ?: existing.name,
+                        cover = slim?.images?.large?.takeIf { it.isNotBlank() } ?: existing.cover,
+                        intro = slim?.shortSummary?.takeIf { !it.isNullOrBlank() } ?: existing.intro,
+                        collectionType = com.example.piliai.database.SubscribeTitleEntity
+                            .fromBangumiType(item.type),
+                        // 远端集数更大才覆盖（本地可能有更细的源数据）
+                        latestEpisode = maxOf(existing.latestEpisode, episodes),
+                        rating = if (slim?.score ?: 0.0 > 0) slim!!.score else existing.rating,
+                        bangumiSyncedAt = now,
+                        bangumiPrivate = item.isPrivate,
+                        updatedAt = now
+                    )
+                } else {
+                    com.example.piliai.database.SubscribeTitleEntity(
+                        sourceId = 0L,
+                        sourceKey = "bgm:$subjectId",
+                        name = slim?.displayTitle ?: "条目 $subjectId",
+                        cover = slim?.images?.large.orEmpty(),
+                        intro = slim?.shortSummary.orEmpty(),
+                        bangumiId = subjectId,
+                        collectionType = com.example.piliai.database.SubscribeTitleEntity
+                            .fromBangumiType(item.type),
+                        latestEpisode = episodes,
+                        rating = slim?.score ?: 0.0,
+                        bangumiSyncedAt = now,
+                        bangumiPrivate = item.isPrivate
+                    )
+                }
+                titles.upsert(entity)
+                touched++
+            }
+            touched
+        }
+    }
+
+    /**
+     * 审核240：把本地收藏状态推到 Bangumi。
+     * 未登录 / 未关联 bangumiId 时静默跳过（不阻塞本地操作）。
+     */
+    private suspend fun pushCollectionType(id: Long): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val row = titles.getById(id)
+            if (row == null) return@runCatching
+            if (row.bangumiId <= 0L) return@runCatching
+            if (!com.example.piliai.data.remote.BangumiSession.isLogin) return@runCatching
+            val ok = com.example.piliai.data.remote.BangumiApi.setCollection(
+                subjectId = row.bangumiId,
+                type = row.collectionType,
+                isPrivate = row.bangumiPrivate
+            )
+            if (ok) titles.setBangumiSyncedAt(id, System.currentTimeMillis())
+            Unit
+        }.map { Unit }
     }
 
     /**
@@ -864,8 +1055,10 @@ class SubscribeRepository(
 
     suspend fun removeSource(id: Long) = withContext(Dispatchers.IO) {
         runCatching {
-            dao.deleteById(id)
+            // 审核240：删源要连追番一起清，否则订阅页留下孤儿作品
+            titles.deleteBySource(id)
             itemDao.deleteBySource(id)
+            dao.deleteById(id)
         }
     }
 
