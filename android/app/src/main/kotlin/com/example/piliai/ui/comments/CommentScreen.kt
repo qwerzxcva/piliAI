@@ -327,6 +327,8 @@ fun CommentScreen(
                                     comment = top,
                                     liked = top.rpid in state.likedRpid,
                                     expanded = state.expandedReplies[top.rpid],
+                                    hasMoreReplies = state.repliesHasMore[top.rpid] == true,
+                                    onLoadMoreReplies = { viewModel.loadMoreReplies(top.rpid) },
                                     onLike = { viewModel.toggleCommentLike(top.rpid) },
                                     onExpand = { viewModel.expandReplies(top.rpid) },
                                     onCollapse = { viewModel.collapseReplies(top.rpid) }
@@ -339,6 +341,8 @@ fun CommentScreen(
                             comment = comment,
                             liked = comment.rpid in state.likedRpid,
                             expanded = state.expandedReplies[comment.rpid],
+                            hasMoreReplies = state.repliesHasMore[comment.rpid] == true,
+                            onLoadMoreReplies = { viewModel.loadMoreReplies(comment.rpid) },
                             onLike = { viewModel.toggleCommentLike(comment.rpid) },
                             onExpand = { viewModel.expandReplies(comment.rpid) },
                             onCollapse = { viewModel.collapseReplies(comment.rpid) }
@@ -363,6 +367,8 @@ private fun CommentRow(
     comment: CommentNode,
     liked: Boolean,
     expanded: List<CommentNode>?,
+    hasMoreReplies: Boolean = false,
+    onLoadMoreReplies: () -> Unit = {},
     onLike: () -> Unit,
     onExpand: () -> Unit,
     onCollapse: () -> Unit
@@ -435,7 +441,20 @@ private fun CommentRow(
                         .fillMaxWidth()
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
                         .padding(horizontal = 10.dp, vertical = 6.dp)
-                ) { expanded.forEach { reply -> SubReplyRow(reply) } }
+                ) {
+                    expanded.forEach { reply -> SubReplyRow(reply) }
+                    // 审核239 B3：长楼层加载更多
+                    if (hasMoreReplies) {
+                        Text(
+                            "查看更多回复",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .clickable { onLoadMoreReplies() }
+                                .padding(vertical = 6.dp)
+                        )
+                    }
+                }
             }
             comment.replyCount > 0 -> {
                 Spacer(Modifier.height(4.dp))

@@ -272,6 +272,9 @@ fun VideoPlayerScreen(
             val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
                 when (event) {
                     androidx.lifecycle.Lifecycle.Event.ON_STOP -> {
+                        // 审核239 H2：退出/切后台前补一次最终进度上报——原实现只有
+                        // 15s 周期上报，最多丢 15 秒观看进度（历史记录回跳不准）。
+                        if (!isInPiP) viewModel.reportProgress()
                         // 审核216：pauseOnMinimize 设置控制（默认关——Flutter 版行为对齐）
                         if (activity?.isInPictureInPictureMode != true) {
                             viewModel.onAppBackground()

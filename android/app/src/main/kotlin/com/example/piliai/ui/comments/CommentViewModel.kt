@@ -40,7 +40,10 @@ class CommentViewModel(private val bvid: String) : ViewModel() {
         // @用户搜索（批次L7）
         val atResults: List<com.example.piliai.data.model.AtUser> = emptyList(),
         val atQuery: String = "",
-        val pendingAt: com.example.piliai.data.model.AtUser? = null
+        val pendingAt: com.example.piliai.data.model.AtUser? = null,
+        // 审核239 B3：楼中楼分页状态 rootRpid -> 已加载页码
+        val repliesPage: Map<Long, Int> = emptyMap(),
+        val repliesHasMore: Map<Long, Boolean> = emptyMap(),
     )
 
     init { load(1) }
@@ -64,6 +67,13 @@ class CommentViewModel(private val bvid: String) : ViewModel() {
                     val list = resp.data?.replay.orEmpty()
                     // 审核237：置顶评论取 upper 优先（UP主置顶），无则 admin
                     val top = resp.data?.top?.let { it.upper ?: it.admin ?: it.vote }
+                    // 审核239 C2：用服务端 action 位初始化点赞集——原实现 likedRpid
+                    // 只记本会话点击，重启后"已赞"的评论显示为未赞，再点会变成取消赞。
+                    if (page == 1) {
+                        val serverLiked = list.filter { it.action == 1 }.map { it.rpid }.toSet() +
+                            (top?.takeIf { it.action == 1 }?.rpid?.let { setOf(it) } ?: emptySet())
+                        _state.value = _state.value.copy(likedRpid = serverLiked)
+                    }
                     _state.value = _state.value.copy(
                         isLoading = false, isLoadingMore = false,
                         topComment = if (page == 1) top else _state.value.topComment,
@@ -101,11 +111,36 @@ class CommentViewModel(private val bvid: String) : ViewModel() {
     fun expandReplies(rpid: Long) {
         if (_state.value.expandedReplies.containsKey(rpid)) return
         viewModelScope.launch {
-            api.getReplyList(aid(), rpid).onSuccess { resp ->
+            api.getReplyList(aid(), rpid, page = 1).onSuccess { resp ->
                 if (resp.code == 0) {
                     _state.value = _state.value.copy(
                         expandedReplies = _state.value.expandedReplies +
-                            (rpid to resp.data?.replies.orEmpty())
+                            (rpid to resp.data?.replies.orEmpty()),
+                        repliesPage = _state.value.repliesPage + (rpid to 1),
+                        // 审核239 B3：第一页满 20 条才认为可能有更多
+                        repliesHasMore = _state.value.repliesHasMore +
+                            (rpid to (resp.data?.replies.orEmpty().size >= 20)),
+                    )
+                }
+            }
+        }
+    }
+
+    /** 审核239 B3：楼中楼加载更多（原实现只取第一页 20 条，长楼层看不全） */
+    fun loadMoreReplies(rpid: Long) {
+        val st = _state.value
+        if (st.repliesHasMore[rpid] != true) return
+        val next = (st.repliesPage[rpid] ?: 1) + 1
+        viewModelScope.launch {
+            api.getReplyList(aid(), rpid, page = next).onSuccess { resp ->
+                if (resp.code == 0) {
+                    val fresh = resp.data?.replies.orEmpty()
+                    _state.value = _state.value.copy(
+                        expandedReplies = _state.value.expandedReplies +
+                            (rpid to (st.expandedReplies[rpid].orEmpty() + fresh)),
+                        repliesPage = _state.value.repliesPage + (rpid to next),
+                        repliesHasMore = _state.value.repliesHasMore +
+                            (rpid to (fresh.size >= 20)),
                     )
                 }
             }
@@ -128,15 +163,20 @@ class CommentViewModel(private val bvid: String) : ViewModel() {
         viewModelScope.launch {
             api.likeComment(aid(), rpid, !liked).onSuccess { ok ->
                 if (ok) {
+                    val delta = if (liked) -1L else 1L
                     val newSet = _state.value.likedRpid.toMutableSet()
                     if (liked) newSet.remove(rpid) else newSet.add(rpid)
-                    // 本地计数 ±1
+                    // 审核239 C1：同步更新主列表 + 置顶评论 + 已展开楼中楼（原实现
+                    // 只改主列表——楼中楼/置顶评论里点赞后计数纹丝不动）
+                    fun bump(c: CommentNode) =
+                        if (c.rpid == rpid) c.copy(like = c.like + delta, action = if (liked) 0 else 1) else c
                     _state.value = _state.value.copy(
                         likedRpid = newSet,
-                        comments = _state.value.comments.map { c ->
-                            if (c.rpid == rpid) c.copy(like = c.like + if (liked) -1 else 1)
-                            else c
-                        }
+                        comments = _state.value.comments.map(::bump),
+                        topComment = _state.value.topComment?.let(::bump),
+                        expandedReplies = _state.value.expandedReplies.mapValues { (_, list) ->
+                            list.map(::bump)
+                        },
                     )
                 }
             }

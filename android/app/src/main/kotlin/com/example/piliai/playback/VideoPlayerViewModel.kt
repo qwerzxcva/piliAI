@@ -1497,9 +1497,28 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         val pos = backend?.positionMs() ?: 0L
         val playing = _state.value.isPlaying
         viewModelScope.launch {
-            val audio = bestAudio()
-            startPlayback(target.baseUrl ?: return@launch, audio, resumePositionMs = pos, playWhenReady = playing)
+            // 审核239 B1：同步 state.currentQn——原实现只改私有 var，清晰度菜单
+            // 高亮与顶栏文字都不更新（用户看不出切换是否生效）。
+            _state.value = _state.value.copy(currentQn = qn)
+            // 审核239 B2：重新取一个有效音频 URL——原实现直接复用 cachedAudioUrl，
+            // B站音频 URL 有时效，切换清晰度时旧 URL 可能已过期（403/无声）。
+            val audio = loadFreshAudio(effectiveCid)
+            val videoUrl = target.baseUrl
+            if (videoUrl == null) {
+                setError("该清晰度暂不可用，请换一档")
+                return@launch
+            }
+            startPlayback(videoUrl, audio, resumePositionMs = pos, playWhenReady = playing)
         }
+    }
+
+    /** 审核239 B2：重新请求 playurl 拿新鲜音频流（不走缓存） */
+    private suspend fun loadFreshAudio(cid: Long): String? {
+        if (currentBvid.startsWith("ep")) return cachedAudioUrl  // PGC 链路结构不同，维持缓存
+        return repo.getPlayUrl(currentBvid, cid, qn = currentQn)
+            .getOrNull()?.third
+            ?.also { cachedAudioUrl = it }
+            ?: cachedAudioUrl  // 失败退回缓存（聊胜于无）
     }
 
     private fun bestAudio(): String? = cachedAudioUrl
