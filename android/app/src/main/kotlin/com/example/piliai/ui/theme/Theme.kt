@@ -231,13 +231,51 @@ private fun darkSchemeOf(accent: Color, amoled: Boolean = false) = darkColorSche
     surfaceTint = accent.lighten(),
 )
 
-/** Kototoro 风格形状 token：大圆角 */
+/**
+ * 审核238：Kototoro 几何 token（SharedInterfaceStyleTokens.kt IOS 档移植）。
+ * 全 App 布局统一从此取值，不再散落魔法数。
+ */
+data class InterfaceStyleTokens(
+    val screenHorizontalPadding: androidx.compose.ui.unit.Dp,
+    val sectionVerticalSpacing: androidx.compose.ui.unit.Dp,
+    val groupCornerRadius: androidx.compose.ui.unit.Dp,
+    val sectionCornerRadius: androidx.compose.ui.unit.Dp,
+    val settingsGroupOuterCornerRadius: androidx.compose.ui.unit.Dp,
+    val settingsItemGap: androidx.compose.ui.unit.Dp,
+    val settingsItemMinHeight: androidx.compose.ui.unit.Dp,
+    val settingsItemIconContainerSize: androidx.compose.ui.unit.Dp,
+    val controlCornerRadius: androidx.compose.ui.unit.Dp,
+    val controlHeight: androidx.compose.ui.unit.Dp,
+    val minimumTouchTarget: androidx.compose.ui.unit.Dp,
+    val mainTopBarHeight: androidx.compose.ui.unit.Dp,
+    val topBarIconSize: androidx.compose.ui.unit.Dp,
+    val sheetCornerRadius: androidx.compose.ui.unit.Dp,
+)
+
+val PiliTokens = InterfaceStyleTokens(
+    screenHorizontalPadding = 16.dp,
+    sectionVerticalSpacing = 20.dp,
+    groupCornerRadius = 18.dp,
+    sectionCornerRadius = 12.dp,
+    settingsGroupOuterCornerRadius = 16.dp,
+    settingsItemGap = 0.dp,
+    settingsItemMinHeight = 56.dp,
+    settingsItemIconContainerSize = 40.dp,
+    controlCornerRadius = 12.dp,
+    controlHeight = 50.dp,
+    minimumTouchTarget = 48.dp,
+    mainTopBarHeight = 64.dp,
+    topBarIconSize = 22.dp,
+    sheetCornerRadius = 28.dp,
+)
+
+/** Kototoro 风格形状 token（Shapes 由 token 派生，KototoroShapes.kt） */
 val PiliShapes = Shapes(
-    extraSmall = RoundedCornerShape(6.dp),
-    small = RoundedCornerShape(10.dp),
-    medium = RoundedCornerShape(16.dp),
-    large = RoundedCornerShape(22.dp),
-    extraLarge = RoundedCornerShape(28.dp),
+    extraSmall = RoundedCornerShape(PiliTokens.controlCornerRadius.coerceAtMost(14.dp)),
+    small = RoundedCornerShape(PiliTokens.controlCornerRadius),
+    medium = RoundedCornerShape(PiliTokens.groupCornerRadius),
+    large = RoundedCornerShape(PiliTokens.groupCornerRadius),
+    extraLarge = RoundedCornerShape(PiliTokens.groupCornerRadius),
 )
 
 /** 品牌渐变 token（头图/封面遮罩/横幅） */

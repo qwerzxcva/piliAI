@@ -2,6 +2,7 @@ package com.example.piliai.ui.settings
 import java.util.Locale
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -716,7 +717,7 @@ fun SettingsScreen(
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 when (category) {
                     1 -> playSection()
@@ -1346,6 +1347,22 @@ fun SectionTitle(text: String) {
     }
 }
 
+/** 审核238：Kototoro iOS 图标容器（40dp 圆角 12dp 着色底） */
+@Composable
+private fun SettingIconBox(icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .background(
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+                RoundedCornerShape(12.dp)
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+    }
+}
+
 @Composable
 private fun SettingRow(
     title: String,
@@ -1356,13 +1373,17 @@ private fun SettingRow(
     ListItem(
         headlineContent = { Text(title) },
         supportingContent = { if (subtitle.isNotEmpty()) Text(subtitle) },
-        leadingContent = {
-            Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
-        },
+        leadingContent = { SettingIconBox(icon) },
         trailingContent = {
             Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         },
-        modifier = Modifier.clickable { onClick() }
+        modifier = Modifier
+            .heightIn(min = 56.dp)   // Kototoro settingsItemMinHeight
+            .clip(RoundedCornerShape(14.dp))
+            .clickable { onClick() },
+        colors = ListItemDefaults.colors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
     )
 }
 
@@ -1377,12 +1398,14 @@ private fun SettingSwitch(
     ListItem(
         headlineContent = { Text(title) },
         supportingContent = { if (subtitle.isNotEmpty()) Text(subtitle) },
-        leadingContent = {
-            Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
-        },
+        leadingContent = { SettingIconBox(icon) },
         trailingContent = {
             Switch(checked = checked, onCheckedChange = onChange)
-        }
+        },
+        modifier = Modifier.clip(RoundedCornerShape(14.dp)),
+        colors = ListItemDefaults.colors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
     )
 }
 
@@ -1424,9 +1447,11 @@ private fun SettingSlider(
                 )
             }
         },
-        leadingContent = {
-            Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
-        }
+        leadingContent = { SettingIconBox(icon) },
+        modifier = Modifier.clip(RoundedCornerShape(14.dp)),
+        colors = ListItemDefaults.colors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
     )
 }
 
