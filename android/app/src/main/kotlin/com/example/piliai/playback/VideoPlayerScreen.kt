@@ -123,7 +123,13 @@ fun VideoPlayerScreen(
         enabled = activity?.resources?.configuration?.orientation ==
             android.content.res.Configuration.ORIENTATION_LANDSCAPE
     ) {
-        activity?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        // 审核241（P1-9）：设置里开了「返回键直接退出」就直接退出播放页，
+        // 否则保持原有行为（先回竖屏）。此前该开关没有任何消费者。
+        if (com.example.piliai.utils.RendererPrefs.directExitOnBack) {
+            onBack()
+        } else {
+            activity?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
     }
     var showVolumeSlider by remember { mutableStateOf(false) }
     var isInPiP by remember(activity) {
@@ -1113,7 +1119,8 @@ fun VideoPlayerScreen(
         }
         // 审核轮156+审核237：手势浮标（音量/亮度竖拖实时反馈）
         val gestureTip = when {
-            showSpeedBurst -> "3x 快进中 »"
+            // 审核241（P1-10）：提示跟随实际倍速，不再硬编码 3x
+            showSpeedBurst -> "${state.playbackSpeed}x 快进中 »"
             state.brightnessTouchedTick > 0 -> "☀ 亮度 ${(state.brightness * 100).toInt()}%"
             state.volumeTouchedTick > 0 -> if (state.volume > 0f) "🔊 音量 ${(state.volume * 100).toInt()}%" else "🔇 静音"
             showVolumeSlider -> if (state.volume > 0f) "音量 ${(state.volume * 100).toInt()}%" else "🔇 静音"
@@ -1161,10 +1168,16 @@ fun VideoPlayerScreen(
                                 viewModel.seekRelative(10_000L)
                             }
                         },
-                        // 审核轮152：长按 = 3x 倍速（松开恢复，BV/Flutter 版标志性交互）
+                        // 审核轮152：长按 = 临时倍速（松开恢复，BV/Flutter 版标志性交互）
+                        // 审核241（P1-8）：倍速值与开关改读设置，不再硬编码 3x。
                         onLongPress = {
+                            if (!com.example.piliai.utils.RendererPrefs.longPressSpeedEnabled) {
+                                return@detectTapGestures
+                            }
                             savedSpeed = state.playbackSpeed
-                            viewModel.setPlaybackSpeed(3.0f, raw = true)
+                            viewModel.setPlaybackSpeed(
+                                com.example.piliai.utils.RendererPrefs.longPressSpeedValue, raw = true
+                            )
                             showSpeedBurst = true
                         },
                         onPress = { release ->
@@ -1222,18 +1235,27 @@ private fun EngagementButton(
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        IconButton(
-            onClick = onClick,
+        // 审核241（P2-13）：原实现同时给 IconButton 的 onClick 和外层
+        // combinedClickable 的 onClick 挂了同一个回调 → 单击触发两次
+        // （点赞再取消，点赞数闪一下又回去）。改为 Box + combinedClickable
+        // 单一入口，长按/单击都只走一处。
+        Box(
             modifier = Modifier
-                .background(Color.Black.copy(0.5f), CircleShape)
-                .padding(8.dp)
+                .size(48.dp)
+                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
                 .then(
-                    if (onLongClick != null) Modifier.combinedClickable(
-                        onClick = onClick, onLongClick = onLongClick
-                    ) else Modifier
-                )
+                    if (onLongClick != null) {
+                        Modifier.combinedClickable(
+                            onClick = onClick,
+                            onLongClick = onLongClick
+                        )
+                    } else {
+                        Modifier.clickable(onClick = onClick)
+                    }
+                ),
+            contentAlignment = Alignment.Center
         ) {
-            Icon(icon, label, tint = tintColor, modifier = Modifier.height(24.dp))
+            Icon(icon, label, tint = tintColor, modifier = Modifier.size(24.dp))
         }
         if (count.isNotEmpty()) {
             Text(count, color = tintColor, style = MaterialTheme.typography.labelSmall)

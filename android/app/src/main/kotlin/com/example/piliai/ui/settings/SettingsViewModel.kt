@@ -286,9 +286,24 @@ class SettingsViewModel(context: Context) : ViewModel() {
     fun setEnableTapDanmaku(v: Boolean) = viewModelScope.launch { storage.setEnableTapDanmaku(v) }
     fun setContinuePlayingPart(v: Boolean) = viewModelScope.launch { storage.setContinuePlayingPart(v) }
     fun setContinuePlayInBackground(v: Boolean) = viewModelScope.launch { storage.setContinuePlayInBackground(v) }
-    fun setDirectExitOnBack(v: Boolean) = viewModelScope.launch { storage.setDirectExitOnBack(v) }
-    fun setEnableAutoLongPressSpeed(v: Boolean) = viewModelScope.launch { storage.setEnableAutoLongPressSpeed(v) }
-    fun setLongPressSpeedDefault(v: Float) = viewModelScope.launch { storage.setLongPressSpeedDefault(v) }
+    // 审核241（P1-8/P1-9）：除写 DataStore 外同步更新进程内缓存，
+    // 否则播放页下一次创建时才读到，用户改完立刻回播放页仍不生效。
+    fun setDirectExitOnBack(v: Boolean) = viewModelScope.launch {
+        com.example.piliai.utils.RendererPrefs.updateDirectExitOnBack(v)
+        storage.setDirectExitOnBack(v)
+    }
+    fun setEnableAutoLongPressSpeed(v: Boolean) = viewModelScope.launch {
+        com.example.piliai.utils.RendererPrefs.updateLongPressSpeed(
+            v, com.example.piliai.utils.RendererPrefs.longPressSpeedValue
+        )
+        storage.setEnableAutoLongPressSpeed(v)
+    }
+    fun setLongPressSpeedDefault(v: Float) = viewModelScope.launch {
+        com.example.piliai.utils.RendererPrefs.updateLongPressSpeed(
+            com.example.piliai.utils.RendererPrefs.longPressSpeedEnabled, v
+        )
+        storage.setLongPressSpeedDefault(v)
+    }
     fun setMinDurationForRcmd(v: Int) = viewModelScope.launch { storage.setMinDurationForRcmd(v) }
     fun setMinPlayForRcmd(v: Int) = viewModelScope.launch { storage.setMinPlayForRcmd(v) }
     fun setMinLikeRatioForRecommend(v: Int) = viewModelScope.launch { storage.setMinLikeRatioForRecommend(v) }

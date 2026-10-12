@@ -69,11 +69,25 @@ class HomeViewModel(
     /** 审核237：刷新/加载中（下拉刷新指示器用） */
     val isRefreshing: StateFlow<Boolean> = repo.isLoading
 
+    /**
+     * 审核241（P0-2）：加载更多失败的一次性提示。
+     * 此前失败完全静默：用户反复触底打请求，却看不到「加载失败/到底」。
+     */
+    private val _loadMoreError = MutableStateFlow<String?>(null)
+    val loadMoreError: StateFlow<String?> = _loadMoreError.asStateFlow()
+
+    fun consumeLoadMoreError() {
+        _loadMoreError.value = null
+    }
+
     private var loadingMore = false
 
     fun refresh() {
         viewModelScope.launch {
-            _state.value = HomeUiState.Loading
+            // 审核241（P0-3）：只在列表本来就空时才切 Loading。
+            // 否则每次下拉刷新都整屏骨架卡（已看内容全消失、滚动位置丢失）。
+            // 刷新指示由 repoRefreshing（仓库 isLoading）负责，不必再切 Loading 态。
+            if (repo.videos.value.isEmpty()) _state.value = HomeUiState.Loading
             // 轮播并行拉取（失败静默不阻塞首页）
             launch {
                 repo.topRcmd()
@@ -109,9 +123,14 @@ class HomeViewModel(
                 .onSuccess { added ->
                     if (added.isNotEmpty()) {
                         _state.value = HomeUiState.Success(applyFilter(repo.videos.value))
+                    } else if (!repo.hasMore.value) {
+                        _loadMoreError.value = "已经到底啦"
                     }
                 }
-                .onFailure { /* 加载更多失败静默保留当前列表 */ }
+                .onFailure { e ->
+                    // 审核241：失败不再静默。列表保持不变，只提示一次。
+                    _loadMoreError.value = "加载失败：${e.message ?: "网络错误"}"
+                }
             loadingMore = false
         }
     }

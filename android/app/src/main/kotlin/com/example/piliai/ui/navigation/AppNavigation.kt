@@ -227,6 +227,10 @@ fun AppNavigation() {
                 onSearchClick = {
                     navController.navigate(Screen.Search.route)
                 },
+                // 审核241（P1-1）：消息入口此前从未接线，Screen.Message 路由不可达
+                onMessageClick = { navController.navigate(Screen.Message.route) },
+                // 审核241（P1-2）：「我的」入口此前是死参数，二级页底部 dock 会隐藏
+                onMineClick = { navController.navigate(Screen.Profile.route) },
                 onRankClick = {
                     navController.navigate(Screen.Rank.route)
                 },

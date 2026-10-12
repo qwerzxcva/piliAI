@@ -55,8 +55,11 @@ fun SearchPill(
             .height(40.dp)
             .clip(RoundedCornerShape(50))
             .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp),
+            // 审核241（P2-4）：padding 必须放在 clickable 之前。
+            // 原顺序先 clickable 后 padding，触摸区不含那 14dp 内边距，
+            // 点胶囊最左/最右边缘无反应。
+            .padding(horizontal = 14.dp)
+            .clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
@@ -100,8 +103,10 @@ fun SegmentedPillRow(
                         if (selected) MaterialTheme.colorScheme.surfaceContainerHighest
                         else Color.Transparent
                     )
-                    .clickable { onSelect(i) }
-                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                    // 审核241（P2-3）：padding 提到 clickable 之前，
+                    // 否则点击区 = 文字区（约 32dp 高），低于 48dp 建议值。
+                    .padding(horizontal = 14.dp, vertical = 10.dp)
+                    .clickable { onSelect(i) },
             ) {
                 Text(
                     label,

@@ -100,9 +100,13 @@ fun HomeScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val gridState = rememberLazyGridState()
-    // 审核237：下拉刷新指示跟随仓库真实 loading，避免「刷新完圈还在转」
+    // 审核241：下拉刷新指示跟随仓库真实 loading，避免「刷新完圈还在转」
     val repoRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val feedSource by viewModel.feedSource.collectAsStateWithLifecycle()
+    // 审核241（P0-2）：触底加载必须有 hasMore 兜底。否则失败后 loadingMore 释放、
+    // shouldLoadMore 仍为 true，反复触底会连续打请求且用户看不到任何提示。
+    val hasMore by viewModel.hasMore.collectAsStateWithLifecycle()
+    val loadMoreError by viewModel.loadMoreError.collectAsStateWithLifecycle()
 
     // 今日推荐：进入首页后异步加载，不阻塞首屏
     val todayWatchViewModel: com.example.piliai.todaywatch.TodayWatchViewModel = viewModel()
@@ -110,15 +114,24 @@ fun HomeScreen(
     LaunchedEffect(Unit) { todayWatchViewModel.loadIfNeeded() }
 
     // 触底自动加载下一页
+    // 审核241（P0-2）：追加 hasMore 守卫，失败后不再反复请求
     val shouldLoadMore by remember {
         derivedStateOf {
             val info = gridState.layoutInfo
             val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
-            info.totalItemsCount > 0 && last >= info.totalItemsCount - 6
+            info.totalItemsCount > 0 && hasMore && last >= info.totalItemsCount - 4
         }
     }
     LaunchedEffect(shouldLoadMore) {
         if (shouldLoadMore) viewModel.loadMore()
+    }
+
+    // 审核241（P0-2）：加载更多失败给一次性提示（此前静默，用户以为到底了）
+    val homeContext = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(loadMoreError) {
+        val msg = loadMoreError ?: return@LaunchedEffect
+        android.widget.Toast.makeText(homeContext, msg, android.widget.Toast.LENGTH_SHORT).show()
+        viewModel.consumeLoadMoreError()
     }
 
     Scaffold(
@@ -129,17 +142,26 @@ fun HomeScreen(
                 Modifier
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.surface)
-                    .statusBarsPadding()
+                    // 审核241（P2-1）：删掉这里的 statusBarsPadding()。
+                    // MainActivity 已 enableEdgeToEdge()，Scaffold 的 contentWindowInsets
+                    // 默认含 systemBars，body 又消费一次 padding → 顶部双倍状态栏留白。
                     .padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
                 com.example.piliai.ui.components.SearchPill(
                     hint = "搜索视频、UP主",
                     onClick = onSearchClick,
                     trailing = {
-                        IconButton(onClick = onMessageClick, modifier = Modifier.width(32.dp).height(32.dp)) {
+                        // 审核241（P1-5）：触达区域从 32dp 提到 40dp（48dp 建议值内的
+                        // 折中：SearchPill 高 40dp，再大就要加高整条顶栏）
+                        IconButton(onClick = onMessageClick, modifier = Modifier.size(40.dp)) {
                             Icon(Icons.Filled.Notifications, contentDescription = "消息",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.width(20.dp).height(20.dp))
+                                modifier = Modifier.size(20.dp))
+                        }
+                        IconButton(onClick = onMineClick, modifier = Modifier.size(40.dp)) {
+                            Icon(Icons.Filled.Person, contentDescription = "我的",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp))
                         }
                     },
                 )
@@ -151,7 +173,9 @@ fun HomeScreen(
         var selectedTab by remember { androidx.compose.runtime.mutableIntStateOf(0) }
         val tabs = remember {
             listOf(
-                "推荐" to ({} as () -> Unit),
+                // 审核241（P1-4）：「推荐」原来是空实现，点一下只高亮不做事，
+                // 用户以为页面坏了。改为回到顶部并刷新当前流，与其他胶囊语义一致。
+                "推荐" to ({ viewModel.refresh() } as () -> Unit),
                 "热门" to onHotMoreClick,
                 "排行" to onRankClick,
                 "番剧" to onBangumiClick,

@@ -92,6 +92,26 @@ object RendererPrefs {
     var hdrDynamicRangeExpand: Double = 0.5
         private set
 
+    /**
+     * 审核241（P1-9）：播放页返回键直接退出（而非先回竖屏）。
+     * 此前只有设置开关，播放器 BackHandler 从不读 → 开关完全无效。
+     */
+    @Volatile
+    var directExitOnBack: Boolean = false
+        private set
+
+    /**
+     * 审核241（P1-8）：长按倍速总开关 + 档位。
+     * 此前播放器硬编码 3.0f，设置里关掉/改档位都不生效。
+     */
+    @Volatile
+    var longPressSpeedEnabled: Boolean = false
+        private set
+
+    @Volatile
+    var longPressSpeedValue: Float = 3.0f
+        private set
+
     private var inited = false
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -162,6 +182,22 @@ object RendererPrefs {
                 hdrDynamicRangeExpand = v.toDouble()
             }
         }
+        // 审核241：播放行为三项（此前无消费者，设置页纯摆设）
+        scope.launch {
+            storage.directExitOnBackFlow.collectLatest { v ->
+                directExitOnBack = v
+            }
+        }
+        scope.launch {
+            storage.enableAutoLongPressSpeedFlow.collectLatest { v ->
+                longPressSpeedEnabled = v
+            }
+        }
+        scope.launch {
+            storage.longPressSpeedDefaultFlow.collectLatest { v ->
+                longPressSpeedValue = v
+            }
+        }
     }
 
     /** 设置变更时同步更新缓存（下次创建 PlayerView 生效） */
@@ -219,5 +255,15 @@ object RendererPrefs {
     /** 更新 HDR 动态范围扩展强度（0.0~1.0） */
     fun updateHdrDynamicRangeExpand(value: Double) {
         hdrDynamicRangeExpand = value.coerceIn(0.0, 1.0)
+    }
+
+    /** 审核241：播放行为三项的即时缓存更新（设置页改动即时生效） */
+    fun updateDirectExitOnBack(v: Boolean) {
+        directExitOnBack = v
+    }
+
+    fun updateLongPressSpeed(enabled: Boolean, value: Float) {
+        longPressSpeedEnabled = enabled
+        longPressSpeedValue = value.coerceIn(1.5f, 5f)
     }
 }

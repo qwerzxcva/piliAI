@@ -1029,9 +1029,13 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         if (error != null) _state.value = _state.value.copy(error = error)
     }
 
-    /** 分享反馈（复制链接成功提示） */
+    /**
+     * 分享反馈（复制链接成功提示）。
+     * 审核241：必须走 toast 通道——此前用 setError 会触发全屏红色错误覆盖层
+     * 并隐藏播放控制条，用户分享一次就像播放器崩了。
+     */
     fun notifyShared(link: String) {
-        setError("链接已复制：$link")
+        showToast("链接已复制")
     }
 
     /** 批次L40：实时在线人数（匿名，失败静默） */

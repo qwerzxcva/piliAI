@@ -72,12 +72,19 @@ fun MineScreen(
     viewModel: MineViewModel = viewModel()
 ) {
     val nav by viewModel.nav.collectAsStateWithLifecycle()
-    val isLoggedIn = nav != null
+    // 审核241（P2-6）：restoreSession() 是挂起函数，此前只判断 nav != null，
+    // 已登录用户切到「我的」会先闪一下登录引导页。loading 期间不判定未登录。
+    val loading by viewModel.loading.collectAsStateWithLifecycle()
+    val isLoggedIn = nav != null || loading
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("我的") },
+                // 审核241（P2-5）：显式 surface 底色，滚动时与卡片不糊在一起
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
                 actions = {
                     IconButton(onClick = onSettingsClick) {
                         Icon(Icons.Default.Settings, contentDescription = "设置")
@@ -86,6 +93,16 @@ fun MineScreen(
             )
         }
     ) { padding ->
+        if (loading) {
+            // 审核241（P2-6）：session 恢复期间显示加载指示，不闪登录引导
+            Box(
+                Modifier.fillMaxSize().padding(padding),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+            return@Scaffold
+        }
         when {
             nav != null -> {
                 val navData = nav ?: return@Scaffold
@@ -112,10 +129,14 @@ fun LoginContent(modifier: Modifier = Modifier, onLoginClick: () -> Unit = {}) {
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(32.dp),
+            .padding(horizontal = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        // 审核241（P2-5）：由 Center 改 Top + 顶部留白。
+        // 原来在「TopAppBar 高度 + 32dp」里垂直居中，视觉重心偏上且 TopAppBar
+        // 无色区分，滚动时与卡片糊在一起。
+        verticalArrangement = Arrangement.Top
     ) {
+        Spacer(Modifier.height(48.dp))
         Surface(
             modifier = Modifier.size(96.dp),
             shape = CircleShape,
@@ -180,10 +201,11 @@ fun UserContent(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         // 审核234：BiliPai 分组卡片风——菜单项聚合到圆角容器内，去独立分割线
-        item { UserCard(nav = nav) }
-        item { QuickActions(onHistory = onHistoryClick, onFavorites = onFavoritesClick,
+        // 审核241（P2-7）：静态 item 也补 key，避免后续插入/删除导致的重组错位
+        item(key = "user") { UserCard(nav = nav) }
+        item(key = "quick") { QuickActions(onHistory = onHistoryClick, onFavorites = onFavoritesClick,
             onDownloads = onDownloadsClick, onToView = onToViewClick) }
-        item {
+        item(key = "menu-main") {
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
@@ -199,7 +221,7 @@ fun UserContent(
                 }
             }
         }
-        item {
+        item(key = "menu-settings") {
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
