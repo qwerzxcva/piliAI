@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
@@ -28,6 +29,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -429,6 +431,20 @@ fun VideoPlayerScreen(
             }
         }
         
+        // 审核236：顶部/底部渐变 scrim（BiliPai 风，控制条显示时淡入）
+        if (showControls && state.error == null && !isInPiP) {
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.verticalGradient(
+                        0f to Color.Black.copy(alpha = 0.7f),
+                        0.18f to Color.Transparent,
+                        0.72f to Color.Transparent,
+                        1f to Color.Black.copy(alpha = 0.8f),
+                    )
+                )
+            )
+        }
+        
         // Controls
         if (showControls && state.error == null && !isInPiP) {
             Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -450,7 +466,8 @@ fun VideoPlayerScreen(
                                 style = MaterialTheme.typography.labelMedium,
                                 modifier = Modifier
                                     .clickable { showQualityMenu = true }
-                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                                    .background(Color.White.copy(alpha = 0.14f), RoundedCornerShape(50))
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
                             )
                         }
                         // 分P
@@ -461,7 +478,8 @@ fun VideoPlayerScreen(
                                 style = MaterialTheme.typography.labelMedium,
                                 modifier = Modifier
                                     .clickable { showPartSheet = true }
-                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                                    .background(Color.White.copy(alpha = 0.14f), RoundedCornerShape(50))
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
                             )
                         }
                         // 审核轮193：下一P（多P时显示）
@@ -563,6 +581,7 @@ fun VideoPlayerScreen(
                             }
                         }
                     }
+                    // 审核236：BiliPai 风细圆角进度条（4dp 轨道+BiliPink 填充+白点 thumb）
                     Slider(
                         value = if (state.duration > 0) state.currentTime.toFloat() / state.duration else 0f,
                         onValueChange = { fraction ->
@@ -573,14 +592,26 @@ fun VideoPlayerScreen(
                             isSeeking = false
                             viewModel.seekTo(seekPreviewSec * 1000)
                         },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxSize().height(24.dp),
+                        colors = SliderDefaults.colors(
+                            thumbColor = Color.White,
+                            activeTrackColor = Color(0xFFFB7299),
+                            inactiveTrackColor = Color.White.copy(alpha = 0.25f),
+                        )
                     )
                 }
                 
-                Row(modifier = Modifier.fillMaxWidth(), 
-                    horizontalArrangement = Arrangement.SpaceBetween) {
+                // 审核236：时间行收进玻璃胶囊（左时间/右倍速）
+                Row(
+                    modifier = Modifier
+                        .background(Color.White.copy(alpha = 0.12f), RoundedCornerShape(50))
+                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Text("${formatTime(state.currentTime)} / ${formatTime(state.duration)}", 
                         color = Color.White, style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.width(12.dp))
                     Text("${state.playbackSpeed}x", color = Color.White, 
                         style = MaterialTheme.typography.bodySmall)
                 }
