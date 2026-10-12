@@ -16,6 +16,13 @@ interface GpuNextBridge {
     fun stringProperty(name: String): String
     fun longProperty(name: String): Double
     fun command(vararg args: String)
+    /**
+     * `mpv_observe_property`：只有注册过的属性变化才会进入事件队列。
+     * 必须在 [initialize] 之后调用。format 用 client.h 的 MPV_FORMAT_*。
+     */
+    fun observeProperty(name: String, format: Int)
+    /** One bounded `mpv_wait_event`. timeout=0 only drains queued events. */
+    fun pollEvent(timeoutMs: Int): Int
     fun attachSurface(surface: Surface)
     fun detachSurface()
     fun release()

@@ -100,6 +100,9 @@ fun HomeScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val gridState = rememberLazyGridState()
+    // 审核237：下拉刷新指示跟随仓库真实 loading，避免「刷新完圈还在转」
+    val repoRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+    val feedSource by viewModel.feedSource.collectAsStateWithLifecycle()
 
     // 今日推荐：进入首页后异步加载，不阻塞首屏
     val todayWatchViewModel: com.example.piliai.todaywatch.TodayWatchViewModel = viewModel()
@@ -178,10 +181,27 @@ fun HomeScreen(
             }
         }
         PullToRefreshBox(
-            isRefreshing = state is HomeUiState.Loading,
+            isRefreshing = repoRefreshing,
             onRefresh = { viewModel.refresh() },
             modifier = Modifier.fillMaxSize().padding(padding),
         ) {
+            // 审核237：推荐流被风控降级为热门时给一行提示（此前静默，用户以为刷新坏了）
+            if (feedSource == com.example.piliai.data.repository.HomeRepository.FeedSource.POPULAR &&
+                state is HomeUiState.Success
+            ) {
+                androidx.compose.material3.Surface(
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp),
+                    shape = RoundedCornerShape(10.dp),
+                ) {
+                    Text(
+                        "个性化推荐暂不可用（已切换为全站热门）",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    )
+                }
+            }
             when (val s = state) {
                 is HomeUiState.Loading -> {
                     // 审核234：骨架屏替代转圈（BiliPai HomeFeedSkeletonCard 观感，感知加载更快）

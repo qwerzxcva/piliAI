@@ -28,6 +28,19 @@ pub const MPV_FORMAT_DOUBLE: i32 = 5;
 
 pub const MPV_EVENT_NONE: i32 = 0;
 pub const MPV_EVENT_SHUTDOWN: i32 = 1;
+pub const MPV_EVENT_LOG_MESSAGE: i32 = 2;
+pub const MPV_EVENT_GET_PROPERTY_REPLY: i32 = 3;
+pub const MPV_EVENT_SET_PROPERTY_REPLY: i32 = 4;
+pub const MPV_EVENT_COMMAND_REPLY: i32 = 5;
+pub const MPV_EVENT_START_FILE: i32 = 6;
+pub const MPV_EVENT_END_FILE: i32 = 7;
+pub const MPV_EVENT_FILE_LOADED: i32 = 8;
+pub const MPV_EVENT_VIDEO_RECONFIG: i32 = 17;
+pub const MPV_EVENT_AUDIO_RECONFIG: i32 = 18;
+pub const MPV_EVENT_SEEK: i32 = 20;
+pub const MPV_EVENT_PLAYBACK_RESTART: i32 = 21;
+pub const MPV_EVENT_PROPERTY_CHANGE: i32 = 22;
+pub const MPV_EVENT_QUEUE_OVERFLOW: i32 = 24;
 
 #[cfg_attr(not(target_os = "android"), allow(dead_code))]
 const MPV_ERROR_SUCCESS: i32 = 0;
@@ -114,6 +127,10 @@ struct MpvInstance<S> {
     phase: InstancePhase,
     surface: Option<SurfaceBinding<S>>,
     native: Box<dyn MpvClient>,
+    /// Properties registered with `mpv_observe_property`, in order.
+    /// Kept for tests; production never reads it back.
+    #[cfg(test)]
+    observed: Vec<String>,
 }
 
 struct RegistryState<S> {
@@ -168,6 +185,17 @@ impl<S> HandleRegistry<S> {
             .unwrap_or(0)
     }
 
+    /// Test-only view of the properties registered through
+    /// [HandleRegistry::observe_property], in registration order.
+    #[cfg(test)]
+    pub fn observed_names(&self, token: i64) -> Vec<String> {
+        self.state
+            .lock()
+            .ok()
+            .and_then(|state| state.instances.get(&token).map(|i| i.observed.clone()))
+            .unwrap_or_default()
+    }
+
     fn lock(&self) -> BridgeResult<std::sync::MutexGuard<'_, RegistryState<S>>> {
         self.state
             .lock()
@@ -179,6 +207,8 @@ impl<S> HandleRegistry<S> {
             phase: InstancePhase::Created,
             surface: None,
             native,
+            #[cfg(test)]
+            observed: Vec::new(),
         }
     }
 
@@ -231,7 +261,7 @@ impl<S> HandleRegistry<S> {
 
     pub fn initialize(&self, token: i64) -> BridgeResult<()> {
         self.with_phase(token, &[InstancePhase::Created], |native| {
-            native.initialize()
+            native.initialize(NATIVE_CALL_BUDGET)
         })?;
         let mut state = self.lock()?;
         let instance = state
@@ -240,6 +270,27 @@ impl<S> HandleRegistry<S> {
             .ok_or(BridgeError::NotOpen)?;
         if instance.phase == InstancePhase::Created {
             instance.phase = InstancePhase::Initialized;
+        }
+        Ok(())
+    }
+
+    ///
+    /// `mpv_observe_property`。属性变化才会进入事件队列，
+    /// 因此这一组必须在起播前注册（bv 的 `observePlaybackProperties`，
+    /// player/.../mpv/MpvMediaPlayer.kt:760-786）。
+    ///
+    /// 未初始化时返回 `InvalidArgument("not-initialized")`：
+    /// libmpv 只在 mpv_initialize 之后才接受 observe 调用。
+    pub fn observe_property(&self, token: i64, name: &str, format: i32) -> BridgeResult<()> {
+        require_name(name)?;
+        self.with_phase(token, &[InstancePhase::Initialized], |native| {
+            native.observe_property(name, format)
+        })?;
+        #[cfg(test)]
+        if let Ok(mut state) = self.lock() {
+            if let Some(instance) = state.instances.get_mut(&token) {
+                instance.observed.push(name.to_string());
+            }
         }
         Ok(())
     }
@@ -408,12 +459,16 @@ fn mpv_result(code: i32) -> BridgeResult<()> {
 #[cfg_attr(not(test), allow(dead_code))]
 trait MpvClient: Send {
     fn set_option_string(&mut self, name: &str, value: &str) -> BridgeResult<()>;
-    fn initialize(&mut self) -> BridgeResult<()>;
+    fn initialize(&mut self, budget: Duration) -> BridgeResult<()>;
     fn set_property_string(&mut self, name: &str, value: &str) -> BridgeResult<()>;
     fn get_property_string(&mut self, name: &str) -> BridgeResult<String>;
     fn get_property_double(&mut self, name: &str) -> BridgeResult<f64>;
     fn command(&mut self, args: &[String]) -> BridgeResult<()>;
     fn set_wid(&mut self, wid: i64) -> BridgeResult<()>;
+    /// `mpv_observe_property`：属性变化才会进事件队列。
+    /// 没有它，`mpv_wait_event` 只会偶发地返回文件事件，
+    /// 调用方拿不到 time-pos/pause/缓冲状态的连续更新。
+    fn observe_property(&mut self, name: &str, format: i32) -> BridgeResult<()>;
     fn wait_event(&mut self, timeout_seconds: f64) -> BridgeResult<i32>;
     /// Must request shutdown, wait with `slice_seconds`, then destroy.
     /// [MpvClient::stopped] is true only after terminate/destroy has returned.
@@ -470,11 +525,16 @@ impl MpvClient for FakeMpv {
         Ok(())
     }
 
-    fn initialize(&mut self) -> BridgeResult<()> {
+    fn initialize(&mut self, _budget: Duration) -> BridgeResult<()> {
         if self.fail_initialize {
             return Err(BridgeError::Mpv(MPV_ERROR_GENERIC));
         }
         self.initialized = true;
+        Ok(())
+    }
+
+    fn observe_property(&mut self, name: &str, _format: i32) -> BridgeResult<()> {
+        self.observed.push(name.to_string());
         Ok(())
     }
 
@@ -614,6 +674,12 @@ mod ffi {
         fn mpv_terminate_destroy(ctx: *mut MpvHandle);
         fn mpv_free(data: *mut c_void);
         fn mpv_error_string(error: c_int) -> *const c_char;
+        fn mpv_observe_property(
+            ctx: *mut MpvHandle,
+            reply_userdata: u64,
+            name: *const c_char,
+            format: c_int,
+        ) -> c_int;
     }
 
     // FFmpeg libavcodec/jni.h. Android builds register the JVM this way.
@@ -666,8 +732,13 @@ mod ffi {
             mpv_result(unsafe { mpv_set_option_string(self.handle, name.as_ptr(), value.as_ptr()) })
         }
 
-        fn initialize(&mut self) -> BridgeResult<()> {
+        fn initialize(&mut self, _budget: Duration) -> BridgeResult<()> {
             mpv_result(unsafe { mpv_initialize(self.handle) })
+        }
+
+        fn observe_property(&mut self, name: &str, format: i32) -> BridgeResult<()> {
+            let name = c_string(name)?;
+            mpv_result(unsafe { mpv_observe_property(self.handle, 0, name.as_ptr(), format) })
         }
 
         fn set_property_string(&mut self, name: &str, value: &str) -> BridgeResult<()> {
@@ -1184,6 +1255,31 @@ mod ffi {
         }
     }
 
+    ///
+    /// `mpv_observe_property`（bv observePlaybackProperties 对应入口）。
+    /// 必须在 [.._nativeInitialize] 之后调用；format 传 MPV_FORMAT_* 常量。
+    #[no_mangle]
+    pub extern "C" fn Java_com_example_piliai_playback_backend_RustGpuNextBridge_nativeObserveProperty<
+        'local,
+    >(
+        mut env: JNIEnv<'local>,
+        _class: JClass<'local>,
+        token: jlong,
+        name: JString<'local>,
+        format: jint,
+    ) {
+        let result = (|| {
+            reject_main_thread(&mut env)?;
+            let name = read_string(&mut env, &name)?;
+            android_state()
+                .registry
+                .observe_property(token, &name, format)
+        })();
+        if let Err(error) = result {
+            throw(&mut env, error);
+        }
+    }
+
     #[allow(dead_code)]
     fn describe_failure(code: c_int) -> String {
         static_error(code)
@@ -1310,6 +1406,26 @@ mod tests {
         registry.initialize(token).unwrap();
         assert!(registry.set_option(token, "vo", "gpu-next").is_err());
         registry.set_property(token, "pause", "no").unwrap();
+    }
+
+    #[test]
+    fn observe_property_requires_initialization() {
+        let registry = HandleRegistry::<i64>::new();
+        let token = open_created(&registry).unwrap();
+        assert_eq!(
+            registry
+                .observe_property(token, "time-pos", MPV_FORMAT_DOUBLE)
+                .unwrap_err(),
+            BridgeError::InvalidArgument("not-initialized")
+        );
+        registry.initialize(token).unwrap();
+        registry
+            .observe_property(token, "time-pos", MPV_FORMAT_DOUBLE)
+            .unwrap();
+        registry
+            .observe_property(token, "pause", MPV_FORMAT_INT64)
+            .unwrap();
+        assert_eq!(registry.observed_names(token), vec!["time-pos", "pause"]);
     }
 
     #[test]

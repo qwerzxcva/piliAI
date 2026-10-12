@@ -25,7 +25,15 @@ def production_method(name):
 
 
 program = source[:source.index('    /**\n     * 第一步：搜索页')]
-for name in ('parseSubjectsByJsonPath', 'jsonPathField', 'isHttpUrl', 'resolveUrl'):
+for name in (
+    'parseSubjectsByJsonPath',
+    'jsonPathField',
+    'jsonPathFields',
+    'firstString',
+    'applyLinkTemplate',
+    'isHttpUrl',
+    'resolveUrl',
+):
     program += production_method(name) + '\n'
 program += r'''
     fun regressionParse(text: String, base: String, cfg: SearchConfig): List<Subject> =
@@ -95,6 +103,39 @@ fun main() {
     check(decoded.selectLinksJsonPath == cfg.selectLinksJsonPath)
     check(AnimekoScraper.regressionParse(rows, base, decoded) == expected)
     println("PASS production configuration: JSON-path selectors reach the parser")
+
+    // 审核238：多键路径 $[*]['url','link'] —— 第一个键缺失时回退第二个键
+    val multiKey = """[
+        {"name":"甲","link":"https://a.test/1"},
+        {"name":"乙","url":"https://b.test/2"},
+        {"name":"丙"}
+    ]"""
+    val multiCfg = cfg.copy(
+        selectNamesJsonPath = "$[*]['title','name']",
+        selectLinksJsonPath = "$[*]['url','link']"
+    )
+    check(AnimekoScraper.regressionParse(multiKey, base, multiCfg).map { it.name } ==
+        listOf("甲", "乙"))
+    println("PASS production JSON-path: multi-key selectors fall back per row")
+
+    // 审核238：linkTemplate 把裸 id 拼成详情页 URL
+    val idRows = """[{"name":"丁","id":"10086"}]"""
+    val templateCfg = cfg.copy(
+        selectLinksJsonPath = "$[*].id",
+        linkTemplateJsonPathIndexed = "https://source.test/detail/{value}.html"
+    )
+    check(AnimekoScraper.regressionParse(idRows, base, templateCfg).single().url ==
+        "https://source.test/detail/10086.html")
+    println("PASS production JSON-path: linkTemplate expands bare identifiers")
+
+    // 无 {value} 占位符的模板不生效：回退为把原值当相对 URL 解析
+    val brokenTemplate = cfg.copy(
+        selectLinksJsonPath = "$[*].id",
+        linkTemplateJsonPathIndexed = "https://source.test/detail/"
+    )
+    check(AnimekoScraper.regressionParse(idRows, base, brokenTemplate).single().url ==
+        "https://source.test/catalog/10086")
+    println("PASS production JSON-path: templates without a placeholder are ignored")
 }
 '''
 

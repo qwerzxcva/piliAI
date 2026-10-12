@@ -39,7 +39,13 @@ class HomeViewModel(
                         minLikeRatioPercent = minLike, banWords = banWords,
                         exemptFilterForFollowed = exempt,
                     )
-                }.collect { filterConfig = it }
+                }.collect { cfg ->
+                    filterConfig = cfg
+                    // 审核237：过滤条件变化时立即对当前列表重筛（此前只有下次加载才生效）
+                    (_state.value as? HomeUiState.Success)?.let { s ->
+                        _state.value = HomeUiState.Success(applyFilter(s.items))
+                    }
+                }
             }
         }
     }
@@ -54,6 +60,15 @@ class HomeViewModel(
     private val _topRcmd = MutableStateFlow<List<com.example.piliai.data.model.TopRcmdItem>>(emptyList())
     val topRcmd: StateFlow<List<com.example.piliai.data.model.TopRcmdItem>> = _topRcmd.asStateFlow()
 
+    /** 审核237：当前数据源（推荐/热门），UI 可据此提示 */
+    val feedSource: StateFlow<HomeRepository.FeedSource> = repo.feedSource
+
+    /** 审核237：是否还有更多 */
+    val hasMore: StateFlow<Boolean> = repo.hasMore
+
+    /** 审核237：刷新/加载中（下拉刷新指示器用） */
+    val isRefreshing: StateFlow<Boolean> = repo.isLoading
+
     private var loadingMore = false
 
     fun refresh() {
@@ -61,7 +76,7 @@ class HomeViewModel(
             _state.value = HomeUiState.Loading
             // 轮播并行拉取（失败静默不阻塞首页）
             launch {
-                com.example.piliai.data.remote.BiliApiClient().getTopRcmd()
+                repo.topRcmd()
                     .onSuccess { resp ->
                         if (resp.code == 0) _topRcmd.value =
                             resp.data?.item.orEmpty().filter { it.goto == "av" && it.bvid.isNotEmpty() }
@@ -69,21 +84,39 @@ class HomeViewModel(
             }
             repo.refresh()
                 .onSuccess { _state.value = HomeUiState.Success(applyFilter(it)) }
-                .onFailure { _state.value = HomeUiState.Error(it.message ?: "网络请求失败") }
+                .onFailure {
+                    // 审核237：刷新失败时保留旧列表，不清成空屏（此前直接 Error 态白屏）
+                    val current = repo.videos.value
+                    if (current.isNotEmpty()) {
+                        _state.value = HomeUiState.Success(applyFilter(current))
+                    } else {
+                        _state.value = HomeUiState.Error(it.message ?: "网络请求失败")
+                    }
+                }
         }
     }
 
+    /**
+     * 审核237：加载更多不再按列表长度反推页码（过滤会让页码回退造成重复加载），
+     * 由仓库维护 fresh_idx；并用仓库的 hasMore 兜底防止无限翻页。
+     */
     fun loadMore() {
-        val current = (_state.value as? HomeUiState.Success)?.items ?: return
         if (loadingMore) return
+        if (!_hasMoreGuard()) return
         loadingMore = true
         viewModelScope.launch {
-            repo.loadMore(current.size / 20 + 1)
-                .onSuccess { _state.value = HomeUiState.Success(applyFilter(it)) }
+            repo.loadMore()
+                .onSuccess { added ->
+                    if (added.isNotEmpty()) {
+                        _state.value = HomeUiState.Success(applyFilter(repo.videos.value))
+                    }
+                }
                 .onFailure { /* 加载更多失败静默保留当前列表 */ }
             loadingMore = false
         }
     }
+
+    private fun _hasMoreGuard(): Boolean = repo.hasMore.value
 
     init {
         refresh()

@@ -617,6 +617,33 @@ class SubscribeRepository(
         configCache.remove(sourceUrl)
     }
 
+    /**
+     * 审核238：per-host 请求间隔节流（animeko `requestInterval`，SelectorSearchConfig.kt:61）。
+     *
+     * 之前 `requestIntervalMs` 解析后从未使用：三步刮削（搜索→作品→剧集→播放页）
+     * 会对同一 host 连打多次请求，63 个源全并发时必然触发风控。
+     * 这里按 host 记上次请求时间，不足间隔就 delay；并发下用 synchronized 保证
+     * 「读时间 + 更新时间」原子，否则多个协程会同时通过检查。
+     */
+    private val lastRequestAt = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
+    private suspend fun throttle(host: String, intervalMs: Long) {
+        if (intervalMs <= 0L) return
+        while (true) {
+            val now = System.currentTimeMillis()
+            val waitUntil: Long
+            synchronized(lastRequestAt) {
+                val last = lastRequestAt[host] ?: 0L
+                waitUntil = if (last == 0L) now else last + intervalMs
+                // 抢占时间片（提前占位，避免同一批协程都算出同一个 waitUntil）
+                lastRequestAt[host] = waitUntil.coerceAtLeast(now)
+            }
+            val delayMs = waitUntil - now
+            if (delayMs <= 0L) return
+            kotlinx.coroutines.delay(delayMs)
+        }
+    }
+
     private suspend fun configsOf(sourceUrl: String): List<AnimekoScraper.SourceConfig> {
         val now = System.currentTimeMillis()
         configCache[sourceUrl]?.let { (ts, cfgs) ->
@@ -818,6 +845,8 @@ class SubscribeRepository(
                 destination.scheme.equals("http", ignoreCase = true))) {
             "Source requests require HTTP or HTTPS without embedded credentials"
         }
+        // 审核238：尊重源配置的请求间隔（默认 3s），避免同 host 连续请求被风控
+        throttle(destination.host, cfg.cfg.requestIntervalMs)
         return SourceHttpClient.client.get(url) {
             if (cfg.cfg.userAgent.isNotBlank()) header("User-Agent", cfg.cfg.userAgent)
             if (cfg.cfg.cookies.isNotBlank() && canSendSourceCookies(url, cfg)) {

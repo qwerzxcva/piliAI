@@ -8,6 +8,8 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.dash.DashMediaSource
+import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
@@ -79,16 +81,14 @@ class Media3Backend(
 
         val dataSourceFactory = if (isLocal) localFactory else DefaultDataSource.Factory(context, httpFactory)
 
-        // 视频流
-        val videoItem = MediaItem.Builder().setUri(request.videoUri).build()
-        val videoSource = ProgressiveMediaSource.Factory(dataSourceFactory)
-            .createMediaSource(videoItem)
+        // 审核237：按媒体类型选 MediaSource。此前一律用 ProgressiveMediaSource，
+        // 导致订阅源里的 m3u8 / mpd 直链必然解析失败（用户反馈「订阅源视频播不了」）。
+        val videoSource = buildMediaSource(dataSourceFactory, request.videoUri)
 
         // 音频流（可选，DASH 分离流）
         val finalSource = if (request.audioUri != null) {
             val audioItem = MediaItem.Builder().setUri(request.audioUri).build()
-            val audioSource = ProgressiveMediaSource.Factory(dataSourceFactory)
-                .createMediaSource(audioItem)
+            val audioSource = buildMediaSource(dataSourceFactory, request.audioUri)
             MergingMediaSource(videoSource, audioSource)
         } else {
             videoSource
@@ -97,6 +97,36 @@ class Media3Backend(
         p.setMediaSource(finalSource, request.resumePositionMs)
         p.playWhenReady = request.playWhenReady
         p.prepare()
+    }
+
+    /**
+     * 审核237：按 URL 形态选择 MediaSource 工厂。
+     *
+     * - `.m3u8` / `m3u` → HlsMediaSource（直播/切片清单）
+     * - `.mpd` → DashMediaSource（DASH 清单）
+     * - `.mp4`/`.flv`/`.mkv`/`.m4s`/无扩展名的裸流 → ProgressiveMediaSource
+     *
+     * 无法从扩展名判断时用 Progressive：Media3 对未知内容类型仍会尝试
+     * 渐进式解析，且 ExtractorsFactory 会按 sniff 结果选择抽取器。
+     */
+    private fun buildMediaSource(
+        factory: androidx.media3.datasource.DataSource.Factory,
+        uri: Uri
+    ): androidx.media3.exoplayer.source.MediaSource {
+        val item = MediaItem.Builder().setUri(uri).build()
+        val path = uri.path?.lowercase().orEmpty()
+        val query = uri.query?.lowercase().orEmpty()
+        val hint = if (path.isNotEmpty()) path else query
+        return when {
+            hint.endsWith(".m3u8") || hint.endsWith(".m3u") ||
+                hint.contains("/m3u8") || hint.contains("m3u8?") ||
+                hint.contains("type=m3u8") || hint.contains("type=hls") ->
+                HlsMediaSource.Factory(factory).createMediaSource(item)
+            hint.endsWith(".mpd") || hint.contains("type=mpd") ||
+                hint.contains("type=dash") ->
+                DashMediaSource.Factory(factory).createMediaSource(item)
+            else -> ProgressiveMediaSource.Factory(factory).createMediaSource(item)
+        }
     }
 
     override fun play() {

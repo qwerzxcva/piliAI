@@ -48,6 +48,30 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
         }.body()
     }
 
+    /**
+     * 审核237：首页个性化推荐流（wbi 签名，fresh_idx 翻页）。
+     * 移植自 bv `BiliHttpApi.getFeedRcmd`（fresh_type=4 / ps=30 / fresh_idx）。
+     */
+    suspend fun getFeedRcmd(freshIdx: Int, pageSize: Int = 30): Result<FeedRcmdResponse> = runCatching {
+        // 匿名也需要 buvid3：B站风控对无 buvid 的推荐流直接 -352
+        runCatching { AccountSession.ensureBuvid() }
+        val signed = WbiSigner.sign(
+            mapOf(
+                "fresh_type" to "4",
+                "ps" to pageSize.toString(),
+                "fresh_idx" to freshIdx.toString(),
+                "fresh_idx_1h" to freshIdx.toString(),
+            )
+        )
+        client.get("$API_BASE/x/web-interface/wbi/index/top/feed/rcmd") {
+            url { signed.forEach { (k, v) -> parameters.append(k, v) } }
+            header("Referer", "https://www.bilibili.com")
+            commonHeaders.forEach { (k, v) -> header(k, v) }
+        }.bodyAsText().let { text ->
+            BiliHttpClient.json.decodeFromString<FeedRcmdResponse>(text)
+        }
+    }
+
     /** 批次L30：番剧时间表（匿名可用） */
     suspend fun getBangumiTimeline(): Result<TimelineResponse> = runCatching {
         client.get("$API_BASE/pgc/web/timeline") {

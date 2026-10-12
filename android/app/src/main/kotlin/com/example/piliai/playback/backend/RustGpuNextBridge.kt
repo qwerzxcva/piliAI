@@ -68,12 +68,23 @@ class RustGpuNextBridge : GpuNextBridge {
      * One bounded event read. Negative timeouts are rejected. The native side
      * also rejects a non-finite or negative wait, so this cannot block forever.
      */
-    fun pollEvent(timeoutMs: Int): Int {
+    override fun pollEvent(timeoutMs: Int): Int {
         if (timeoutMs < 0) {
             throw IllegalArgumentException("timeout")
         }
         val bounded = timeoutMs.coerceAtMost(MAX_WAIT_MS)
         return call("pollEvent") { nativePollEvent(requireToken(), bounded) }
+    }
+
+    /**
+     * `mpv_observe_property`。format 必须是 client.h 的 MPV_FORMAT_* 常量。
+     * 必须在 [initialize] 之后调用：libmpv 在 mpv_initialize 前会拒绝 observe。
+     */
+    override fun observeProperty(name: String, format: Int) {
+        if (name.isEmpty()) {
+            throw IllegalArgumentException("name")
+        }
+        call("observeProperty") { nativeObserveProperty(requireToken(), name, format) }
     }
 
     override fun release() {
@@ -165,6 +176,8 @@ class RustGpuNextBridge : GpuNextBridge {
     private external fun nativeRelease(token: Long)
 
     private external fun nativePollEvent(token: Long, timeoutMs: Int): Int
+
+    private external fun nativeObserveProperty(token: Long, name: String, format: Int)
 
     companion object {
         const val MAX_WAIT_MS = 2_000

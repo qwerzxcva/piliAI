@@ -61,9 +61,20 @@ object AnimekoScraper {
         val selectLinks: String = "",
         val selectNamesJsonPath: String = "",
         val selectLinksJsonPath: String = "",
+        // 审核238：linkTemplate（animeko SelectorSubjectFormat*.kt:65-67/121-123/165-170）
+        // 详情页模板：把 selectLists 取到的裸 id 拼成详情页 URL。缺失时拼不出链接。
+        val linkTemplateA: String = "",
+        val linkTemplateIndexed: String = "",
+        val linkTemplateJsonPathIndexed: String = "",
         val selectEpisodes: String = "",        // channel no-channel
         val selectEpisodeLinks: String = "",
         val selectChannelNames: String = "",    // channel index-grouped
+        // 审核238：index-grouped 的容器三段式（animeko SelectorChannelFormat.kt:104-134, 166-190）
+        // selectEpisodeLists=线路容器，selectEpisodesFromList=容器内剧集，
+        // selectEpisodeLinksFromList=容器内链接（可与剧集分离）。
+        val selectEpisodeLists: String = "",
+        val selectEpisodesFromList: String = "",
+        val selectEpisodeLinksFromList: String = "",
         val matchVideoUrl: String = "",
         val matchNestedUrl: String = "",
         val enableNestedUrl: Boolean = false,
@@ -141,10 +152,19 @@ object AnimekoScraper {
                 o["selectorSubjectFormatJsonPathIndexed"]?.jsonObject
                     ?.get("selectLinks")?.jsonPrimitive?.contentOrNull
             }.getOrNull() ?: "",
+            linkTemplateA = a?.get("linkTemplate")?.jsonPrimitive?.contentOrNull ?: "",
+            linkTemplateIndexed = idx?.get("linkTemplate")?.jsonPrimitive?.contentOrNull ?: "",
+            linkTemplateJsonPathIndexed = runCatching {
+                o["selectorSubjectFormatJsonPathIndexed"]?.jsonObject
+                    ?.get("linkTemplate")?.jsonPrimitive?.contentOrNull
+            }.getOrNull() ?: "",
             selectEpisodes = noCh?.get("selectEpisodes")?.jsonPrimitive?.contentOrNull ?: "",
             selectEpisodeLinks = noCh?.get("selectEpisodeLinks")?.jsonPrimitive?.contentOrNull ?: "",
             selectChannelNames = flat?.get("selectChannelNames")?.jsonPrimitive?.contentOrNull
                 ?: flat?.get("selectEpisodeLinks")?.jsonPrimitive?.contentOrNull ?: "",
+            selectEpisodeLists = flat?.get("selectEpisodeLists")?.jsonPrimitive?.contentOrNull ?: "",
+            selectEpisodesFromList = flat?.get("selectEpisodesFromList")?.jsonPrimitive?.contentOrNull ?: "",
+            selectEpisodeLinksFromList = flat?.get("selectEpisodeLinksFromList")?.jsonPrimitive?.contentOrNull ?: "",
             matchVideoUrl = mv?.get("matchVideoUrl")?.jsonPrimitive?.contentOrNull ?: "",
             matchNestedUrl = mv?.get("matchNestedUrl")?.jsonPrimitive?.contentOrNull ?: "",
             enableNestedUrl = mv?.get("enableNestedUrl")?.jsonPrimitive?.booleanOrNull ?: false,
@@ -186,7 +206,10 @@ object AnimekoScraper {
                     if (cfg.selectLists.isBlank()) return emptyList()
                     doc.select(cfg.selectLists).mapNotNull { el ->
                         val name = el.text().trim()
-                        val url = absUrl(el, "href", effectiveBase)
+                        // 审核238：linkTemplate 优先（animeko SelectorSubjectFormatA.kt:65-67）
+                        val raw = el.attr("href").trim()
+                        val url = applyLinkTemplate(cfg.linkTemplateA, raw, effectiveBase)
+                            ?: absUrl(el, "href", effectiveBase)
                         if (name.isBlank() || url.isBlank()) null else Subject(name, url)
                     }.distinctBy { it.url }
                 }
@@ -194,7 +217,9 @@ object AnimekoScraper {
                     if (cfg.selectNames.isBlank() || cfg.selectLinks.isBlank()) return emptyList()
                     val names = doc.select(cfg.selectNames).map { it.text().trim() }
                     val links = doc.select(cfg.selectLinks).mapNotNull {
-                        absUrl(it, "href", effectiveBase).ifBlank { null }
+                        val raw = it.attr("href").trim()
+                        applyLinkTemplate(cfg.linkTemplateIndexed, raw, effectiveBase)
+                            ?: absUrl(it, "href", effectiveBase).ifBlank { null }
                     }
                     names.zip(links) { n, l -> if (n.isBlank()) null else Subject(n, l) }
                         .filterNotNull().distinctBy { it.url }
@@ -209,30 +234,71 @@ object AnimekoScraper {
         baseUrl: String,
         cfg: SearchConfig
     ): List<Subject> {
-        val nameKey = jsonPathField(cfg.selectNamesJsonPath)
-            ?: error("Unsupported subject-name JSON path")
-        val linkKey = jsonPathField(cfg.selectLinksJsonPath)
-            ?: error("Unsupported subject-link JSON path")
+        // 审核238：多键路径（$[*]['url','link']）→ 按顺序取第一个非空值
+        val nameKeys = jsonPathFields(cfg.selectNamesJsonPath)
+            .ifEmpty { error("Unsupported subject-name JSON path") }
+        val linkKeys = jsonPathFields(cfg.selectLinksJsonPath)
+            .ifEmpty { error("Unsupported subject-link JSON path") }
         val rows = json.parseToJsonElement(text) as? kotlinx.serialization.json.JsonArray
             ?: error("Configured JSON paths require an array at the document root")
         return rows.mapNotNull { element ->
             val row = element as? JsonObject ?: return@mapNotNull null
-            val name = (row[nameKey] as? kotlinx.serialization.json.JsonPrimitive)
-                ?.takeIf { it.isString }?.contentOrNull?.trim().orEmpty()
-            val link = (row[linkKey] as? kotlinx.serialization.json.JsonPrimitive)
-                ?.takeIf { it.isString }?.contentOrNull?.trim().orEmpty()
-            if (name.isBlank() || link.isBlank()) return@mapNotNull null
-            val url = resolveUrl(link, baseUrl)
+            val name = firstString(row, nameKeys)
+            val rawLink = firstString(row, linkKeys)
+            if (name.isBlank() || rawLink.isBlank()) return@mapNotNull null
+            // 审核238：json-path 分支也要支持 linkTemplate
+            val url = applyLinkTemplate(cfg.linkTemplateJsonPathIndexed, rawLink, baseUrl)
+                ?: resolveUrl(rawLink, baseUrl)
             if (!isHttpUrl(url)) return@mapNotNull null
             Subject(name, url)
         }.distinctBy { it.url }
     }
+
+    /** 按 key 顺序取第一个非空字符串值 */
+    private fun firstString(
+        row: JsonObject,
+        keys: List<String>
+    ): String = keys.firstNotNullOfOrNull { key ->
+        (row[key] as? kotlinx.serialization.json.JsonPrimitive)
+            ?.takeIf { it.isString }?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
+    }.orEmpty()
 
     private fun jsonPathField(path: String): String? {
         val dot = Regex("""^\$\[\*]\.([A-Za-z0-9_]+)$""").find(path.trim())
         if (dot != null) return dot.groupValues[1]
         val bracket = Regex("""^\$\[\*]\['([^']+)'\]$""").find(path.trim())
         return bracket?.groupValues?.get(1)
+    }
+
+    /**
+     * 审核238：json-path 多键选择器（animeko SelectorSubjectFormat.kt:159-162, 218-236）。
+     * animeko 支持 `$[*]['url','link']` 这类多键路径：取到的是候选值数组，
+     * 按顺序取第一个非空值压平。此前只支持单键，遇到多键配置整源解析失败。
+     */
+    private fun jsonPathFields(path: String): List<String> {
+        val trimmed = path.trim()
+        val multi = Regex("""^\$\[\*]\[([^]]+)]$""").find(trimmed)
+        if (multi != null) {
+            return multi.groupValues[1].split(',').mapNotNull { key ->
+                val k = key.trim().removeSurrounding("'").removeSurrounding("\"").trim()
+                k.ifBlank { null }
+            }
+        }
+        return listOfNotNull(jsonPathField(trimmed))
+    }
+
+    /**
+     * 审核238：linkTemplate（animeko SelectorSubjectFormat*.kt 的 linkTemplate）。
+     * 模板形如 `https://example.com/detail/{value}.html`，`{value}` 处替换为
+     * 选择器取到的原始值（通常是 id）。无模板或模板不含 `{value}` 时返回 null，
+     * 让调用方回退到 href 绝对化。
+     */
+    private fun applyLinkTemplate(template: String, rawValue: String, baseUrl: String): String? {
+        if (template.isBlank() || !template.contains("{value}")) return null
+        val value = rawValue.trim()
+        if (value.isBlank()) return null
+        val url = template.replace("{value}", value)
+        return resolveUrl(url, baseUrl).takeIf { it.isNotBlank() }
     }
 
     /**
@@ -257,17 +323,57 @@ object AnimekoScraper {
                     }
                 }
                 "index-grouped" -> {
-                    if (cfg.selectEpisodes.isBlank()) return emptyList()
-                    // 分组（线路）名：可选，取不到就不分组
-                    val channels = if (cfg.selectChannelNames.isNotBlank())
-                        doc.select(cfg.selectChannelNames).map { it.text().trim() } else emptyList()
-                    val eps = doc.select(cfg.selectEpisodes)
-                    eps.forEach { el ->
-                        val name = el.text().trim().ifBlank { el.attr("title") }
-                        val url = absUrl(el, "href", effectiveBase)
-                            .ifBlank { absUrl(el, "data-href", effectiveBase) }
-                        if (name.isNotBlank() && url.isNotBlank()) {
-                            out.add(Episode(name, url, channels.firstOrNull() ?: ""))
+                    // 审核238：animeko 的 index-grouped 是「线路容器 → 容器内剧集」的三段式
+                    // （SelectorChannelFormat.kt:104-134 与 166-190）。此前只用两个平铺
+                    // 选择器 + channels.firstOrNull()，多线路站点全部塌成一条线路。
+                    //
+                    // 选择器兜底顺序：容器三段式 > selectEpisodesFromList 单独用 > selectEpisodes。
+                    // 原实现开头 `if (cfg.selectEpisodes.isBlank()) return emptyList()` 会把
+                    // 只配了 FromList 的源直接判死（容器选择器为空时永远零剧集）。
+                    val episodeSelector = when {
+                        cfg.selectEpisodesFromList.isNotBlank() -> cfg.selectEpisodesFromList
+                        cfg.selectEpisodes.isNotBlank() -> cfg.selectEpisodes
+                        else -> return emptyList()
+                    }
+                    val containerSel = cfg.selectEpisodeLists
+                    if (containerSel.isNotBlank() && cfg.selectEpisodesFromList.isNotBlank()) {
+                        val containers = doc.select(containerSel)
+                        val channelNames = if (cfg.selectChannelNames.isNotBlank())
+                            doc.select(cfg.selectChannelNames).map { it.text().trim() } else emptyList()
+                        containers.forEachIndexed { i, container ->
+                            // 线路名与容器按索引对齐；取不到就退回容器自身文本
+                            val channel = channelNames.getOrNull(i)
+                                ?: container.text().trim().take(40)
+                            val linkSel = cfg.selectEpisodeLinksFromList
+                                .ifBlank { episodeSelector }
+                            val episodeEls = container.select(episodeSelector)
+                            val linkEls = if (linkSel == episodeSelector) episodeEls
+                                else container.select(linkSel)
+                            episodeEls.forEachIndexed { j, el ->
+                                val name = el.text().trim().ifBlank { el.attr("title") }
+                                // 链接优先从对应的 link 元素取；数量不齐时退回 episode 元素自身
+                                val url = linkEls.getOrNull(j)
+                                    ?.let { absUrl(it, "href", effectiveBase) }
+                                    ?.ifBlank { null }
+                                    ?: absUrl(el, "href", effectiveBase)
+                                        .ifBlank { absUrl(el, "data-href", effectiveBase) }
+                                if (name.isNotBlank() && url.isNotBlank()) {
+                                    out.add(Episode(name, url, channel))
+                                }
+                            }
+                        }
+                    } else {
+                        // 无容器配置时按平铺解析（兼容少数真平铺源）
+                        val channels = if (cfg.selectChannelNames.isNotBlank())
+                            doc.select(cfg.selectChannelNames).map { it.text().trim() } else emptyList()
+                        val eps = doc.select(episodeSelector)
+                        eps.forEach { el ->
+                            val name = el.text().trim().ifBlank { el.attr("title") }
+                            val url = absUrl(el, "href", effectiveBase)
+                                .ifBlank { absUrl(el, "data-href", effectiveBase) }
+                            if (name.isNotBlank() && url.isNotBlank()) {
+                                out.add(Episode(name, url, channels.firstOrNull() ?: ""))
+                            }
                         }
                     }
                 }

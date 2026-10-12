@@ -43,7 +43,8 @@ import kotlinx.coroutines.launch
 
 /**
  * 审核轮207（BiliPai feature/story 移植）：竖屏沉浸式推荐流（抖音式上下滑动）。
- * 数据源复用首页推荐 getPopularVideos；滑动到临近底部自动加载下一页。
+ * 审核237：数据源从 HomeRepository 的推荐流（feed/rcmd + popular 兜底）获取，
+ * 与首页同一套去重/翻页逻辑（原 getPopularVideos 已并入仓库内部）。
  */
 
 class StoryViewModel(
@@ -58,7 +59,6 @@ class StoryViewModel(
 
     private val _state = MutableStateFlow(UiState())
     val state = _state.asStateFlow()
-    private var page = 1
 
     init { loadMore() }
 
@@ -66,13 +66,16 @@ class StoryViewModel(
         if (_state.value.loading || _state.value.endReached) return
         _state.value = _state.value.copy(loading = true, error = null)
         viewModelScope.launch {
-            repo.getPopularVideos(page = page).onSuccess { list ->
-                page += 1
-                val fresh = list.filter { v -> _state.value.items.none { it.bvid == v.bvid } }
+            // 审核237：仓库内部维护 fresh_idx/页码，并做 bvid 去重；
+            // 首屏走 refresh（推荐流第一页），之后走 loadMore 追加。
+            val isFirst = _state.value.items.isEmpty()
+            val result = if (isFirst) repo.refresh() else repo.loadMore()
+            result.onSuccess { added ->
+                val list = if (isFirst) added else repo.videos.value
                 _state.value = _state.value.copy(
-                    items = _state.value.items + fresh,
+                    items = list,
                     loading = false,
-                    endReached = fresh.isEmpty()
+                    endReached = list.isEmpty() || added.isEmpty()
                 )
             }.onFailure { e ->
                 _state.value = _state.value.copy(loading = false, error = e.message)
