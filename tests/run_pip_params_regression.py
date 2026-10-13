@@ -21,7 +21,11 @@ if not effect.endswith('    }'):
     raise RuntimeError('Production PiP effect boundary changed; review the extractor')
 effect = effect[:-len('    }')]
 helper_start = source.index('private fun PlayerView?.pipAspectRatio(): Rational {')
-helper_end = source.index('/**', helper_start)
+# 原边界 `index('/**', helper_start)` 在审核242 插入手势安全区注释后
+# 提前截断，丢掉 buildPipParams/enterPiP。改为截到 createPlayerView 声明
+# 前的文档注释起点（该注释是 helpers 区间的确定下界）。
+create_player_view = source.index('private fun createPlayerView', helper_start)
+helper_end = source.rindex('/**', helper_start, create_player_view)
 helpers = source[helper_start:helper_end].replace(
     '@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)\n', ''
 )
