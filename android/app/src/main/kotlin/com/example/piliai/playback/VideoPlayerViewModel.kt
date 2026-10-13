@@ -877,8 +877,13 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
             com.example.piliai.data.remote.AccountSession.cookieHeader()
         }.getOrNull().orEmpty()
         val headers = buildMap {
-            put("Referer", "https://www.bilibili.com")
-            put("Origin", "https://www.bilibili.com")
+            // 审核245：WEB/DASH 地址必须带 web Referer（否则 CDN 403，审核215 实测），
+            // 但 APP 签名地址带 web Referer 反而被拒（bv PlaybackRequestHeaders.kt）。
+            // 按 URL 判定，两类都不会 403。
+            val referer = com.example.piliai.playback.PlaybackRequestHeaders
+                .refererFor("https://www.bilibili.com", videoUrl, audioUrl)
+            referer?.let { put("Referer", it) }
+            if (referer != null) put("Origin", "https://www.bilibili.com")
             if (cookie.isNotEmpty()) put("Cookie", cookie)
         }
         val dataSourceFactory = androidx.media3.datasource.DefaultHttpDataSource.Factory()

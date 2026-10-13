@@ -116,7 +116,15 @@ class GpuNextBackend(
             }
         }
         if (request.userAgent.isNotBlank()) bridge.setOption("user-agent", request.userAgent)
-        request.headers["Referer"]?.let { bridge.setOption("referrer", it) }
+        // 审核245：与 Media3 路径同一套规则——APP 签名地址不带 web Referer。
+        val referer = com.example.piliai.playback.PlaybackRequestHeaders
+            .refererFor("https://www.bilibili.com", request.videoUri.toString())
+        if (referer != null) {
+            bridge.setOption("referrer", referer)
+        } else {
+            // mpv 默认会继承上次的 referrer，显式清掉避免串味
+            bridge.setOption("referrer", "")
+        }
         // DASH 分离音轨：audio-files 让 mpv 把它当外部音轨加载
         request.audioUri?.let { bridge.setOption("audio-files", it.toString()) }
         bridge.initialize()
