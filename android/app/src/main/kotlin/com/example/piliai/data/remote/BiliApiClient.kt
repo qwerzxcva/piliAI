@@ -1083,6 +1083,18 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
         org.json.JSONObject(resp).optInt("code") == 0
     }
 
+    /**
+     * 审核268：清空稍后再看（需登录）。
+     * 接口 /x/v2/history/toview/clear（匿名访问返回 200 但 code != 0）。
+     */
+    suspend fun clearToView(): Result<Boolean> = runCatching {
+        val resp: String = BiliHttpClient.postAuthForm(
+            "$API_BASE/x/v2/history/toview/clear",
+            emptyMap()
+        )
+        org.json.JSONObject(resp).optInt("code") == 0
+    }
+
     /** 审核轮146：一键三连（点赞+投币+收藏，需登录） */
     suspend fun likeCoinFav(aid: Long): Result<Boolean> = runCatching {
         val resp: String = BiliHttpClient.postAuthForm(

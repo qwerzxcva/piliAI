@@ -11,6 +11,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
@@ -137,6 +140,29 @@ class LibraryViewModel(
                 }
             }
         }
+    }
+
+    /**
+     * 审核268：清空稍后再看（成功后重新拉列表）。
+     * 与 delToView 同一风格：直接调 API，结果经 message 告知 UI。
+     */
+    fun clearToView() {
+        viewModelScope.launch {
+            BiliApiClient().clearToView()
+                .onSuccess { ok ->
+                    _message.value = if (ok) "已清空稍后再看" else "清空失败"
+                    if (ok) loadToView()
+                }
+                .onFailure { _message.value = "清空失败: ${it.message}" }
+        }
+    }
+
+    /** 审核268：一次性提示（清空结果） */
+    private val _message = MutableStateFlow<String?>(null)
+    val message: StateFlow<String?> = _message.asStateFlow()
+
+    fun consumeMessage() {
+        _message.value = null
     }
 
     fun delToView(aid: Long) {
@@ -526,6 +552,31 @@ fun ToViewScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                    }
+                },
+                // 审核268：清空全部。有内容才显示，避免空列表时给个无效按钮
+                actions = {
+                    if (toView.isNotEmpty()) {
+                        var confirmClear by remember { mutableStateOf(false) }
+                        IconButton(onClick = { confirmClear = true }) {
+                            Icon(Icons.Default.DeleteSweep, contentDescription = "清空稍后再看")
+                        }
+                        if (confirmClear) {
+                            AlertDialog(
+                                onDismissRequest = { confirmClear = false },
+                                title = { Text("清空稍后再看？") },
+                                text = { Text("将移除全部 ${toView.size} 个视频，此操作不可撤销。") },
+                                confirmButton = {
+                                    TextButton(onClick = {
+                                        viewModel.clearToView()
+                                        confirmClear = false
+                                    }) { Text("清空") }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { confirmClear = false }) { Text("取消") }
+                                }
+                            )
+                        }
                     }
                 }
             )
