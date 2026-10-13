@@ -15,6 +15,10 @@ import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -308,6 +312,16 @@ fun FavMediaScreen(
     val medias by viewModel.medias.collectAsStateWithLifecycle()
     val loading by viewModel.loading.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
+    // 审核269：收藏夹内关键词过滤（本地过滤，不再走网络 —— 当前页数据全在内存）
+    var keyword by remember(mediaId) { mutableStateOf("") }
+    var showOrderMenu by remember(mediaId) { mutableStateOf(false) }
+    val visibleMedias = remember(medias, keyword) {
+        if (keyword.isBlank()) medias
+        else medias.filter {
+            it.title.contains(keyword, ignoreCase = true) ||
+                it.upper?.name?.contains(keyword, ignoreCase = true) == true
+        }
+    }
 
     LaunchedEffect(mediaId) { viewModel.resetFavPage(); viewModel.loadMedias(mediaId) }
 
@@ -360,7 +374,16 @@ fun FavMediaScreen(
                     contentPadding = PaddingValues(12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(medias, key = { it.id }) { media ->
+                    // 审核269：用过滤后的列表；空结果给明确提示，别显示白屏
+                    if (visibleMedias.isEmpty() && keyword.isNotBlank()) {
+                        item {
+                            Box(
+                                Modifier.fillMaxSize().padding(24.dp),
+                                contentAlignment = Alignment.Center
+                            ) { Text("没有匹配「$keyword」的收藏") }
+                        }
+                    }
+                    items(visibleMedias, key = { it.id }) { media ->
                         MediaRow(
                             cover = media.cover,
                             title = media.title,
