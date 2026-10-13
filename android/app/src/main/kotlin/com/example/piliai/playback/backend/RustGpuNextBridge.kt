@@ -199,10 +199,21 @@ class RustGpuNextBridge : GpuNextBridge {
         private val executorRef = AtomicReference<ExecutorService?>()
 
         init {
+            // 审核254：loadLibrary 失败必须留日志。此前失败被静默吞掉，
+            // 用户在设置里选了 GPU-next 却悄悄回退 media3，无从排查
+            // （需求 4 的真机验收依赖这条日志）。
             libraryLoaded = runCatching {
                 System.loadLibrary("pilinara_native")
+                android.util.Log.i("PiliGpuNext", "pilinara_native loaded")
                 true
-            }.getOrDefault(false)
+            }.getOrElse { error ->
+                android.util.Log.e(
+                    "PiliGpuNext",
+                    "pilinara_native load failed; GPU-next unavailable, falling back to media3",
+                    error
+                )
+                false
+            }
         }
 
         private fun workerExecutor(): ExecutorService {

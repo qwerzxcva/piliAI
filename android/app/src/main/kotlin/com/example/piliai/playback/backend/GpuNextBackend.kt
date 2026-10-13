@@ -55,6 +55,18 @@ class GpuNextBackend(
     private var endDispatched = false
 
     override fun prepare(request: PlaybackRequest) {
+        // 审核254：GPU-next 起播失败必须可见。此前 bridge.open()/setOption 抛异常
+        // 只被 VM 的 catch 变成一行 setError，看不出是 native 没加载、vo 被拒
+        // 还是 wid 安装失败（bv 用 describeInitFailure 做同类诊断）。
+        runCatching {
+            prepareInternal(request)
+        }.onFailure { error ->
+            android.util.Log.e("PiliGpuNext", "GPU-next prepare failed", error)
+            listener.onError("GPU-next 起播失败：${error.message ?: error.javaClass.simpleName}")
+        }
+    }
+
+    private fun prepareInternal(request: PlaybackRequest) {
         bridge.open()
         // 审核237：bv 的 configureBeforeInit（MpvMediaPlayer.kt:498-548）——
         // Android 上 gpu-context 固定 android，并显式关掉用不上的内置 Lua 脚本；
