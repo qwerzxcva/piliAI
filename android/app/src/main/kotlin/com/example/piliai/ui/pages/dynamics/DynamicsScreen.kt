@@ -264,6 +264,14 @@ private fun DynamicCard(
                 Text(desc, fontSize = 14.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
 
+            // 审核266：图片动态九宫格。数据层的 DynamicMajor.draw 一直有解析，
+            // 但 UI 从未渲染 —— 用户发图动态只看到文字，图片全丢。
+            val drawItems = item.modules?.major?.draw?.items.orEmpty()
+            if (v == null && drawItems.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                DynamicImageGrid(drawItems.map { it.src })
+            }
+
             if (v != null && v.bvid.isNotEmpty()) {
                 Spacer(Modifier.height(10.dp))
                 Row(Modifier.clip(RoundedCornerShape(8.dp))) {
@@ -290,6 +298,53 @@ private fun DynamicCard(
                 }
             }
 
+            // 审核266：转发动态的引用块。此前转发只显示用户自己写的文字，
+            // 被转发的原动态内容完全看不到（用户刷到转发以为是空动态）。
+            val forward = item.forwardInfo
+            if (forward != null) {
+                Spacer(Modifier.height(10.dp))
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Column(Modifier.padding(10.dp)) {
+                        val fwdVideo = forward.archive
+                        val fwdDraw = forward.draw?.items.orEmpty()
+                        if (fwdVideo != null && fwdVideo.bvid.isNotEmpty()) {
+                            Text(
+                                fwdVideo.title,
+                                fontSize = 13.sp,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            AsyncImage(
+                                model = fwdVideo.pic.toCoverUrl(),
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxWidth().height(120.dp)
+                                    .clip(RoundedCornerShape(6.dp)),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else if (fwdDraw.isNotEmpty()) {
+                            DynamicImageGrid(fwdDraw.map { it.src })
+                        }
+                        val fwdText = forward.desc?.text.orEmpty()
+                        if (fwdText.isNotBlank()) {
+                            if (fwdVideo != null || fwdDraw.isNotEmpty()) {
+                                Spacer(Modifier.height(8.dp))
+                            }
+                            Text(
+                                fwdText,
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 4,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            }
+
             if (stat != null && (stat.comment > 0 || stat.like > 0)) {
                 Spacer(Modifier.height(8.dp))
                 Text(
@@ -297,6 +352,62 @@ private fun DynamicCard(
                     fontSize = 11.sp,
                     color = Color(0xFF999999)
                 )
+            }
+        }
+    }
+}
+
+
+/**
+ * 审核266：动态图片九宫格（B站动态的图片排布）。
+ *
+ * 1 张 → 大图（16:10）；2 张 → 并排两列；3 张 → 左大右两小；
+ * 4 张 → 2x2；更多 → 3 列网格，最多显示 9 张。
+ */
+@Composable
+private fun DynamicImageGrid(urls: List<String>) {
+    if (urls.isEmpty()) return
+    when (urls.size) {
+        1 -> AsyncImage(
+            model = urls[0].toCoverUrl(),
+            contentDescription = null,
+            modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp).clip(RoundedCornerShape(8.dp)),
+            contentScale = ContentScale.Crop
+        )
+        2 -> Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            urls.take(2).forEach { url ->
+                AsyncImage(
+                    model = url.toCoverUrl(),
+                    contentDescription = null,
+                    modifier = Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(6.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            }
+        }
+        else -> {
+            // 3 列网格，最多 9 张（与 B 站一致）
+            val columns = 3
+            val rows = (minOf(urls.size, 9) + columns - 1) / columns
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                repeat(rows) { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        for (col in 0 until columns) {
+                            val index = row * columns + col
+                            val url = urls.getOrNull(index)
+                            if (url != null) {
+                                AsyncImage(
+                                    model = url.toCoverUrl(),
+                                    contentDescription = null,
+                                    modifier = Modifier.weight(1f).aspectRatio(1f)
+                                        .clip(RoundedCornerShape(6.dp)),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Spacer(Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
             }
         }
     }
