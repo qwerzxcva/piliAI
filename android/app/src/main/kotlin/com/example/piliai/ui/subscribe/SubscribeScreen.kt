@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -780,17 +782,42 @@ private fun SubscribeItemCard(
                 AsyncImage(
                     model = item.cover.ifBlank { null },
                     contentDescription = item.title,
-                    modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(16f / 9f)
+                        // 审核272：封面底部渐变（Kototoro/BiliPai 视觉）——
+                        // 保证角标文字在亮/暗封面上都可读
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .clip(RoundedCornerShape(12.dp)),
                     contentScale = ContentScale.Crop
                 )
+                Box(
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .height(28.dp)
+                        .background(
+                            Brush.verticalGradient(
+                                0f to Color.Transparent,
+                                1f to Color.Black.copy(alpha = 0.5f)
+                            )
+                        )
+                )
                 if (item.episode.isNotBlank()) {
+                    // 审核272：集数角标改胶囊（ba SubjectItem.kt 的角标规范：
+                    // 半透明黑底 + 圆角，不再是裸 Text 直接压在封面上）
                     Text(
                         text = item.episode,
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimary,
+                        color = Color.White,
                         modifier = Modifier
                             .align(Alignment.BottomStart)
-                            .padding(4.dp)
+                            .padding(6.dp)
+                            .background(
+                                Color.Black.copy(alpha = 0.55f),
+                                RoundedCornerShape(4.dp)
+                            )
+                            .padding(horizontal = 5.dp, vertical = 2.dp)
                     )
                 }
             }

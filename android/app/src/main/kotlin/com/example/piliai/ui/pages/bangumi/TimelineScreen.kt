@@ -83,20 +83,50 @@ fun TimelineScreen(
                     Text(error ?: "")
                     TextButton(onClick = { viewModel.load() }) { Text("重试") }
                 }
-                else -> LazyColumn(
-                    Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(days, key = { it.dateTs }) { day ->
-                        Column {
-                            Text(
-                                "${day.date} · 周${"日一二三四五六".getOrElse(day.dayOfWeek) { '日' }}",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.primary
+                // 审核272：改为「今天/明天」双 Tab（移植 ba CalendarScreen.kt:122-131
+                // 的 BgmTabHorizontalPager 设计）——原来是 7 天长列表，
+                // 用户想知道「今天更新什么」要滚动很远。现在默认定位今天。
+                else -> {
+                    val weekdayNames = remember { listOf("日", "一", "二", "三", "四", "五", "六") }
+                    val todayIdx = remember {
+                        val today = java.util.Calendar.getInstance()
+                        val dow = today.get(java.util.Calendar.DAY_OF_WEEK) - 1
+                        days.indexOfFirst { it.dayOfWeek == dow }.coerceAtLeast(0)
+                    }
+                    var selDay by remember { mutableIntStateOf(todayIdx) }
+                    val dayTabs = days.map {
+                        val mark = if (it.dayOfWeek == days.getOrNull(todayIdx)?.dayOfWeek) "今天" else "明天"
+                        "周${"日一二三四五六".getOrElse(it.dayOfWeek) { '日' }} $mark"
+                    }
+                    ScrollableTabRow(
+                        selectedTabIndex = selDay.coerceIn(0, (dayTabs.size - 1).coerceAtLeast(0)),
+                        edgePadding = 12.dp,
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ) {
+                        dayTabs.forEachIndexed { i, label ->
+                            Tab(
+                                selected = selDay == i,
+                                onClick = { selDay = i },
+                                text = { Text(label, style = MaterialTheme.typography.labelLarge) }
                             )
-                            Spacer(Modifier.height(6.dp))
-                            day.episodes.forEach { ep ->
+                        }
+                    }
+                    LazyColumn(
+                        Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val day = days.getOrNull(selDay)
+                        val dayEpisodes = day?.episodes.orEmpty()
+                        if (dayEpisodes.isEmpty()) {
+                            item {
+                                Box(
+                                    Modifier.fillMaxSize().padding(24.dp),
+                                    contentAlignment = Alignment.Center
+                                ) { Text("这一天没有番剧更新") }
+                            }
+                        }
+                        items(dayEpisodes, key = { "${it.season_id}_${it.pub_index}" }) { ep ->
                                 Row(
                                     Modifier.fillMaxWidth()
                                         .clickable(enabled = ep.season_id > 0) { onOpenSeason(ep.season_id) }
@@ -130,7 +160,6 @@ fun TimelineScreen(
                                         )
                                     }
                                 }
-                            }
                         }
                     }
                 }
