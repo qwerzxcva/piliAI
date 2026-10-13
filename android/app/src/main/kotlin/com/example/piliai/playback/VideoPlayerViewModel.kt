@@ -1413,14 +1413,22 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         }
     }
 
-    /** 加入稍后再看（需登录） */
+    /**
+     * 加入稍后再看（需登录）。
+     *
+     * 审核262：成功提示改走 toast。原来用 setError 报「已加入稍而复看」，
+     * 而 setError 会触发全屏红色错误覆盖层并隐藏播放控制条 ——
+     * 用户加个稍后再看就像播放器崩了（与 notifyShared 同一个 bug 模式）。
+     */
     fun addToWatchLater() {
         viewModelScope.launch {
             if (!AccountSession.isLogin) { setError("请先登录"); return@launch }
             ensureAid()
             if (aid == 0L) { setError("无法获取视频 aid"); return@launch }
             BiliApiClient().addToView(aid)
-                .onSuccess { ok -> setError(if (ok) "已加入稍后再看" else "添加失败") }
+                .onSuccess { ok ->
+                    if (ok) showToast("已加入稍后再看") else setError("添加失败")
+                }
                 .onFailure { setError("添加失败: ${it.message}") }
         }
     }
