@@ -149,7 +149,19 @@ fn normalize_text(input: &str) -> String {
     while let Some(last) = result.chars().last() {
         if matches!(
             last,
-            '。' | '，' | '、' | '！' | '？' | '；' | '：' | '…' | '.' | ',' | '!' | '?' | ';' | ':'
+            '。' | '，'
+                | '、'
+                | '！'
+                | '？'
+                | '；'
+                | '：'
+                | '…'
+                | '.'
+                | ','
+                | '!'
+                | '?'
+                | ';'
+                | ':'
         ) {
             result.pop();
         } else {
@@ -169,7 +181,19 @@ fn is_pure_noise(normalized: &str) -> bool {
         c.is_whitespace()
             || matches!(
                 c,
-                '。' | '，' | '、' | '！' | '？' | '；' | '：' | '…' | '.' | ',' | '!' | '?' | ';' | ':'
+                '。' | '，'
+                    | '、'
+                    | '！'
+                    | '？'
+                    | '；'
+                    | '：'
+                    | '…'
+                    | '.'
+                    | ','
+                    | '!'
+                    | '?'
+                    | ';'
+                    | ':'
             )
     })
 }
@@ -208,7 +232,11 @@ fn bounded_edit_distance(a: &str, b: &str, max: usize) -> usize {
         curr[0] = i;
         let mut row_min = curr[0];
         for j in 1..=b_len {
-            let cost = if a_chars[i - 1] == b_chars[j - 1] { 0 } else { 1 };
+            let cost = if a_chars[i - 1] == b_chars[j - 1] {
+                0
+            } else {
+                1
+            };
             let value = (prev[j] + 1).min(curr[j - 1] + 1).min(prev[j - 1] + cost);
             curr[j] = value;
             row_min = row_min.min(value);
@@ -371,7 +399,8 @@ impl DanmakuMerger {
         if is_pure_noise(&a_norm) || is_pure_noise(&b_norm) {
             return false;
         }
-        let distance_threshold = edit_distance_threshold(a_norm.chars().count(), b_norm.chars().count());
+        let distance_threshold =
+            edit_distance_threshold(a_norm.chars().count(), b_norm.chars().count());
         bounded_edit_distance(&a_norm, &b_norm, distance_threshold) <= distance_threshold
     }
 
@@ -492,7 +521,11 @@ mod tests {
     #[test]
     fn test_similar_danmaku_merge_within_window() {
         let merger = DanmakuMerger::new(DanmakuMergeConfig::default());
-        let entries = vec![entry(10.0, "2333"), entry(12.0, "23333"), entry(14.0, "哈哈哈")];
+        let entries = vec![
+            entry(10.0, "2333"),
+            entry(12.0, "23333"),
+            entry(14.0, "哈哈哈"),
+        ];
         let (merged, count) = merger.merge_similar(entries);
         // 「2333」与「23333」归一化后相同 → 合并；「哈哈哈」不相似 → 保留
         assert_eq!(merged.len(), 2, "merged: {:?}", merged);
@@ -518,7 +551,11 @@ mod tests {
     #[test]
     fn test_pure_noise_is_not_merged() {
         let merger = DanmakuMerger::new(DanmakuMergeConfig::default());
-        let entries = vec![entry(0.0, "。。。"), entry(0.5, "..."), entry(1.0, "。。。")];
+        let entries = vec![
+            entry(0.0, "。。。"),
+            entry(0.5, "..."),
+            entry(1.0, "。。。"),
+        ];
         let (merged, count) = merger.merge_similar(entries);
         assert_eq!(merged.len(), 3, "noise must stay separate: {:?}", merged);
         assert_eq!(count, 0);
