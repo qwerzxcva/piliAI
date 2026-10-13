@@ -343,6 +343,16 @@ fun VideoPlayerScreen(
                 // 审核244（P0-1/P0-2）：字号与行高接入。此前这两个设置项
                 // 只写 DataStore，播放器从不读 → 滑块完全无效。
                 v.lineHeightFactor = state.danmakuLineHeight
+                // 审核249：字重接入（此前同为假开关）
+                v.fontWeight = state.danmakuFontWeight
+                // 审核249：点击弹幕交互。命中弹幕时提示内容（B站是发弹幕/复制，
+                // 这里先用轻量 toast，避免引入不必要的新 UI）。
+                v.tapInteractEnabled = state.danmakuTapInteract
+                v.onDanmakuTapped = { text ->
+                    android.widget.Toast
+                        .makeText(context, text, android.widget.Toast.LENGTH_SHORT)
+                        .show()
+                }
                 v.mergeDanmaku = state.danmakuMerge
                 v.massiveMode = state.danmakuMassiveMode
                 v.visibility = if (isInPiP) android.view.View.INVISIBLE else android.view.View.VISIBLE

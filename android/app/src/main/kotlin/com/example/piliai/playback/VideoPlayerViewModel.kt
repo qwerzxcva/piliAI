@@ -100,6 +100,11 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         // 只写 DataStore，播放器从未读，用户拖了没反应。
         val danmakuFontSize: Int = 25,
         val danmakuLineHeight: Float = 1.6f,
+        // 审核249：弹幕字重（0=细 1=常规 2=中粗 3=粗）。
+        // 此前 dmFontWeightFlow 只被 SettingsViewModel collect，播放层零消费者。
+        val danmakuFontWeight: Int = 1,
+        // 审核249：点击弹幕交互。此前 enableTapDanmakuFlow 同样零消费者。
+        val danmakuTapInteract: Boolean = false,
         val danmakuSpeed: Float = 1f,
         // 审核233：弹幕细节（PiliPlus 对齐）
         val danmakuShowArea: Float = 1f,
@@ -197,6 +202,18 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         viewModelScope.launch {
             storage.dmLineHeightFlow.collect { h ->
                 _state.value = _state.value.copy(danmakuLineHeight = h)
+            }
+        }
+        // 审核249：弹幕字重。同行高，此前渲染层零消费者。
+        viewModelScope.launch {
+            storage.dmFontWeightFlow.collect { w ->
+                _state.value = _state.value.copy(danmakuFontWeight = w)
+            }
+        }
+        // 审核249：点击弹幕交互。
+        viewModelScope.launch {
+            storage.enableTapDanmakuFlow.collect { on ->
+                _state.value = _state.value.copy(danmakuTapInteract = on)
             }
         }
         // 审核244（P0-1）：弹幕字号。设置页写 danmakuFontSize（12~40），
@@ -964,11 +981,18 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     /** 审核216：pauseOnMinimize——Screen 的 ON_PAUSE/ON_RESUME 回调 */
     fun onAppBackground() {
         viewModelScope.launch {
-            val pause = runCatching {
-                com.example.piliai.utils.StorageManager.getInstance(appContext)
-                    .pauseOnMinimizeFlow.first()
-            }.getOrDefault(false)
-            if (pause && backend?.isPlaying() == true) {
+            // 审核249：两个开关合成一个决策。
+            // - pauseOnMinimize（切后台暂停，默认关）
+            // - continuePlayInBackground（后台继续播放，默认开）
+            // 语义上是互补的一对，但都是独立键，用户可能只改其中一个。
+            // 规则：任一「要暂停」的信号生效就暂停；只有两个都不要求暂停才继续播。
+            val storage = com.example.piliai.utils.StorageManager.getInstance(appContext)
+            val pauseOnMinimize = runCatching { storage.pauseOnMinimizeFlow.first() }
+                .getOrDefault(false)
+            val continueInBackground = runCatching { storage.continuePlayInBackgroundFlow.first() }
+                .getOrDefault(true)
+            val shouldPause = pauseOnMinimize || !continueInBackground
+            if (shouldPause && backend?.isPlaying() == true) {
                 backend?.pause()
                 _state.value = _state.value.copy(isPlaying = false)
             }

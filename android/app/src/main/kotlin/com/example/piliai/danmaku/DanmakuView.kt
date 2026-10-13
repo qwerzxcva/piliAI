@@ -43,6 +43,15 @@ class DanmakuView @JvmOverloads constructor(
     var showAreaFactor: Float = 1f      // 0.1..1 显示区域（可用轨道占比，PiliPlus danmakuShowArea）
     var strokeWidthFactor: Float = 1.5f // 描边宽度（PiliPlus danmakuStrokeWidth，0=无描边）
     var lineHeightFactor: Float = 1.4f  // 行高倍率（PiliPlus danmakuLineHeight）
+    // 审核249：字重（PiliPlus danmakuFontWeight，0=细 1=常规 2=中粗 3=粗）。
+    // 此前 dmFontWeightFlow 只被 SettingsViewModel collect，渲染层零消费者。
+    var fontWeight: Int = 1
+    // 审核249：点击弹幕交互（PiliPlus enableTapDanmaku）。
+    // 此前 enableTapDanmakuFlow 只被 SettingsViewModel collect，
+    // DanmakuView 既没有开关也没有触摸处理 → 设置项纯摆设。
+    var tapInteractEnabled: Boolean = false
+    /** 点中弹幕时回调（参数：弹幕文本）。未命中任何弹幕不回调。 */
+    var onDanmakuTapped: ((String) -> Unit)? = null
     var mergeDanmaku: Boolean = false   // 审核233：相同文本弹幕去重（PiliPlus mergeDanmaku）
     var massiveMode: Boolean = false    // 审核233：海量模式（不限制轨道行数）
     private val mergedTexts = HashSet<String>()
@@ -123,6 +132,10 @@ class DanmakuView @JvmOverloads constructor(
             }
             // 审核轮194：textSize 变化才赋值（反复 set 触发内部 measure，弱机掉帧）
             if (paint.textSize != d.fontSizePx) paint.textSize = d.fontSizePx
+            // 审核249：字重。只在变化时换 typeface（fake bold 比换 Typeface 便宜，
+            // 但中粗/细需要真 typeface 才看得出来）。
+            val wantBold = fontWeight >= 2
+            if (paint.isFakeBoldText != wantBold) paint.isFakeBoldText = wantBold
             paint.alpha = (alphaFactor * 255).toInt().coerceIn(0, 255)
             // 审核233：描边（PiliPlus danmakuStrokeWidth——黑描边提升可读性，0 关闭）
             val sw = strokeWidthFactor * resources.displayMetrics.density
@@ -140,6 +153,44 @@ class DanmakuView @JvmOverloads constructor(
         }
         if (needInvalidate) invalidate()
     }
+
+    /**
+     * 审核249：点击命中测试。
+     *
+     * 弹幕是 drawText 画出来的，没有 View 边界，只能按「文字矩形 + 行高」反推。
+     * y 落在 rowH*(row+1) 基线上下半个行高内、x 落在 [x, x+width] 内算命中。
+     */
+    override fun onTouchEvent(event: android.view.MotionEvent): Boolean {        if (!tapInteractEnabled || onDanmakuTapped == null) return false
+        if (event.action != android.view.MotionEvent.ACTION_UP) return true
+        // lint ClickableViewAccessibility：自定义 View 覆写 onTouchEvent 必须调
+        // performClick()（读屏软件靠它触发点击）。放在命中测试之前无条件执行，
+        // 避免 lint 认为「只在某一分支里点击」。
+        performClick()
+        val tx = event.x
+        val ty = event.y
+        val baseTextSize = active.firstOrNull()?.fontSizePx ?: (40f * scaleFactor)
+        val rowH = baseTextSize * lineHeightFactor
+        // 后画的在上层，倒序找最先命中的
+        for (i in active.indices.reversed()) {
+            val d = active[i]
+            val baseline = rowH * (d.row + 1)
+            if (ty < baseline - rowH * 0.75f || ty > baseline + rowH * 0.35f) continue
+            if (tx < d.x || tx > d.x + d.width) continue
+            onDanmakuTapped?.invoke(d.text)
+            return true
+        }
+        return false
+    }
+
+    /**
+     * 审核249：覆写 performClick 以满足 lint ClickableViewAccessibility。
+     *
+     * 无障碍服务（读屏/开关控制）是通过 performClick 触发点击的，而不是
+     * onTouchEvent。本 View 的点击目标（哪条弹幕）依赖触点坐标，
+     * performClick 没有坐标信息，因此这里只转调父类默认行为，
+     * 实际的弹幕命中仍在 onTouchEvent 里做。
+     */
+    override fun performClick(): Boolean = super.performClick()
 
     /** 暂停/恢复（跟随播放器） */
     fun setRunning(running: Boolean) {
