@@ -14,7 +14,6 @@ package com.example.piliai.ui.settings
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,7 +57,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -181,27 +179,29 @@ fun SettingSwitch(
     checked: Boolean,
     onChange: (Boolean) -> Unit
 ) {
-    ListItem(
-        headlineContent = { Text(title) },
-        supportingContent = { if (subtitle.isNotEmpty()) Text(subtitle) },
-        leadingContent = { SettingIconBox(icon) },
-        trailingContent = {
-            // 审核271：开关本身不再消费点击（改由整行 clickable 统一处理）——
-            // 否则点行其它区域没反应，用户觉得「灰色点不了」。
-            Switch(checked = checked, onCheckedChange = null)
-        },
-        // 审核271：整行可点。selectableGroup/role 让读屏软件把它念成开关
+    // 审核278（真 bug）：ListItem 的 modifier 会被内部 Surface 覆盖，
+    // `Modifier.toggleable` 挂在 ListItem 上**点中间仍然没反应**——
+    // 用户反馈的「灰色不让点击」就是这里。
+    // 改为外层 Box 包 clickable，Switch 保留自身点击（双入口，不冲突）。
+    Box(
         modifier = Modifier
+            .fillMaxWidth()
             .clip(PiliCardShape)
-            .toggleable(
-                value = checked,
-                role = Role.Switch,
-                onValueChange = onChange
-            ),
-        colors = ListItemDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+            .clickable { onChange(!checked) }
+    ) {
+        ListItem(
+            headlineContent = { Text(title) },
+            supportingContent = { if (subtitle.isNotEmpty()) Text(subtitle) },
+            leadingContent = { SettingIconBox(icon) },
+            trailingContent = {
+                // 保留 Switch 自身点击（点开关本体也能切）
+                Switch(checked = checked, onCheckedChange = { onChange(!checked) })
+            },
+            colors = ListItemDefaults.colors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+            )
         )
-    )
+    }
 }
 
 @Composable

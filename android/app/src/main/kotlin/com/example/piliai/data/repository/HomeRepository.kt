@@ -107,7 +107,15 @@ class HomeRepository(private val apiClient: BiliApiClient = BiliApiClient()) {
             _isLoading.value = true
             _error.value = null
             try {
-                val resp = apiClient.getFeedRcmd(idx).getOrThrow()
+                val resp = runCatching { apiClient.getFeedRcmd(idx).getOrThrow() }
+                    .getOrElse {
+                        // 审核278：网络层失败（风控 HTML / 超时 / 签名失败）也要降级
+                        // 到 popular——原来只有 code != 0 才降级，抛异常就直接冒泡
+                        // 到用户脸上的「加载失败」（就是截图里那个）。
+                        _feedSource.value = FeedSource.POPULAR
+                        _error.value = "推荐流暂不可用，已切换到热门"
+                        return@runCatching loadPopular(1).getOrThrow()
+                    }
                 if (resp.code != 0) {
                     // 风控/签名失败：降级到 popular，并保留已有列表
                     _feedSource.value = FeedSource.POPULAR

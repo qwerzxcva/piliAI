@@ -43,6 +43,29 @@ object BiliErrorTranslator {
 }
 
 /**
+ * 审核278：B 站风控时返回 **HTML 页面**（HTTP 200/412 + DOCTYPE），
+ * 此时 `body()`/`decodeFromString` 会抛 "Unexpected JSON token ... had '<'"，
+ * 而这个异常会**绕过** HomeRepository 的 popular 降级链（降级只在 code != 0 时触发），
+ * 最终用户看到的就是截图里那个红色「加载失败」。
+ *
+ * 统一改为：先取文本 → 检测 HTML → 是 HTML 就返回 Result.failure（让上层降级）。
+ */
+/**
+ * 审核278：B 站风控时返回 **HTML 风控页**（HTTP 200/412 + DOCTYPE），
+ * decodeFromString 会抛 "Unexpected JSON token ... had '<'"，
+ * 而这个异常会**绕过** HomeRepository 的 popular 降级链（降级只在
+ * code != 0 时触发），最终用户看到截图里那个红色「加载失败」。
+ *
+ * 统一成「是 HTML 就抛可读错误」，让上层降级链能接住。
+ */
+internal fun requireJson(text: String): String {
+    if (text.trimStart().startsWith("<")) {
+        error("B站返回风控页面（非 JSON）")
+    }
+    return text
+}
+
+/**
  * Bilibili API Client using Ktor
  */
 class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
@@ -59,7 +82,7 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
     }
     
     // ========== Popular Videos ==========
-    
+
     suspend fun popularVideos(page: Int = 1, pageSize: Int = 20): Result<PopularResponse> = runCatching {
         client.get("$API_BASE/x/web-interface/popular") {
             url {
@@ -67,7 +90,9 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
                 parameters.append("pn", page.toString())
             }
             commonHeaders.forEach { (k, v) -> header(k, v) }
-        }.body()
+        }.bodyAsText().let { requireJson(it) }.let { text ->
+            BiliHttpClient.json.decodeFromString<PopularResponse>(text)
+        }
     }
 
     /** 批次L29：首页顶部大卡推荐（匿名可用） */
@@ -79,7 +104,9 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
                 parameters.append("ps", "12")
             }
             commonHeaders.forEach { (k, v) -> header(k, v) }
-        }.body()
+        }.bodyAsText().let { requireJson(it) }.let { text ->
+            BiliHttpClient.json.decodeFromString<TopRcmdResponse>(text)
+        }
     }
 
     /**
@@ -104,7 +131,7 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
             url { signed.forEach { (k, v) -> parameters.append(k, v) } }
             header("Referer", "https://www.bilibili.com")
             commonHeaders.forEach { (k, v) -> header(k, v) }
-        }.bodyAsText().let { text ->
+        }.bodyAsText().let { requireJson(it) }.let { text ->
             BiliHttpClient.json.decodeFromString<FeedRcmdResponse>(text)
         }
     }
