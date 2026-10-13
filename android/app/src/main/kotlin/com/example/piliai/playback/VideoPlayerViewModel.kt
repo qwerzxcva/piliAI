@@ -936,12 +936,18 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         }
     }
     
+    /** 审核267：当前播放地址的 Uri（无内容时返回 null） */
+    fun currentPlaybackUri(): android.net.Uri? =
+        currentUri.takeIf { it.isNotBlank() }?.toUri()
+
     private fun startPlayback(
         videoUrl: String,
         audioUrl: String?,
         resumePositionMs: Long = 0L,
         playWhenReady: Boolean = true
     ) {
+        // 审核267：记录当前播放地址，供取帧使用
+        currentUri = videoUrl
         // 审核215：DASH CDN 风控升级——实测无 buvid3 cookie 一律 403（连标准 UA 都拒）。
         // 必须：桌面 Chrome UA + Referer + AccountSession 的 buvid3/SESSDATA cookie。
         val cookie = runCatching {
@@ -1670,6 +1676,8 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     }
 
     private var cachedAudioUrl: String? = null
+    /** 审核267：当前播放地址（取帧用）；本地文件为 file:// Uri */
+    private var currentUri: String = ""
 
     /** 加载相关视频列表 */
     private fun loadRelated(bvid: String) {

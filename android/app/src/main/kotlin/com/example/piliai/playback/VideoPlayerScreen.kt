@@ -27,6 +27,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -70,6 +71,8 @@ fun VideoPlayerScreen(
     )
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    // 审核267：取帧按钮的协程作用域
+    val captureScope = rememberCoroutineScope()
     LaunchedEffect(viewModel) {
         viewModel.restorePlaybackSpeed()
     }
@@ -722,6 +725,32 @@ fun VideoPlayerScreen(
                         tintColor = Color.White
                     )
                     // 分享（复制链接到剪贴板）
+                    // 审核267：取帧（截图当前画面）。仅本地播放可用 ——
+                    // 在线流需要 transformer 1.4+ 才能注入请求头（见 VideoFrameCapture 文档）。
+                    EngagementButton(
+                        icon = Icons.Default.PhotoCamera,
+                        label = "取帧",
+                        onClick = {
+                            val uri = viewModel.currentPlaybackUri()
+                            if (uri == null) {
+                                viewModel.showToast("当前视频不支持取帧")
+                            } else {
+                                captureScope.launch {
+                                    val file = com.example.piliai.playback.VideoFrameCapture
+                                        .captureFromPlayback(
+                                            context = context.applicationContext,
+                                            uri = uri,
+                                            positionMs = state.currentTime
+                                        )
+                                    viewModel.showToast(
+                                        if (file != null) "已保存到 ${file.absolutePath}"
+                                        else "取帧失败（在线视频暂不支持）"
+                                    )
+                                }
+                            }
+                        },
+                        tintColor = Color.White
+                    )
                     EngagementButton(
                         icon = Icons.Default.Share,
                         label = "分享",
