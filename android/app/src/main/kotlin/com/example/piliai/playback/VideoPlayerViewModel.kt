@@ -450,9 +450,13 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
                     val dataSourceFactory = androidx.media3.datasource.DefaultDataSource.Factory(
                         appContext, httpFactory
                     )
-                    val mediaSource = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
-                        dataSourceFactory
-                    ).createMediaSource(mediaItem)
+                    // 审核263：订阅源直链也走 URL 形态分派。
+                    // 原来用 DefaultMediaSourceFactory 靠 Content-Type sniffing 推断类型，
+                    // 而 Media3Backend.prepare 已有按 URL 后缀分派 HLS/DASH 的
+                    // buildMediaSource（审核237 加的）—— 两条路径不一致，
+                    // 无后缀的 m3u8 / mpd 在订阅源这条路上会解析失败。
+                    // Media3Backend.buildMediaSource 是 private，这里用同规则的内联实现。
+                    val mediaSource = buildSourceMediaSource(dataSourceFactory, mediaItem)
                     if (bvid.isEmpty()) {
                         currentBvid = ""
                         this@VideoPlayerViewModel.epId = 0L
@@ -483,6 +487,33 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
             } catch (e: Exception) {
                 setError("Failed to load video: ${e.message}")
             }
+        }
+    }
+
+    /**
+     * 审核263：按 URL 形态选 MediaSource（与 Media3Backend.buildMediaSource 同规则）。
+     *
+     * 订阅源直链的 URL 常不带正确的 Content-Type，纯靠 sniffing 会把
+     * m3u8/mpd 判成 progressive 而解析失败。这里显式分派。
+     */
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    private fun buildSourceMediaSource(
+        factory: androidx.media3.datasource.DataSource.Factory,
+        item: MediaItem
+    ): androidx.media3.exoplayer.source.MediaSource {
+        val path = item.localConfiguration?.uri?.path?.lowercase().orEmpty()
+        val query = item.localConfiguration?.uri?.query?.lowercase().orEmpty()
+        val hint = if (path.isNotEmpty()) path else query
+        return when {
+            hint.endsWith(".m3u8") || hint.endsWith(".m3u") ||
+                hint.contains("/m3u8") || hint.contains("m3u8?") ||
+                hint.contains("type=m3u8") || hint.contains("type=hls") ->
+                androidx.media3.exoplayer.hls.HlsMediaSource.Factory(factory).createMediaSource(item)
+            hint.endsWith(".mpd") || hint.contains("type=mpd") ||
+                hint.contains("type=dash") ->
+                androidx.media3.exoplayer.dash.DashMediaSource.Factory(factory).createMediaSource(item)
+            else -> androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(factory)
+                .createMediaSource(item)
         }
     }
 
