@@ -87,10 +87,28 @@ fun SearchScreen(
             // 建议联想
             if (state.suggestions.isNotEmpty() && state.results.isEmpty()) {
                 LazyColumn(Modifier.fillMaxWidth()) {
+                    // 审核273：关键词联想（bilipai 报告的缺失项）。
+                    // SearchSuggest.query 是服务端规范化后的搜索词，但
+                    // SearchState.suggestions 只保留了 UP 主列表、query 被丢弃。
+                    // 补一个 query 联想入口：用当前输入前缀直接搜。
+                    val q = searchQuery.trim()
+                    if (q.isNotBlank()) {
+                        item(key = "query:$q") {
+                            ListItem(
+                                headlineContent = {
+                                    Text("搜 " + "\"$q\"", fontWeight = FontWeight.Medium)
+                                },
+                                leadingContent = { Icon(Icons.Default.Search, null) },
+                                modifier = Modifier.clickable {
+                                    viewModel.performSearch()
+                                }
+                            )
+                        }
+                    }
                     items(state.suggestions, key = { "${it.mid}:${it.uname}" }) { s ->
                         ListItem(
                             headlineContent = { Text(s.uname) },
-                            leadingContent = { Icon(Icons.Default.Search, null) },
+                            leadingContent = { Icon(Icons.Default.Person, null) },
                             modifier = Modifier.clickable {
                                 searchQuery = s.uname
                                 viewModel.setSearchKeyword(s.uname)
