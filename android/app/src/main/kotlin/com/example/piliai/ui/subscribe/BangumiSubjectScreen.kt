@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.style.TextOverflow
@@ -53,7 +54,13 @@ fun BangumiSubjectScreen(
     onBack: () -> Unit,
     onFollow: (Long, String, String, Int) -> Unit = { _, _, _, _ -> },
     // 审核261：去订阅源搜同名番剧（Bangumi 只给资料，片源在订阅源里）
-    onSearchInSubscriptions: (String) -> Unit = {}
+    onSearchInSubscriptions: (String) -> Unit = {},
+    // 审核265：某集是否已看（由调用方按登录态提供，未登录时全 false）
+    isEpisodeWatched: (Long) -> Boolean = { false },
+    // 审核265：标记/取消标记某集看过
+    onToggleEpisodeWatched: (Long, Boolean) -> Unit = { _, _ -> },
+    // 审核265：剧集加载完成后上报，供调用方算「已看到第几集」
+    onEpisodesLoaded: (List<com.example.piliai.data.remote.BangumiApi.Episode>) -> Unit = {}
 ) {
     var subject by remember(subjectId) { mutableStateOf<BangumiApi.Subject?>(null) }
     var loadFailed by remember(subjectId) { mutableStateOf(false) }
@@ -84,6 +91,8 @@ fun BangumiSubjectScreen(
         if (id <= 0L) return@LaunchedEffect
         try {
             episodes = BangumiApi.episodes(id).data.sortedBy { it.order }
+            // 审核265：把剧集列表上报给调用方（它要用集序算本地追番进度）
+            onEpisodesLoaded(episodes)
         } catch (error: CancellationException) {
             throw error
         } catch (_: Exception) {
@@ -255,6 +264,13 @@ fun BangumiSubjectScreen(
                                             )
                                         }
                                     }
+                                    // 审核265：看过勾选。Bangumi 的剧集收藏是
+                                    // 按 ep_id 单集设置的（PATCH /collections/{id}/episodes），
+                                    // 与条目级收藏类型独立。
+                                    Checkbox(
+                                        checked = isEpisodeWatched(ep.id),
+                                        onCheckedChange = { on -> onToggleEpisodeWatched(ep.id, on) }
+                                    )
                                 }
                             }
                         }

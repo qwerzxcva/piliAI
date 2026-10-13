@@ -21,6 +21,10 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -595,6 +599,11 @@ fun AppNavigation() {
             Screen.BangumiSubject.route,
             arguments = listOf(navArgument("id") { type = NavType.LongType })
         ) { entry ->
+            // 审核265：已看剧集 id 集合。进程内即可 —— Bangumi 侧是权威，
+            // 本地只为即时反馈；重启后重新拉。
+            var watchedEpisodes by remember { mutableStateOf<Set<Long>>(emptySet()) }
+            var subjectEpisodes by remember { mutableStateOf<List<com.example.piliai.data.remote.BangumiApi.Episode>>(emptyList()) }
+            val episodeScope = rememberCoroutineScope()
             com.example.piliai.ui.subscribe.BangumiSubjectScreen(
                 subjectId = entry.arguments?.getLong("id") ?: 0L,
                 onBack = { navController.popBackStack() },
@@ -602,6 +611,42 @@ fun AppNavigation() {
                 // 审核261：Bangumi 资料 -> 订阅源搜片源
                 onSearchInSubscriptions = { title ->
                     navController.navigate(Screen.Subscribe.createSearchRoute(title))
+                },
+                // 审核265：标记某集看过。Bangumi 按 ep_id 单集设置
+                // （PATCH /v0/users/-/collections/{subject_id}/episodes），
+                // 与条目级收藏类型独立。
+                // 审核265：剧集列表上报，用于算本地追番进度
+                onEpisodesLoaded = { list -> subjectEpisodes = list },
+                isEpisodeWatched = { epId -> watchedEpisodes.contains(epId) },
+                onToggleEpisodeWatched = { epId, watched ->
+                    val subjectId = entry.arguments?.getLong("id") ?: 0L
+                    episodeScope.launch {
+                        // 未登录时 Bangumi 会 401：只记本地，不弹错打扰用户
+                        val remoteOk = com.example.piliai.data.remote.BangumiSession.isLogin &&
+                            runCatching {
+                                com.example.piliai.data.remote.BangumiApi.setEpisodeCollections(
+                                    subjectId = subjectId,
+                                    episodeIds = listOf(epId),
+                                    // 剧集级编码：2=看过，0=未收藏
+                                    type = if (watched) 2 else 0
+                                )
+                            }.getOrDefault(false)
+                        watchedEpisodes = if (watched) {
+                            watchedEpisodes + epId
+                        } else {
+                            watchedEpisodes - epId
+                        }
+                        if (com.example.piliai.data.remote.BangumiSession.isLogin && !remoteOk) {
+                            android.widget.Toast.makeText(
+                                navController.context,
+                                "同步到 Bangumi 失败（已本地记录）",
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                        // 本地追番进度取「已看集数与当前集序的较大值」，
+                        // 避免用户跳着标记时进度倒退。
+                        syncLocalWatchedProgress(subjectId, subjectEpisodes, watchedEpisodes)
+                    }
                 },
                 onFollow = { id, title, cover, episodes ->
                     // 详情页只拿得到 Bangumi 侧信息：以 bgm:{id} 作 sourceKey，
@@ -734,6 +779,33 @@ private fun bangumiFollow(
                 "追番失败：${e.message ?: "未知错误"}",
                 android.widget.Toast.LENGTH_SHORT
             ).show()
+        }
+    }
+}
+
+
+/**
+ * 审核265：把「已看集数」同步到本地追番进度。
+ *
+ * 取已看集序的最大值：用户可能跳着标记（先看第 5 集），
+ * 此时进度应是 5 而不是 1。
+ */
+private fun syncLocalWatchedProgress(
+    subjectId: Long,
+    episodes: List<com.example.piliai.data.remote.BangumiApi.Episode>,
+    watchedEpisodes: Set<Long>
+) {
+    if (subjectId <= 0L || episodes.isEmpty()) return
+    val maxOrder = episodes
+        .filter { it.id in watchedEpisodes }
+        .maxOfOrNull { it.order }
+        ?: return
+    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+        val db = com.example.piliai.database.PiliNaraDatabase
+            .getDatabase(com.example.piliai.AppContext.get())
+        val title = db.subscribeTitleDao().getByBangumiId(subjectId) ?: return@launch
+        if (maxOrder > title.lastWatchedEpisode) {
+            db.subscribeTitleDao().setWatchedEpisode(title.id, maxOrder)
         }
     }
 }
