@@ -169,7 +169,51 @@ class HomeRepository(private val apiClient: BiliApiClient = BiliApiClient()) {
     }
 
     /** 首页顶部大卡轮播（Hero）数据 */
-    suspend fun topRcmd(): Result<TopRcmdResponse> = apiClient.getTopRcmd()
+    /**
+     * 首页顶部大卡轮播（HeroCarousel）数据。
+     *
+     * 审核277：原接口 `/x/web-interface/index/top/rcmd` 匿名实测 **HTTP 412
+     * 风控页**（连 JSON 都不是，body() 会抛异常），而 `body()` 抛错会让
+     * HomeViewModel.refresh 里的 launch 静默失败 → HeroCarousel 永远不显示。
+     * 改用已实测可用的推荐流第一页（feed/rcmd 匿名 code 0）取前几条当大卡。
+     */
+    suspend fun topRcmd(): Result<TopRcmdResponse> = runCatching {
+        apiClient.getTopRcmd().getOrElse { fallbackTopRcmd() }
+    }
+
+    /** 推荐流第一页的前 6 条 → TopRcmdResponse 结构（复用 HeroCarousel 渲染） */
+    private suspend fun fallbackTopRcmd(): TopRcmdResponse {
+        val resp = apiClient.getFeedRcmd(1, 12).getOrThrow()
+        val items = resp.data?.item.orEmpty()
+            .filter { it.playable }
+            .take(6)
+            .map { feed ->
+                com.example.piliai.data.model.TopRcmdItem(
+                    id = feed.id,
+                    bvid = feed.bvid,
+                    cid = feed.cid,
+                    goto = feed.goto,
+                    uri = feed.uri,
+                    title = feed.title,
+                    pic = feed.pic,
+                    duration = feed.duration.toLong(),
+                    owner = com.example.piliai.data.model.TopRcmdOwner(
+                        mid = feed.owner?.mid ?: 0L,
+                        name = feed.owner?.name.orEmpty(),
+                        face = feed.owner?.face.orEmpty()
+                    ),
+                    stat = com.example.piliai.data.model.TopRcmdStat(
+                        view = feed.stat?.view ?: 0L,
+                        like = feed.stat?.like ?: 0L,
+                        danmaku = feed.stat?.danmaku ?: 0L
+                    )
+                )
+            }
+        return com.example.piliai.data.model.TopRcmdResponse(
+            code = 0,
+            data = com.example.piliai.data.model.TopRcmdData(items)
+        )
+    }
 
     /** 确保 buvid3 就绪（推荐流风控依赖） */
     suspend fun ensureBuvid(): Boolean = runCatching { AccountSession.ensureBuvid() }.getOrDefault(false)
