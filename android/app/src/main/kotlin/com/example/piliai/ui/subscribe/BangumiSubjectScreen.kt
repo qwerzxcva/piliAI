@@ -1,12 +1,20 @@
 package com.example.piliai.ui.subscribe
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.border
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -188,6 +196,68 @@ fun BangumiSubjectScreen(
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        // 审核272：追番进度条（移植 ba SubjectTrackingBar.kt:48-142）——
+                        // 左侧「进度条 + n/total」、右侧「看到 n」一键标记下一集。
+                        if (episodes.isNotEmpty()) {
+                            Spacer(Modifier.height(12.dp))
+                            val watchedCount = episodes.count { isEpisodeWatched(it.id) }
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    Modifier
+                                        .width(132.dp)
+                                        .height(28.dp)
+                                        .border(
+                                            1.dp,
+                                            MaterialTheme.colorScheme.outline,
+                                            RoundedCornerShape(6.dp)
+                                        )
+                                        .clip(RoundedCornerShape(6.dp))
+                                ) {
+                                    LinearProgressIndicator(
+                                        progress = { watchedCount.toFloat() / episodes.size },
+                                        modifier = Modifier.fillMaxWidth().height(28.dp),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                                        strokeCap = StrokeCap.Square,
+                                        gapSize = 0.dp,
+                                        drawStopIndicator = {}
+                                    )
+                                    Text(
+                                        text = "$watchedCount/${episodes.size}",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.align(Alignment.Center)
+                                    )
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                // 「看到 n」：标记下一集；全部看完则取消最早一集（循环重看）
+                                val nextEp = episodes.firstOrNull { !isEpisodeWatched(it.id) }
+                                Surface(
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                    shape = RoundedCornerShape(6.dp),
+                                    modifier = Modifier.clickable {
+                                        if (nextEp != null) {
+                                            onToggleEpisodeWatched(nextEp.id, true)
+                                        } else {
+                                            episodes.firstOrNull()?.let {
+                                                onToggleEpisodeWatched(it.id, false)
+                                            }
+                                        }
+                                    }
+                                ) {
+                                    Text(
+                                        text = if (nextEp != null) "看到 ${watchedCount + 1}" else "全部看完",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+                        }
                         Spacer(Modifier.height(16.dp))
                         Text(
                             s.summary.ifBlank { stringResource(R.string.bangumi_summary_unavailable) },
