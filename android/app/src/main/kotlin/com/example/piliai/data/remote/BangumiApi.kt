@@ -105,6 +105,75 @@ object BangumiApi {
         json.decodeFromString(text)
     }
 
+    // ==================== 章节（剧集）接口，审核261 ====================
+
+    @Serializable
+    data class EpisodePage(
+        val total: Int = 0,
+        val limit: Int = 0,
+        val offset: Int = 0,
+        val data: List<Episode> = emptyList()
+    )
+
+    /**
+     * 章节（剧集）条目。
+     *
+     * 契约来自 bangumi openapi v0.yaml 的 /v0/episodes，并用 api.bgm.tv 实测
+     * （subject_id=265 返回 30 条 EVA 剧集，字段齐全）。
+     * - [ep] / [sort]：集数与排序（sort 更可靠，部分条目 ep 为 0）
+     * - [type]：0=正片 1=SP 2=OP 3=ED 4=预告/宣传片（官方 subject_type 枚举）
+     */
+    @Serializable
+    data class Episode(
+        val id: Long = 0L,
+        val name: String = "",
+        @SerialName("name_cn") val nameCn: String? = null,
+        val sort: Int = 0,
+        val ep: Int = 0,
+        val airdate: String? = null,
+        val duration: String? = null,
+        val type: Int = 0,
+        val desc: String? = null,
+        @SerialName("duration_seconds") val durationSeconds: Int = 0
+    ) {
+        val displayTitle: String get() = nameCn?.takeIf { it.isNotBlank() } ?: name
+
+        /** 排序号优先用 sort，回退 ep */
+        val order: Int get() = if (sort > 0) sort else ep
+
+        /** 类型标签（官方枚举） */
+        val typeLabel: String
+            get() = when (type) {
+                1 -> "SP"
+                2 -> "OP"
+                3 -> "ED"
+                4 -> "预告"
+                else -> ""
+            }
+    }
+
+    /**
+     * 条目的章节列表。
+     *
+     * @param subjectId Bangumi subject_id
+     * @param limit 单页条数（上限 200，见 openapi；0 表示服务端默认 100）
+     * @param offset 分页偏移
+     */
+    suspend fun episodes(
+        subjectId: Long,
+        limit: Int = 100,
+        offset: Int = 0
+    ): EpisodePage = withContext(Dispatchers.IO) {
+        require(subjectId > 0L)
+        val text = client.get("https://api.bgm.tv/v0/episodes") {
+            parameter("subject_id", subjectId)
+            parameter("limit", limit.coerceIn(0, 200))
+            parameter("offset", offset.coerceAtLeast(0))
+            header("User-Agent", "QWERZXCVA/piliAI (https://github.com/qwerzxcva/piliai)")
+        }.bodyAsText()
+        json.decodeFromString(text)
+    }
+
     // ==================== 收藏（追番）接口，审核240 ====================
     // 契约依据：bangumi openapi v0.yaml + api.bgm.tv 实测（见子代理调研报告）。
     // 关键实测结论：

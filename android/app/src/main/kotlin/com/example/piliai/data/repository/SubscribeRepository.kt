@@ -636,6 +636,29 @@ class SubscribeRepository(
         }
 
     /** 刷新某源全部追番的最新集数（syncSource 成功后调用） */
+    /**
+     * 审核261：用 Bangumi 章节的放送日期统计「已放送集数」。
+     *
+     * 为什么不能直接用 subject.eps / total_episodes：那里面包含**未放送**的
+     * 分集（当季新番常有 12 计划集数但只放到第 5 集）。用它当 latestEpisode
+     * 会让「只看更新」显示有 7 集未看，点进去却是预告片/未放送占位。
+     *
+     * 判定：airdate <= 今天（服务端时区由 Bangumi 决定，这里用本地日期比较，
+     * 误差一天可接受 —— 总比把未放送的算成已放送好）。
+     * 取不到日期的条目（airdate 为空）按已放送计，避免整片失效。
+     */
+    suspend fun refreshAiredEpisodeCount(bangumiId: Long): Result<Int> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                if (bangumiId <= 0L) return@runCatching 0
+                val page = com.example.piliai.data.remote.BangumiApi.episodes(bangumiId)
+                val today = java.time.LocalDate.now().toString()
+                page.data.count { ep ->
+                    ep.type == 0 && (ep.airdate.isNullOrBlank() || ep.airdate <= today)
+                }
+            }
+        }
+
     suspend fun refreshTitleEpisode(sourceId: Long, sourceKey: String, latestEpisode: Int) =
         withContext(Dispatchers.IO) {
             runCatching {
@@ -678,7 +701,18 @@ class SubscribeRepository(
                 val subjectId = item.subjectId
                 if (subjectId <= 0L) return@forEach
                 val slim = item.subject
-                val episodes = slim?.eps ?: 0
+                // 审核261：用章节放送日期算「已放送集数」而不是 slim.eps ——
+                // 后者含未放送分集，会让「只看更新」虚高。
+                val episodes = com.example.piliai.data.remote.BangumiApi
+                    .episodes(subjectId)
+                    .data
+                    .count { ep ->
+                        ep.type == 0 && (ep.airdate.isNullOrBlank() ||
+                            ep.airdate <= java.time.LocalDate.now().toString())
+                    }
+                    .takeIf { it > 0 }
+                    ?: slim?.eps
+                    ?: 0
                 val existing = titles.getByBangumiId(subjectId)
                 val entity = if (existing != null) {
                     existing.copy(
