@@ -145,11 +145,8 @@ class GpuNextBackend(
             // mpv 默认会继承上次的 referrer，显式清掉避免串味
             bridge.setOption("referrer", "")
         }
-        // DASH 分离音轨：audio-file（单数，mpv 选项名）让 mpv 把它当外部音轨加载。
-        // 审核273（真 bug）：原来写成 audio-files（复数）——mpv 对未知选项
-        // 静默忽略，导致 B站 DASH 的分离音轨从不加载，表现就是「视频无声」。
-        // wiliwili 的正确写法见 video_view.cpp:824 `,audio-file="{}"`。
-        request.audioUri?.let { bridge.setOption("audio-file", it.toString()) }
+        // DASH 分离音轨的 audio-file 走下方 loadfile 的 extra 参数
+        //（优先级高于 setOption，且不会在源配置里被覆盖）
         bridge.initialize()
         // 审核237：属性观察必须在起播前注册，否则 mpv 不会推送变化
         observePlaybackProperties()
@@ -158,7 +155,22 @@ class GpuNextBackend(
         pendingStartMs = request.resumePositionMs
         endDispatched = false
         lastReportedPositionMs = -1L
-        bridge.command("loadfile", request.videoUri.toString(), "replace")
+        // 审核273：改用 wiliwili 的 loadfile extra 参数方式
+        //（video_view.cpp:807-825 genExtraUrlParam）——
+        // `loadfile <url> replace "0" "<extra>"` 的 options 参数优先级
+        // **高于**已 setOption 的同名项，能覆盖源配置/auto-profile 里的设置。
+        // 之前 referrer/UA 走 setOption，遇到带 config 的源可能被覆盖。
+        val extra = buildList {
+            if (request.userAgent.isNotBlank()) add("user-agent=\"${request.userAgent}\"")
+            request.headers["Referer"]?.takeIf { it.isNotBlank() }
+                ?.let { add("referrer=\"$it\"") }
+            request.audioUri?.let { add("audio-file=\"$it\"") }
+        }.joinToString(",")
+        if (extra.isBlank()) {
+            bridge.command("loadfile", request.videoUri.toString(), "replace")
+        } else {
+            bridge.command("loadfile", request.videoUri.toString(), "replace", "0", extra)
+        }
         if (request.resumePositionMs > 0L) {
             // start 选项已过 initialize，改用在 FILE_LOADED 后 seek 的方式
             pendingStartMs = request.resumePositionMs
