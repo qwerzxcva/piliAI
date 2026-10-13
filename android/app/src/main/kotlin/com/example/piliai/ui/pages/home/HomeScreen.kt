@@ -45,6 +45,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Surface
@@ -237,10 +238,13 @@ fun HomeScreen(
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(2),
                         state = gridState,
-                        // 审核234：BiliPai 卡距规格 6dp、页边 10dp
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        // 审核271：卡距从 6dp 提到 10dp、页边从 10dp 提到 12dp。
+                        // 原规格（BiliPai 的紧凑档）在竖屏上偏挤：封面小、文字区憋，
+                        // 与 Kototoro 的疏朗感差距主要来自这里。封面比例 16:9 保持不变
+                        // （视频内容决定，不能学漫画 App 的竖封面）。
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         // 顶部 Hero 轮播（Kototoro 风格：240dp 高、底部 20dp 圆角、
                         // 100dp 渐变遮罩、胶囊指示器）
@@ -491,15 +495,19 @@ private fun VideoCardItem(card: VideoItem, onClick: () -> Unit) {
                 }
             }
             // 下方文字区：标题 + UP 主/描述
-            Column(Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
+            Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
                 Text(
                     text = card.title,
-                    style = MaterialTheme.typography.bodyMedium,
+                    // 审核271：标题从 bodyMedium 提升到 titleSmall + SemiBold——
+                    // Kototoro 的卡片标题是视觉锚点，原来 14sp 常规体压不住，
+                    // 卡片显得没有层级。padding 也从 8/6 提到 10/8 配合疏朗化。
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(6.dp))
                 // 审核223：UP 主行（头像 + 名称）——B站 App 同款布局
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (card.authorFace.isNotBlank()) {
