@@ -423,7 +423,11 @@ private fun VideoCardItem(card: VideoItem, onClick: () -> Unit) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(16f / 9f)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        // 审核271：封面圆角 12dp（Kototoro ContentCoverCornerRadius，
+                        // SharedContentCardStyle.kt:8）——与卡片圆角分开取值，
+                        // 封面自己圆角、卡片容器另算，这是 Kototoro 的做法。
+                        .clip(RoundedCornerShape(12.dp)),
                     contentScale = ContentScale.Crop,
                 )
                 // 审核270：封面底部渐变遮罩（Kototoro/BiliPai 标志性视觉）——
