@@ -751,7 +751,10 @@ private fun linkPath(url: String): String {
 @Composable
 private fun EmptySubscribeHint(onAdd: () -> Unit) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(32.dp)
+        ) {
             Text(
                 "还没有订阅内容",
                 style = MaterialTheme.typography.titleMedium
@@ -764,6 +767,42 @@ private fun EmptySubscribeHint(onAdd: () -> Unit) {
             )
             Spacer(Modifier.height(16.dp))
             Button(onClick = onAdd) { Text("添加订阅源") }
+            // 审核273：支持哪些链接格式 + 示例。
+            // 原来空态只说「添加订阅源链接」，用户不知道能填什么 ——
+            // RSS？Animeko 的 all.json？普通网页？这是第一次用最大的卡点。
+            Spacer(Modifier.height(24.dp))
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(Modifier.padding(14.dp)) {
+                    Text(
+                        "支持的链接",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    listOf(
+                        "RSS / Atom 订阅（.xml、.rss）",
+                        "Animeko 数据源配置（all.json 等）",
+                        "弹弹play / 樱花动漫 等站点订阅"
+                    ).forEach { line ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "· ",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                line,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(Modifier.height(4.dp))
+                    }
+                }
+            }
         }
     }
 }

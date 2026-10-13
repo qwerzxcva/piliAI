@@ -85,6 +85,14 @@ class GpuNextBackend(
         bridge.setOption("force-window", "no")
         bridge.setOption("idle", "yes")
         bridge.setOption("ytdl", "no")
+        // 审核273：wiliwili 的 mpv 基线补充（mpv_core.cpp:311-318 实测）——
+        // audio-channels=stereo：明确双声道，避免 mpv 试探多声道导致起播延迟
+        bridge.setOption("audio-channels", "stereo")
+        // reset-on-next-file：切源时重置 speed/pause，否则上个视频的倍速
+        // 会带到下一个视频（用户反馈「倍速串了」的根因）
+        bridge.setOption("reset-on-next-file", "speed,pause")
+        // hr-seek=yes：精确 seek（按关键帧+微调），拖进度条更准
+        bridge.setOption("hr-seek", "yes")
         // 审核237：vo 用「gpu-next,gpu」优先级链——GLES2.0 老设备上 libplacebo
         // 初始化失败时自动回退 gpu，而不是黑屏（bv resolveVideoOutputMode:630-636）
         bridge.setOption("vo", "gpu-next,gpu")
@@ -137,8 +145,11 @@ class GpuNextBackend(
             // mpv 默认会继承上次的 referrer，显式清掉避免串味
             bridge.setOption("referrer", "")
         }
-        // DASH 分离音轨：audio-files 让 mpv 把它当外部音轨加载
-        request.audioUri?.let { bridge.setOption("audio-files", it.toString()) }
+        // DASH 分离音轨：audio-file（单数，mpv 选项名）让 mpv 把它当外部音轨加载。
+        // 审核273（真 bug）：原来写成 audio-files（复数）——mpv 对未知选项
+        // 静默忽略，导致 B站 DASH 的分离音轨从不加载，表现就是「视频无声」。
+        // wiliwili 的正确写法见 video_view.cpp:824 `,audio-file="{}"`。
+        request.audioUri?.let { bridge.setOption("audio-file", it.toString()) }
         bridge.initialize()
         // 审核237：属性观察必须在起播前注册，否则 mpv 不会推送变化
         observePlaybackProperties()
