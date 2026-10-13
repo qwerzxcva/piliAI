@@ -408,7 +408,6 @@ impl DanmakuMerger {
         let delta = b.timestamp - a.timestamp;
         delta >= 0.0 && delta <= window_seconds
     }
-
 }
 
 #[cfg(test)]
