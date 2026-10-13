@@ -48,8 +48,6 @@ class StorageManager(private val context: Context) {
         
         // Video settings
         private val PLAYBACK_SPEED_KEY = floatPreferencesKey("playbackSpeed")
-        private val VOLUME_KEY = floatPreferencesKey("volume")
-        private val SUBTITLE_ENABLED_KEY = booleanPreferencesKey("subtitleEnabled")
         private val SUBTITLE_FONT_SIZE_KEY = intPreferencesKey("subtitleFontSize")
         
         // Danmaku settings
@@ -188,12 +186,6 @@ class StorageManager(private val context: Context) {
     val playbackSpeedFlow: Flow<Float> = context.dataStore.data
         .map { preferences -> preferences[PLAYBACK_SPEED_KEY] ?: 1.0f }
     
-    val volumeFlow: Flow<Float> = context.dataStore.data
-        .map { preferences -> preferences[VOLUME_KEY] ?: 1.0f }
-    
-    val subtitleEnabledFlow: Flow<Boolean> = context.dataStore.data
-        .map { preferences -> preferences[SUBTITLE_ENABLED_KEY] ?: true }
-    
     // Danmaku
     val danmakuEnabledFlow: Flow<Boolean> = context.dataStore.data
         .map { preferences -> preferences[DANMAKU_ENABLED_KEY] ?: true }
@@ -277,18 +269,6 @@ class StorageManager(private val context: Context) {
     suspend fun setPlaybackSpeed(speed: Float) {
         context.dataStore.edit { preferences ->
             preferences[PLAYBACK_SPEED_KEY] = speed
-        }
-    }
-    
-    suspend fun setVolume(volume: Float) {
-        context.dataStore.edit { preferences ->
-            preferences[VOLUME_KEY] = volume
-        }
-    }
-    
-    suspend fun setSubtitleEnabled(enabled: Boolean) {
-        context.dataStore.edit { preferences ->
-            preferences[SUBTITLE_ENABLED_KEY] = enabled
         }
     }
     

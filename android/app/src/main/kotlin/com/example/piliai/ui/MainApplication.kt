@@ -44,6 +44,11 @@ class MainApplication : Application() {
         // Kazumi 特性：预热渲染器偏好缓存（异步，不阻塞主线程）
         com.example.piliai.utils.RendererPrefs.init(this)
 
+        // 审核260：预热图片质量档位。此前只有 SettingsViewModel 写它，
+        // 用户没进过设置页时 qualityPercent 停在默认 100（不压缩），
+        // 而首页/播放器的封面早于 SettingsViewModel 加载 → 设置对那些页无效。
+        com.example.piliai.utils.ImageQuality.warmUp(this)
+
         // Animeko 特性：恢复 Bangumi 登录态（Bearer Token，与 B站 Cookie 独立）
         com.example.piliai.data.remote.BangumiSession.restore(this)
 
