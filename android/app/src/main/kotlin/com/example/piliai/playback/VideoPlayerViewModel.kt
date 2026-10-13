@@ -96,6 +96,10 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         val danmakuOn: Boolean = true,
         val danmakuAlpha: Float = 1f,
         val danmakuScale: Float = 1f,
+        // 审核244（P0-1/P0-2）：弹幕字号与行高。此前设置页这两个滑块
+        // 只写 DataStore，播放器从未读，用户拖了没反应。
+        val danmakuFontSize: Int = 25,
+        val danmakuLineHeight: Float = 1.6f,
         val danmakuSpeed: Float = 1f,
         // 审核233：弹幕细节（PiliPlus 对齐）
         val danmakuShowArea: Float = 1f,
@@ -145,6 +149,9 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
 
     // 审核233：相关视频过滤配置（combine 收集，DataStore 持久化）
     private var relatedApplyFilter: Boolean = true
+    // 审核244（P0-3）：「自动连播分P」开关的进程内缓存。
+    // DataStore 的 continuePlayingPartFlow 此前 0 个消费者，是纯摆设。
+    private var continuePlayingPart: Boolean = true
     private var relatedMinDuration: Int = 0
     private var relatedBanWords: String = ""
 
@@ -183,6 +190,25 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         viewModelScope.launch {
             storage.dmShowAreaFlow.collect { area ->
                 _state.value = _state.value.copy(danmakuShowArea = area)
+            }
+        }
+        // 审核244（P0-2）：弹幕行高此前只写进 SettingsViewModel state，
+        // 播放器从未读 → 滑块完全无效。
+        viewModelScope.launch {
+            storage.dmLineHeightFlow.collect { h ->
+                _state.value = _state.value.copy(danmakuLineHeight = h)
+            }
+        }
+        // 审核244（P0-1）：弹幕字号。设置页写 danmakuFontSize（12~40），
+        // 播放器读 danmakuScale（0.5~2.0）——两个键各写各的，滑块无效。
+        // 把字号映射到 scale 一并下发，保证老键也有消费者。
+        viewModelScope.launch {
+            storage.danmakuFontSizeFlow.collect { size ->
+                val scale = (size / 25f).coerceIn(0.5f, 2.5f)
+                _state.value = _state.value.copy(
+                    danmakuFontSize = size,
+                    danmakuScale = scale
+                )
             }
         }
         viewModelScope.launch {
@@ -230,6 +256,13 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
                     relatedMinDuration = minDur
                     relatedBanWords = ban
                 }
+        }
+        // 审核244（P0-3）：自动连播分P。此前 continuePlayingPartFlow 全库
+        // 0 个消费者，设置页那个开关是纯摆设。
+        viewModelScope.launch {
+            storage.continuePlayingPartFlow.collect { on ->
+                continuePlayingPart = on
+            }
         }
         // Kazumi：低延迟音频 + 渲染器（持久化设置，实时作用于播放链路）
         viewModelScope.launch {
@@ -305,11 +338,16 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
                                 )
                             })
                         } else {
-                            runCatching {
-                                val cid = com.example.piliai.database.PiliNaraDatabase
-                                    .getDatabase(appContext).downloadItemDao().getByBvid(bvid)?.cid ?: 0L
-                                if (cid > 0L) loadDanmakuFor(cid)
-                            }
+                            // 审核244（P1-7）：优先用路由传入的 cid（离线缓存页
+                            // 现在会带 cid 跳转），查不到再回退查数据库。
+                            // 此前只查 DB 且路由不传 cid → 离线视频大概率无弹幕。
+                            val effectiveCid = cid.takeIf { it > 0L }
+                                ?: runCatching {
+                                    com.example.piliai.database.PiliNaraDatabase
+                                        .getDatabase(appContext).downloadItemDao()
+                                        .getByBvid(bvid)?.cid
+                                }.getOrNull() ?: 0L
+                            if (effectiveCid > 0L) loadDanmakuFor(effectiveCid)
                         }
                         startPlayback(playback.videoPath, playback.audioPath.takeIf { it.isNotEmpty() })
                     } else {
@@ -603,11 +641,29 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
 
     private fun loadSubtitles(bvid: String, cid: Long) {
         subtitleListJob?.cancel()
-        if (bvid.isEmpty() || cid <= 0L || bvid.startsWith("ep")) return
+        // 审核244（P1-8）：去掉 bvid.startsWith("ep") 短路。
+        // 该短路本意是防 getPlayerV2 收到 "ep123" 报错，但番剧通常有 CC 字幕，
+        // 结果是番剧播放永不加载字幕。改为反查该集真实 bvid 再请求。
+        if (bvid.isEmpty() || cid <= 0L) return
         val generation = loadGeneration
         subtitleListJob = viewModelScope.launch {
             try {
-                val resp = BiliApiClient().getPlayerV2(bvid, cid).getOrNull()?.data
+                // 番剧的 bvid 形如 "ep123"，getPlayerV2 需要真实 bvid，
+                // 传 "ep..." 会 400。用 getPgcSeason(epId) 反查该集 bvid
+                // （复用已有接口，不新增网络层）。
+                val effectiveBvid = if (bvid.startsWith("ep")) {
+                    val epIdNum = bvid.removePrefix("ep").toLongOrNull() ?: 0L
+                    runCatching {
+                        com.example.piliai.data.remote.BiliApiClient()
+                            .getPgcSeason(epId = epIdNum)
+                            .getOrNull()?.result?.episodes
+                            ?.firstOrNull { it.id == epIdNum }?.bvid
+                    }.getOrNull().orEmpty()
+                } else {
+                    bvid
+                }
+                if (effectiveBvid.isEmpty()) return@launch
+                val resp = BiliApiClient().getPlayerV2(effectiveBvid, cid).getOrNull()?.data
                 ensureCurrent(generation)
                 val subs = resp?.subtitle?.subtitles.orEmpty()
                 _subtitleTracks.value = subs.map { Triple(it.id, it.langDoc, it.subtitleUrl) }
@@ -1655,8 +1711,12 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
                     _state.value = _state.value.copy(currentTime = 0L)
                 }
                 "next" -> when {
-                    partIndex + 1 in pages.indices -> playNextPart()
-                    else -> _state.value.related.firstOrNull()?.let(::playRelated)
+                    // 审核244（P0-3）：「自动连播分P」开关此前是假的——
+                    // DataStore 键 0 个消费者，播完逻辑只读 completionAction。
+                    // 这里补上：关掉时不自动下一 P，只提示。
+                    continuePlayingPart && partIndex + 1 in pages.indices -> playNextPart()
+                    continuePlayingPart -> _state.value.related.firstOrNull()?.let(::playRelated)
+                    partIndex + 1 in pages.indices -> showToast("播放完毕，还有下一 P")
                 }
             }
         }

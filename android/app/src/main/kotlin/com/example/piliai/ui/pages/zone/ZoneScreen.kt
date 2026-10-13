@@ -32,6 +32,7 @@ import com.example.piliai.data.model.NewListArchive
 import com.example.piliai.data.model.VIDEO_ZONES
 import com.example.piliai.data.remote.BiliApiClient
 import com.example.piliai.utils.toHttpsUrl
+import com.example.piliai.utils.toCoverUrl
 
 class ZoneViewModel : ViewModel() {
     private val _items = MutableStateFlow<List<NewListArchive>>(emptyList())
@@ -180,7 +181,7 @@ private fun ZoneCard(v: NewListArchive, onOpenUser: (Long) -> Unit, onClick: () 
         Column {
             Box {
                 AsyncImage(
-                    model = v.pic.toHttpsUrl(),
+                    model = v.pic.toCoverUrl(),
                     contentDescription = v.title,
                     modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp)),
                     contentScale = ContentScale.Crop

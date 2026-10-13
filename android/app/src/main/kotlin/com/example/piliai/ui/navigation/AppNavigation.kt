@@ -541,7 +541,9 @@ fun AppNavigation() {
         composable(Screen.Downloads.route) {
             com.example.piliai.ui.download.DownloadScreen(
                 onBack = { navController.popBackStack() },
-                onPlayLocal = { bvid -> navController.navigate("video/$bvid?local=1") }
+                onPlayLocal = { bvid, cid ->
+                    navController.navigate("video/$bvid?cid=$cid&local=1")
+                }
             )
         }
         // 订阅页：Animeko「订阅源」移植

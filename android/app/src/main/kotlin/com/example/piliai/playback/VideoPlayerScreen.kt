@@ -340,6 +340,9 @@ fun VideoPlayerScreen(
                 // 审核233：显示区域 + 描边（PiliPlus 弹幕细节）
                 v.showAreaFactor = state.danmakuShowArea
                 v.strokeWidthFactor = state.danmakuStrokeWidth
+                // 审核244（P0-1/P0-2）：字号与行高接入。此前这两个设置项
+                // 只写 DataStore，播放器从不读 → 滑块完全无效。
+                v.lineHeightFactor = state.danmakuLineHeight
                 v.mergeDanmaku = state.danmakuMerge
                 v.massiveMode = state.danmakuMassiveMode
                 v.visibility = if (isInPiP) android.view.View.INVISIBLE else android.view.View.VISIBLE

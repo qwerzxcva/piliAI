@@ -25,6 +25,7 @@ import kotlinx.coroutines.launch
 import com.example.piliai.data.model.TimelineDay
 import com.example.piliai.data.remote.BiliApiClient
 import com.example.piliai.utils.toHttpsUrl
+import com.example.piliai.utils.toCoverUrl
 
 class TimelineViewModel : ViewModel() {
     private val _days = MutableStateFlow<List<TimelineDay>>(emptyList())
@@ -103,7 +104,7 @@ fun TimelineScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     AsyncImage(
-                                        model = ep.cover.toHttpsUrl(),
+                                        model = ep.cover.toCoverUrl(),
                                         contentDescription = ep.seasonTitle,
                                         modifier = Modifier
                                             .width(96.dp)

@@ -51,8 +51,11 @@ class Media3Backend(
         // 审核轮（bv P1）：此前 LoadControl 是孤儿代码，设置页的「缓冲时长」从未生效。
         // 现在把 Media3LoadControlFactory 真正接到 Builder；与 AudioAttributes 同为
         // Builder 期设置，运行中修改缓冲偏好需重建播放器才生效。
+        // 审核244（P1-5）：低延迟音频开关此前只写 state 缓存，播放器
+        // 硬编码 handleAudioFocus=true → 开关在默认 media3 后端无效。
+        // 低延迟模式关掉焦点让位，避免焦点切换导致输出重开与缓冲重置。
         player = ExoPlayer.Builder(context, buildRenderersFactory())
-            .setAudioAttributes(audioAttributes, true)
+            .setAudioAttributes(audioAttributes, !RendererPrefs.lowLatencyAudio)
             .setLoadControl(
                 Media3LoadControlFactory.create(bufferDurationMs = RendererPrefs.bufferDurationMs)
             )

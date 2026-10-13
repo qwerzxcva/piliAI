@@ -32,7 +32,9 @@ import com.example.piliai.utils.toHttpsUrl
 @Composable
 fun DownloadScreen(
     onBack: () -> Unit = {},
-    onPlayLocal: (String) -> Unit = {}    // 传 bvid，播放器识别本地文件
+    // 审核244（P1-7）：带 cid。此前只传 bvid，播放器 local 分支拿不到 cid
+    // 就不加载在线弹幕 → 离线视频大概率无弹幕。
+    onPlayLocal: (String, Long) -> Unit = { _, _ -> }    // 传 bvid + cid
 ) {
     val context = LocalContext.current
     val items by DownloadManager.observeAll(context).collectAsStateWithLifecycle(initialValue = emptyList())
@@ -67,7 +69,7 @@ fun DownloadScreen(
             items(items, key = { it.bvid }) { item ->
                 DownloadRow(
                     item = item,
-                    onPlay = { onPlayLocal(item.bvid) },
+                    onPlay = { onPlayLocal(item.bvid, item.cid) },
                     onDelete = { DownloadManager.delete(context, item.bvid) },
                     onPause = { DownloadManager.pause(context, item.bvid) },
                     onResume = { DownloadManager.resume(context, item.bvid) }

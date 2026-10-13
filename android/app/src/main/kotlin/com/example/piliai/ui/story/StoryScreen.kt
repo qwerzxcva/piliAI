@@ -37,6 +37,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.piliai.data.model.VideoItem
 import com.example.piliai.data.repository.HomeRepository
+import com.example.piliai.utils.toCoverUrl
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -152,7 +153,7 @@ private fun StoryPage(v: VideoItem, isActive: Boolean, onVideoClick: (String, Lo
         contentAlignment = Alignment.Center
     ) {
         coil.compose.AsyncImage(
-            model = v.pic,
+            model = v.pic.toCoverUrl(),
             contentDescription = v.title,
             modifier = Modifier.fillMaxSize(),
             contentScale = androidx.compose.ui.layout.ContentScale.Crop

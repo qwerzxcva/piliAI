@@ -27,6 +27,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.piliai.data.model.SearchResultItem
 import com.example.piliai.utils.toHttpsUrl
+import com.example.piliai.utils.toCoverUrl
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
@@ -293,7 +294,7 @@ private fun SearchResultRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             AsyncImage(
-                model = item.uimage ?: item.pic.toHttpsUrl(),
+                model = item.uimage ?: item.pic.toCoverUrl(),
                 contentDescription = item.author,
                 modifier = Modifier.size(48.dp).clip(RoundedCornerShape(50)),
                 contentScale = ContentScale.Crop
@@ -313,7 +314,7 @@ private fun SearchResultRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             AsyncImage(
-                model = item.pic.toHttpsUrl(),
+                model = item.pic.toCoverUrl(),
                 contentDescription = item.title,
                 modifier = Modifier.width(140.dp).height(88.dp).clip(RoundedCornerShape(6.dp)),
                 contentScale = ContentScale.Crop
@@ -335,7 +336,7 @@ private fun SearchResultRow(
                     .padding(12.dp)
             ) {
                 AsyncImage(
-                    model = item.pic.toHttpsUrl(),
+                    model = item.pic.toCoverUrl(),
                     contentDescription = item.title,
                     modifier = Modifier.width(140.dp).height(88.dp).clip(RoundedCornerShape(6.dp)),
                     contentScale = ContentScale.Crop

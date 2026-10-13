@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import com.example.piliai.utils.toHttpsUrl
+import com.example.piliai.utils.toCoverUrl
 
 /** 直播列表 ViewModel（批次D/F 补全） */
 class LiveListViewModel : ViewModel() {
@@ -146,7 +147,7 @@ private fun LiveRoomCardItem(room: LiveRoomCard, onClick: () -> Unit) {
         Column {
             Box {
                 AsyncImage(
-                    model = room.cover.toHttpsUrl(),
+                    model = room.cover.toCoverUrl(),
                     contentDescription = room.title,
                     modifier = Modifier.fillMaxWidth().height(110.dp),
                     contentScale = ContentScale.Crop

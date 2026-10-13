@@ -24,6 +24,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.piliai.data.model.PgcIndexItem
 import com.example.piliai.utils.toHttpsUrl
+import com.example.piliai.utils.toCoverUrl
 
 /** season_type 选项（与 B 站索引一致） */
 private val SEASON_TYPES = listOf("番剧" to 1, "电影" to 2, "纪录片" to 3, "国创" to 4, "电视剧" to 5, "综艺" to 7)
@@ -133,7 +134,7 @@ private fun PgcIndexCard(item: PgcIndexItem, onOpenSeason: (Long) -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         AsyncImage(
-            model = item.cover.toHttpsUrl(),
+            model = item.cover.toCoverUrl(),
             contentDescription = item.title,
             modifier = Modifier.size(width = 88.dp, height = 118.dp)
                 .clip(RoundedCornerShape(8.dp))

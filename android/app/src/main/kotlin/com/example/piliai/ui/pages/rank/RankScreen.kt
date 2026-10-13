@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import com.example.piliai.utils.toHttpsUrl
+import com.example.piliai.utils.toCoverUrl
 
 /** 排行榜（批次L17） */
 class RankViewModel : ViewModel() {
@@ -153,7 +154,7 @@ private fun RankRow(rank: Int, item: RankItem, onClick: () -> Unit) {
             modifier = Modifier.width(32.dp)
         )
         AsyncImage(
-            model = item.pic.toHttpsUrl(), contentDescription = item.title,
+            model = item.pic.toCoverUrl(), contentDescription = item.title,
             modifier = Modifier.size(width = 120.dp, height = 72.dp)
                 .clip(MaterialTheme.shapes.medium)
         )

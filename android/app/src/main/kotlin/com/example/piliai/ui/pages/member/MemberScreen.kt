@@ -31,6 +31,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import com.example.piliai.utils.toHttpsUrl
+import com.example.piliai.utils.toCoverUrl
 
 /** MemberViewModel 需要 mid 构造参数 → Factory */
 class MemberViewModelFactory(private val mid: Long) : ViewModelProvider.Factory {
@@ -88,7 +89,7 @@ fun MemberScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     AsyncImage(
-                        model = state.info?.face.toHttpsUrl(),
+                        model = state.info?.face.toCoverUrl(),
                         contentDescription = state.info?.name,
                         modifier = Modifier.size(64.dp).clip(CircleShape),
                         contentScale = ContentScale.Crop
@@ -176,7 +177,7 @@ fun MemberScreen(
                             ) {
                                 Column {
                                     AsyncImage(
-                                        model = c.cover.toHttpsUrl(),
+                                        model = c.cover.toCoverUrl(),
                                         contentDescription = c.title,
                                         modifier = Modifier.fillMaxWidth().height(112.dp),
                                         contentScale = ContentScale.Crop
@@ -217,7 +218,7 @@ fun MemberScreen(
                             ) {
                                 Column {
                                     AsyncImage(
-                                        model = m.pic.toHttpsUrl(),
+                                        model = m.pic.toCoverUrl(),
                                         contentDescription = m.title,
                                         modifier = Modifier.fillMaxWidth().height(110.dp),
                                         contentScale = ContentScale.Crop
@@ -385,7 +386,7 @@ fun MemberScreen(
                             ) {
                                 Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                                     AsyncImage(
-                                        model = v.pic.toHttpsUrl(),
+                                        model = v.pic.toCoverUrl(),
                                         contentDescription = v.title,
                                         modifier = Modifier.width(120.dp).aspectRatio(16f / 9f)
                                             .clip(RoundedCornerShape(6.dp)),
@@ -411,7 +412,7 @@ fun MemberScreen(
                             ) {
                                 Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                                     AsyncImage(
-                                        model = meta?.cover.toHttpsUrl(),
+                                        model = meta?.cover.toCoverUrl(),
                                         contentDescription = meta?.name,
                                         modifier = Modifier.width(110.dp).aspectRatio(16f / 9f)
                                             .clip(RoundedCornerShape(6.dp)),
@@ -511,7 +512,7 @@ private fun SpaceVideoRow(video: SpaceVideoItem, onClick: (String) -> Unit) {
     ) {
         Box {
             AsyncImage(
-                model = video.pic.toHttpsUrl(),
+                model = video.pic.toCoverUrl(),
                 contentDescription = video.title,
                 modifier = Modifier.width(140.dp).height(88.dp).clip(RoundedCornerShape(6.dp)),
                 contentScale = ContentScale.Crop

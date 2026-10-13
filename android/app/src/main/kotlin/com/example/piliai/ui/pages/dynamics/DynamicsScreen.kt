@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import com.example.piliai.utils.toHttpsUrl
+import com.example.piliai.utils.toCoverUrl
 
 /**
  * 动态页 ViewModel：聚合流 feed/all，offset 翻页，未登录显示引导。
@@ -223,7 +224,7 @@ private fun DynamicCard(
         Column(Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 AsyncImage(
-                    model = author?.face.toHttpsUrl(),
+                    model = author?.face.toCoverUrl(),
                     contentDescription = author?.name,
                     modifier = Modifier.size(36.dp).clip(RoundedCornerShape(50)),
                     contentScale = ContentScale.Crop
@@ -267,7 +268,7 @@ private fun DynamicCard(
                 Spacer(Modifier.height(10.dp))
                 Row(Modifier.clip(RoundedCornerShape(8.dp))) {
                     AsyncImage(
-                        model = v.pic.toHttpsUrl(),
+                        model = v.pic.toCoverUrl(),
                         contentDescription = v.title,
                         modifier = Modifier.width(140.dp).height(88.dp),
                         contentScale = ContentScale.Crop

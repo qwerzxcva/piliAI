@@ -28,6 +28,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.piliai.data.model.PgcEpisode
 import com.example.piliai.utils.toHttpsUrl
+import com.example.piliai.utils.toCoverUrl
 
 /** 番剧详情页（批次D）——封面/简介/选集列表/追番，点击集数跳播放器（bvid+cid） */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -93,7 +94,7 @@ fun BangumiScreen(
                     item {
                         Row(Modifier.fillMaxWidth().padding(16.dp)) {
                             AsyncImage(
-                                model = season.cover.toHttpsUrl(),
+                                model = season.cover.toCoverUrl(),
                                 contentDescription = season.title,
                                 modifier = Modifier.width(120.dp).height(160.dp)
                                     .clip(RoundedCornerShape(8.dp)),
@@ -188,7 +189,7 @@ private fun EpisodeCard(ep: PgcEpisode, selected: Boolean, onClick: () -> Unit) 
     ) {
         Box {
             AsyncImage(
-                model = ep.cover.toHttpsUrl(),
+                model = ep.cover.toCoverUrl(),
                 contentDescription = ep.title,
                 modifier = Modifier.fillMaxWidth().height(72.dp)
                     .clip(RoundedCornerShape(6.dp)),

@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import com.example.piliai.utils.toHttpsUrl
+import com.example.piliai.utils.toCoverUrl
 
 /**
  * 批次L25：直播分区页 ViewModel
@@ -189,7 +190,7 @@ private fun LiveAreaCard(room: LiveRecRoom, onClick: () -> Unit) {
         Column {
             Box {
                 AsyncImage(
-                    model = room.cover.toHttpsUrl(),
+                    model = room.cover.toCoverUrl(),
                     contentDescription = room.title,
                     modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)
                         .clip(RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp)),
