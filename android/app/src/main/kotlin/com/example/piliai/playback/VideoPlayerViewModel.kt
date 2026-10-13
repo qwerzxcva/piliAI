@@ -264,6 +264,21 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
                 continuePlayingPart = on
             }
         }
+        // 审核247：顶部/底部弹幕开关此前只写不回读（重启丢失）。
+        // 同时喂 cached*（弹幕分发热路径直接读，避免每次 collect Flow）与
+        // _dmShow*（UI 状态源）。
+        viewModelScope.launch {
+            storage.danmakuShowTopFlow.collect { on ->
+                cachedDmShowTop = on
+                _dmShowTop.value = on
+            }
+        }
+        viewModelScope.launch {
+            storage.danmakuShowBottomFlow.collect { on ->
+                cachedDmShowBottom = on
+                _dmShowBottom.value = on
+            }
+        }
         // Kazumi：低延迟音频 + 渲染器（持久化设置，实时作用于播放链路）
         viewModelScope.launch {
             storage.lowLatencyAudioFlow.collect { on ->
@@ -1670,14 +1685,33 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     var brightnessTouched: Boolean = false
         private set
 
-    /** 顶部弹幕开关（顶部弹幕可能被遮挡，用户可关闭） */
+    /**
+     * 顶部弹幕开关（顶部弹幕可能被遮挡，用户可关闭）。
+     *
+     * 审核247（真 bug）：原来是硬编码初始值 true + persist* 只写不回读，
+     * 用户关掉顶部弹幕后重启 App 又回到开启。现在由 init 里 collect
+     * StorageManager.danmakuShowTopFlow 填充，与其余弹幕设置同一套模式。
+     */
     var cachedDmShowTop: Boolean = true
+        private set
 
-    /** 底部弹幕开关 */
+    /** 底部弹幕开关。同 [cachedDmShowTop]，持久化生效。 */
     var cachedDmShowBottom: Boolean = true
+        private set
+
+    /**
+     * 审核247：顶部弹幕开关的 UI 状态源。
+     * 由 DataStore 驱动，UI 只读不写副本（单一数据源），
+     * 修改一律走 persistDmShowTop()。
+     */
+    private val _dmShowTop = MutableStateFlow(cachedDmShowTop)
+    val dmShowTop: StateFlow<Boolean> = _dmShowTop.asStateFlow()
+
+    /** 审核247：底部弹幕开关的 UI 状态源。同 [dmShowTop]。 */
+    private val _dmShowBottom = MutableStateFlow(cachedDmShowBottom)
+    val dmShowBottom: StateFlow<Boolean> = _dmShowBottom.asStateFlow()
 
     fun persistDmShowTop(enabled: Boolean) {
-        cachedDmShowTop = enabled
         viewModelScope.launch {
             runCatching {
                 com.example.piliai.utils.StorageManager.getInstance(appContext).setDanmakuShowTop(enabled)
@@ -1686,7 +1720,6 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     }
 
     fun persistDmShowBottom(enabled: Boolean) {
-        cachedDmShowBottom = enabled
         viewModelScope.launch {
             runCatching {
                 com.example.piliai.utils.StorageManager.getInstance(appContext).setDanmakuShowBottom(enabled)

@@ -852,19 +852,20 @@ fun VideoPlayerScreen(
                     }
                     Spacer(Modifier.height(8.dp))
                     // 审核轮167：顶部/底部弹幕开关（B站播放器标配）
-                    var dmTop by remember { mutableStateOf<Boolean>(viewModel.cachedDmShowTop) }
-                    var dmBottom by remember { mutableStateOf<Boolean>(viewModel.cachedDmShowBottom) }
+                    // 审核247：改用 VM 的 Flow 驱动状态，不再 remember 一份副本 +
+                    // 手动回写。原来 remember 初始值 + persist 只写 DataStore 不回读，
+                    // 用户改完重启 App 又回到默认 true（持久化失效）。
+                    val dmTop by viewModel.dmShowTop.collectAsStateWithLifecycle()
+                    val dmBottom by viewModel.dmShowBottom.collectAsStateWithLifecycle()
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("显示顶部弹幕", modifier = Modifier.weight(1f))
                         Switch(checked = dmTop, onCheckedChange = { on ->
-                            dmTop = on; viewModel.cachedDmShowTop = on
                             viewModel.persistDmShowTop(on)
                         })
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("显示底部弹幕", modifier = Modifier.weight(1f))
                         Switch(checked = dmBottom, onCheckedChange = { on ->
-                            dmBottom = on; viewModel.cachedDmShowBottom = on
                             viewModel.persistDmShowBottom(on)
                         })
                     }
