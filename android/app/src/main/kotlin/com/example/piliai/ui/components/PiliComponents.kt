@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import com.example.piliai.ui.theme.PiliCardShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
@@ -129,7 +130,7 @@ fun SkeletonVideoCard(modifier: Modifier = Modifier) {
         label = "alpha",
     )
     val shimmer = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = alpha)
-    Column(modifier = modifier.clip(RoundedCornerShape(14.dp))) {
+    Column(modifier = modifier.clip(PiliCardShape)) {
         Box(
             Modifier
                 .fillMaxWidth()

@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import java.util.Locale
 import com.example.piliai.ui.theme.ACCENT_OPTIONS
+import com.example.piliai.ui.theme.PiliCardShape
 
 /** 主题颜色选择弹窗（20 色板） */
 @Composable
@@ -162,7 +163,7 @@ fun SettingRow(
         },
         modifier = Modifier
             .heightIn(min = 56.dp)   // Kototoro settingsItemMinHeight
-            .clip(RoundedCornerShape(14.dp))
+            .clip(PiliCardShape)
             .clickable { onClick() },
         colors = ListItemDefaults.colors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
@@ -185,7 +186,7 @@ fun SettingSwitch(
         trailingContent = {
             Switch(checked = checked, onCheckedChange = onChange)
         },
-        modifier = Modifier.clip(RoundedCornerShape(14.dp)),
+        modifier = Modifier.clip(PiliCardShape),
         colors = ListItemDefaults.colors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         )
@@ -231,7 +232,7 @@ fun SettingSlider(
             }
         },
         leadingContent = { SettingIconBox(icon) },
-        modifier = Modifier.clip(RoundedCornerShape(14.dp)),
+        modifier = Modifier.clip(PiliCardShape),
         colors = ListItemDefaults.colors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         )

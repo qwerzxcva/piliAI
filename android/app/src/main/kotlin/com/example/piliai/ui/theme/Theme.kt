@@ -234,12 +234,20 @@ private fun darkSchemeOf(accent: Color, amoled: Boolean = false) = darkColorSche
 /**
  * 审核238：Kototoro 几何 token（SharedInterfaceStyleTokens.kt IOS 档移植）。
  * 全 App 布局统一从此取值，不再散落魔法数。
+ *
+ * 审核257：圆角值原本照搬 IOS 档（group=18/section=12），但实际 UI 用的是
+ * BiliPai 卡片体系（14/10/8/6 四级）。token 与实际值不一致等于没有 token ——
+ * 照着它写的代码会和周边硬编码的圆角打架。这里按实际使用情况重定值。
  */
 data class InterfaceStyleTokens(
     val screenHorizontalPadding: androidx.compose.ui.unit.Dp,
     val sectionVerticalSpacing: androidx.compose.ui.unit.Dp,
+    /** 卡片圆角（BiliPai 规格，审核234 定）——最常用，单独一个 token */
+    val cardCornerRadius: androidx.compose.ui.unit.Dp,
+    /** 分组容器圆角（设置分组、底部 dock 等大容器） */
     val groupCornerRadius: androidx.compose.ui.unit.Dp,
-    val sectionCornerRadius: androidx.compose.ui.unit.Dp,
+    /** 小控件圆角（chip、小浮标） */
+    val chipCornerRadius: androidx.compose.ui.unit.Dp,
     val settingsGroupOuterCornerRadius: androidx.compose.ui.unit.Dp,
     val settingsItemGap: androidx.compose.ui.unit.Dp,
     val settingsItemMinHeight: androidx.compose.ui.unit.Dp,
@@ -255,8 +263,9 @@ data class InterfaceStyleTokens(
 val PiliTokens = InterfaceStyleTokens(
     screenHorizontalPadding = 16.dp,
     sectionVerticalSpacing = 20.dp,
-    groupCornerRadius = 18.dp,
-    sectionCornerRadius = 12.dp,
+    cardCornerRadius = 14.dp,
+    groupCornerRadius = 16.dp,
+    chipCornerRadius = 8.dp,
     settingsGroupOuterCornerRadius = 16.dp,
     settingsItemGap = 0.dp,
     settingsItemMinHeight = 56.dp,
@@ -268,6 +277,13 @@ val PiliTokens = InterfaceStyleTokens(
     topBarIconSize = 22.dp,
     sheetCornerRadius = 28.dp,
 )
+
+/**
+ * 审核257：卡片圆角快捷取值（BiliPai 规格）。
+ * UI 层统一用 `PiliCardShape` 而不是各写一个 RoundedCornerShape(14.dp)，
+ * 后续要整体调圆角只改这里。
+ */
+val PiliCardShape = RoundedCornerShape(PiliTokens.cardCornerRadius)
 
 /** Kototoro 风格形状 token（Shapes 由 token 派生，KototoroShapes.kt） */
 val PiliShapes = Shapes(

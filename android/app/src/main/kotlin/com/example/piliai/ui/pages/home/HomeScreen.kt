@@ -72,6 +72,7 @@ import coil.compose.AsyncImage
 import com.example.piliai.data.model.VideoItem
 import com.example.piliai.utils.toHttpsUrl
 import com.example.piliai.utils.toCoverUrl
+import com.example.piliai.ui.theme.PiliCardShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -398,7 +399,7 @@ private fun VideoCardItem(card: VideoItem, onClick: () -> Unit) {
     // 播放量/时长作为角标叠在图上，标题置于下方分层 surface（AMOLED 灰阶）。
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(14.dp), // 审核234：BiliPai 利落圆角
+        shape = PiliCardShape, // 审核234：BiliPai 利落圆角
         colors = androidx.compose.material3.CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ),

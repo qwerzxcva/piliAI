@@ -74,6 +74,7 @@ import coil.compose.AsyncImage
 import com.example.piliai.database.SubscribeItemEntity
 import com.example.piliai.database.SubscribeSourceEntity
 import com.example.piliai.database.SubscribeTitleEntity
+import com.example.piliai.ui.theme.PiliCardShape
 
 /**
  * 订阅页（Animeko「订阅」移植）
@@ -965,7 +966,7 @@ private fun FollowedTitleCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
+        shape = PiliCardShape,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
