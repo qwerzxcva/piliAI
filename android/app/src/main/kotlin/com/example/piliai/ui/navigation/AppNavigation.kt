@@ -26,6 +26,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.core.net.toUri
 import androidx.compose.ui.res.stringResource
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -572,7 +575,19 @@ fun AppNavigation() {
         ) { entry ->
             com.example.piliai.ui.subscribe.BangumiSubjectScreen(
                 subjectId = entry.arguments?.getLong("id") ?: 0L,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                // 审核243：详情页直接追番（Bangumi 直连，sourceId=0）
+                onFollow = { id, title, cover, episodes ->
+                    // 详情页只拿得到 Bangumi 侧信息：以 bgm:{id} 作 sourceKey，
+                    // 走 Bangumi 同步路径（sourceId=0）而不是某个订阅源。
+                    bangumiFollow(
+                        navController,
+                        id,
+                        title,
+                        cover,
+                        episodes
+                    )
+                }
             )
         }
         composable(
@@ -649,6 +664,50 @@ fun AppNavigation() {
             )
         }
     }
+}
+    }
+}
+
+/**
+ * 审核243：Bangumi 详情页「追番」按钮的实现。
+ *
+ * 直接走 SubscribeRepository.followTitle，sourceId=0（Bangumi 直连、
+ * 无订阅源），sourceKey="bgm:{id}" 与 syncBangumiCollections 的键一致，
+ * 这样下次同步会命中同一行而不是重复插入。
+ */
+private fun bangumiFollow(
+    navController: androidx.navigation.NavController,
+    bangumiId: Long,
+    title: String,
+    cover: String,
+    episodes: Int
+) {
+    val context = navController.context
+    val scope = kotlinx.coroutines.CoroutineScope(
+        kotlinx.coroutines.Dispatchers.Main.immediate
+    )
+    scope.launch {
+        val db = com.example.piliai.database.PiliNaraDatabase.getDatabase(context)
+        val repo = com.example.piliai.data.repository.SubscribeRepository(
+            db.subscribeSourceDao(),
+            db.subscribeItemDao(),
+            db.subscribeTitleDao()
+        )
+        repo.followTitle(
+            sourceId = 0L,
+            sourceKey = "bgm:$bangumiId",
+            name = title,
+            cover = cover,
+            latestEpisode = episodes,
+            bangumiId = bangumiId
+        ).onSuccess {
+            android.widget.Toast.makeText(context, "已追番：$title", android.widget.Toast.LENGTH_SHORT).show()
+        }.onFailure { e ->
+            android.widget.Toast.makeText(
+                context,
+                "追番失败：${e.message ?: "未知错误"}",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
         }
     }
 }

@@ -10,6 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,7 +41,11 @@ import com.example.piliai.data.remote.BangumiApi
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BangumiSubjectScreen(subjectId: Long, onBack: () -> Unit) {
+fun BangumiSubjectScreen(
+    subjectId: Long,
+    onBack: () -> Unit,
+    onFollow: (Long, String, String, Int) -> Unit = { _, _, _, _ -> }
+) {
     var subject by remember(subjectId) { mutableStateOf<BangumiApi.Subject?>(null) }
     var loadFailed by remember(subjectId) { mutableStateOf(false) }
     var retryAttempt by remember(subjectId) { mutableStateOf(0) }
@@ -67,6 +72,24 @@ fun BangumiSubjectScreen(subjectId: Long, onBack: () -> Unit) {
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.bangumi_back)
                         )
+                    }
+                },
+                // 审核243：追番入口。此前详情页只能看资料，看完还得回订阅页
+                // 找条目点爱心，闭环断在这里。
+                actions = {
+                    val s = subject
+                    if (s != null && s.id > 0L) {
+                        IconButton(
+                            onClick = {
+                                onFollow(s.id, s.title, s.cover, s.bestEpisodeCount)
+                            }
+                        ) {
+                            Icon(
+                                Icons.Default.Favorite,
+                                contentDescription = "追番",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 }
             )
@@ -108,8 +131,8 @@ fun BangumiSubjectScreen(subjectId: Long, onBack: () -> Unit) {
                             metadata.add(stringResource(R.string.bangumi_rank, s.rating.rank))
                         }
                         if (s.date.isNotBlank()) metadata.add(s.date)
-                        if (s.episodeCount > 0) {
-                            metadata.add(stringResource(R.string.bangumi_episodes, s.episodeCount))
+                        if (s.bestEpisodeCount > 0) {
+                            metadata.add(stringResource(R.string.bangumi_episodes, s.bestEpisodeCount))
                         }
                         Text(
                             metadata.joinToString(" · "),

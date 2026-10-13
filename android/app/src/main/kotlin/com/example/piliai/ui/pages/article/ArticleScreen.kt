@@ -129,11 +129,20 @@ fun ArticleScreen(
                                 textSize = 15f
                                 setTextColor(android.graphics.Color.DKGRAY)
                                 setLineSpacing(4f, 1.1f)
+                                // 审核243（animeko P0-4）：Html.fromHtml 会丢掉 <img>
+                                // 的 URL 与 <a> 的 href，图片只剩 alt 占位、链接变纯文本
+                                // 且不可点。这里显式接 ImageGetter + MovementMethod 接回来。
+                                movementMethod = android.text.method.LinkMovementMethod.getInstance()
                             }
                         },
                         update = { tv ->
                             // 审核：minSdk 24 >= N，直接用 FROM_HTML_MODE_COMPACT（lint ObsoleteSdkInt）
-                            tv.text = Html.fromHtml(a.content, Html.FROM_HTML_MODE_COMPACT)
+                            tv.text = Html.fromHtml(
+                                a.content,
+                                Html.FROM_HTML_MODE_COMPACT,
+                                articleImageGetter(tv),
+                                null
+                            )
                         },
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -143,3 +152,32 @@ fun ArticleScreen(
         }
     }
 }
+
+/**
+ * 审核243（animeko P0-4）：专栏正文图片的 ImageGetter。
+ *
+ * `Html.fromHtml` 不带 ImageGetter 时会丢掉 `<img>` 的 URL，图片位置只剩
+ * alt 文字。这里用 Coil 同步取图（submit().get() 走磁盘/内存缓存，
+ * 专栏图小且首屏外懒加载，可接受）；失败返回 null 让 Html 退化成 alt
+ * 文本，不会崩。
+ */
+private fun articleImageGetter(textView: android.widget.TextView): Html.ImageGetter =
+    Html.ImageGetter { source ->
+        if (source.isNullOrBlank()) return@ImageGetter null
+        runCatching {
+            val loader = coil.ImageLoader.Builder(textView.context).crossfade(false).build()
+            val request = coil.request.ImageRequest.Builder(textView.context)
+                .data(source)
+                .build()
+            // Coil 2.x 的 execute() 是 suspend，ImageGetter 在主线程同步调用，
+            // 用 enqueue() 拿同步结果（内部仍走缓存优先）。
+            val drawable = (loader.enqueue(request) as? coil.request.SuccessResult)
+                ?.drawable ?: return@runCatching null
+            val width = textView.width.takeIf { it > 0 }
+                ?: textView.resources.displayMetrics.widthPixels
+            val ratio = drawable.intrinsicHeight.toFloat() /
+                drawable.intrinsicWidth.coerceAtLeast(1).toFloat()
+            drawable.setBounds(0, 0, width, (width * ratio).toInt().coerceAtLeast(1))
+            drawable
+        }.getOrNull()
+    }
