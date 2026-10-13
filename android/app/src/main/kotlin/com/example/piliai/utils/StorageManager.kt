@@ -31,6 +31,8 @@ class StorageManager(private val context: Context) {
         // 审核252：订阅源 RSS 只保留能解析出集数的条目
         // （animeko ContainsAnyEpisodeInfo，RssMediaSourceEngine.kt:157-159）
         private val RSS_EPISODE_ONLY_KEY = booleanPreferencesKey("rssEpisodeOnly")
+        // 审核259：弹幕每秒上限（bv DanmakuRateLimiter）。0 = 不限
+        private val DM_MAX_PER_SEC_KEY = intPreferencesKey("danmakuMaxPerSecond")
         private val SUPER_RES_KEY = stringPreferencesKey("superResolutionMode")
         private val AUDIO_NORM_KEY = booleanPreferencesKey("audioNormalization")
         private val LANGUAGE_KEY = stringPreferencesKey("language")
@@ -172,6 +174,14 @@ class StorageManager(private val context: Context) {
 
     suspend fun setRssEpisodeOnly(enabled: Boolean) {
         context.dataStore.edit { it[RSS_EPISODE_ONLY_KEY] = enabled }
+    }
+
+    /** 审核259：弹幕每秒上限，0 = 不限 */
+    val danmakuMaxPerSecondFlow: Flow<Int> = context.dataStore.data
+        .map { preferences -> preferences[DM_MAX_PER_SEC_KEY] ?: 0 }
+
+    suspend fun setDanmakuMaxPerSecond(count: Int) {
+        context.dataStore.edit { it[DM_MAX_PER_SEC_KEY] = count.coerceIn(0, 200) }
     }
     
     // Video playback

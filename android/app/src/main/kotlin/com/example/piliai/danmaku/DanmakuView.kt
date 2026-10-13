@@ -32,6 +32,9 @@ class DanmakuView @JvmOverloads constructor(
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val active = mutableListOf<LiveDanmaku>()
     private var lastFrame = 0L
+    /** 审核259：流控用的「最近 1 秒内已入列条数」与窗口起点 */
+    private var rateWindowStart = 0L
+    private var rateWindowCount = 0
     private var nextId = 1L
     private var maxRows = 8
     private var running = true
@@ -46,6 +49,9 @@ class DanmakuView @JvmOverloads constructor(
     // 审核249：字重（PiliPlus danmakuFontWeight，0=细 1=常规 2=中粗 3=粗）。
     // 此前 dmFontWeightFlow 只被 SettingsViewModel collect，渲染层零消费者。
     var fontWeight: Int = 1
+    // 审核259：每秒弹幕上限（bv DanmakuRateLimiter 的 maxPerSecond）。
+    // 高能时段（名场面/结尾）一秒能涌进几十条，不限制会糊成一片。0 = 不限。
+    var maxPerSecond: Int = 0
     // 审核249：点击弹幕交互（PiliPlus enableTapDanmaku）。
     // 此前 enableTapDanmakuFlow 只被 SettingsViewModel collect，
     // DanmakuView 既没有开关也没有触摸处理 → 设置项纯摆设。
@@ -89,6 +95,9 @@ class DanmakuView @JvmOverloads constructor(
         if (mergeDanmaku) {
             if (!mergedTexts.add(text)) return
         }
+        // 审核259：每秒密度流控。超限的弹幕直接丢弃（不入列、不绘制）。
+        // 与 mergeDanmaku 互补：merge 去重同文本，这个管总量。
+        if (maxPerSecond > 0 && !allowByRate()) return
         val fs = fontSizeSp * resources.displayMetrics.density * scaleFactor
         lastFontSizePx = fs
         paint.textSize = fs
@@ -106,10 +115,28 @@ class DanmakuView @JvmOverloads constructor(
         invalidate()
     }
 
+    /**
+     * 审核259：滑动窗口限流（bv DanmakuRateLimiter）。
+     * 窗口 1 秒；跨窗口时重置计数。调用方需自行保证 maxPerSecond > 0。
+     */
+    private fun allowByRate(): Boolean {
+        val now = System.currentTimeMillis()
+        if (now - rateWindowStart >= 1000L) {
+            rateWindowStart = now
+            rateWindowCount = 0
+        }
+        if (rateWindowCount >= maxPerSecond) return false
+        rateWindowCount++
+        return true
+    }
+
     /** 清空（seek/切P/弹幕开关） */
     fun clearAll() {
         active.clear()
         mergedTexts.clear()
+        // 审核259：seek/切P 后重置流控窗口，否则新位置的高能段落会被旧窗口卡住
+        rateWindowStart = 0L
+        rateWindowCount = 0
         invalidate()
     }
 

@@ -25,6 +25,8 @@ class SettingsViewModel(context: Context) : ViewModel() {
         val autoPlay: Boolean = false,
         // 审核252：订阅源 RSS 只保留有集数信息的条目
         val rssEpisodeOnly: Boolean = false,
+        // 审核259：弹幕每秒上限（0=不限）
+        val danmakuMaxPerSecond: Int = 0,
         val playbackBackend: String = "media3",
         val completionAction: String = "next",
         val lowLatencyAudio: Boolean = false,  // Kazumi：低延迟音频
@@ -134,6 +136,9 @@ class SettingsViewModel(context: Context) : ViewModel() {
             storage.autoPlayFlow.collect { _state.value = _state.value.copy(autoPlay = it) }
             storage.rssEpisodeOnlyFlow.collect {
                 _state.value = _state.value.copy(rssEpisodeOnly = it)
+            }
+            storage.danmakuMaxPerSecondFlow.collect {
+                _state.value = _state.value.copy(danmakuMaxPerSecond = it)
             }
         }
         viewModelScope.launch {
@@ -329,6 +334,7 @@ class SettingsViewModel(context: Context) : ViewModel() {
 
     fun setAutoPlay(v: Boolean) = viewModelScope.launch { storage.setAutoPlay(v) }
     fun setRssEpisodeOnly(v: Boolean) = viewModelScope.launch { storage.setRssEpisodeOnly(v) }
+    fun setDanmakuMaxPerSecond(v: Int) = viewModelScope.launch { storage.setDanmakuMaxPerSecond(v) }
     fun setLowLatencyAudio(v: Boolean) = viewModelScope.launch { storage.setLowLatencyAudio(v) }
     fun setRenderer(v: Int) = viewModelScope.launch {
         com.example.piliai.utils.RendererPrefs.update(v)

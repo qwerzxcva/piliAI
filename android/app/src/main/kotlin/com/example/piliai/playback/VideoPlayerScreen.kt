@@ -345,6 +345,8 @@ fun VideoPlayerScreen(
                 v.lineHeightFactor = state.danmakuLineHeight
                 // 审核249：字重接入（此前同为假开关）
                 v.fontWeight = state.danmakuFontWeight
+                // 审核259：每秒弹幕上限（0=不限）
+                v.maxPerSecond = state.danmakuMaxPerSecond
                 // 审核249：点击弹幕交互。命中弹幕时提示内容（B站是发弹幕/复制，
                 // 这里先用轻量 toast，避免引入不必要的新 UI）。
                 v.tapInteractEnabled = state.danmakuTapInteract

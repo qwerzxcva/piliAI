@@ -587,6 +587,21 @@ fun SettingsScreen(
                     onChange = { viewModel.setEnableTapDanmaku(it) }
                 )
             }
+            // 审核259：弹幕每秒上限（bv DanmakuRateLimiter）。0 = 不限。
+            // 高能时段一秒能涌进几十条，不限制会糊成一片。
+            item {
+                SettingSlider(
+                    title = "弹幕密度上限",
+                    subtitle = "每秒最多显示多少条弹幕，0 为不限",
+                    icon = Icons.Default.Speed,
+                    value = state.danmakuMaxPerSecond.toFloat(),
+                    valueRange = 0f..60f,
+                    steps = 59,
+                    displayValue = if (state.danmakuMaxPerSecond == 0) "不限"
+                        else "${state.danmakuMaxPerSecond} 条/秒",
+                    onValueChange = { viewModel.setDanmakuMaxPerSecond(it.toInt()) }
+                )
+            }
         }
         fun LazyListScope.subscribeSection() {
             item { SectionTitle("订阅源") }

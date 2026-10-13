@@ -105,6 +105,8 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         val danmakuFontWeight: Int = 1,
         // 审核249：点击弹幕交互。此前 enableTapDanmakuFlow 同样零消费者。
         val danmakuTapInteract: Boolean = false,
+        // 审核259：弹幕每秒上限（0=不限）
+        val danmakuMaxPerSecond: Int = 0,
         val danmakuSpeed: Float = 1f,
         // 审核233：弹幕细节（PiliPlus 对齐）
         val danmakuShowArea: Float = 1f,
@@ -214,6 +216,12 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         viewModelScope.launch {
             storage.enableTapDanmakuFlow.collect { on ->
                 _state.value = _state.value.copy(danmakuTapInteract = on)
+            }
+        }
+        // 审核259：弹幕每秒上限。
+        viewModelScope.launch {
+            storage.danmakuMaxPerSecondFlow.collect { n ->
+                _state.value = _state.value.copy(danmakuMaxPerSecond = n)
             }
         }
         // 审核244（P0-1）：弹幕字号。设置页写 danmakuFontSize（12~40），
