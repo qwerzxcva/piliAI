@@ -66,25 +66,6 @@ class PiliNaraRepository(private val context: Context) {
         database.settingDao().deleteAll()
     }
     
-    // ========== VideoSetting ==========
-    suspend fun getVideoSetting(key: String): VideoSettingEntity? = withContext(Dispatchers.IO) {
-        database.videoSettingDao().getByKey(key)
-    }
-    
-    suspend fun getAllVideoSettings(): List<VideoSettingEntity> = withContext(Dispatchers.IO) {
-        database.videoSettingDao().getAll()
-    }
-    
-    suspend fun saveVideoSetting(key: String, value: Any?) = withContext(Dispatchers.IO) {
-        val entity = when (value) {
-            is String -> VideoSettingEntity(key = key, valueString = value, valueType = "string")
-            is Int -> VideoSettingEntity(key = key, valueInt = value, valueType = "int")
-            is Boolean -> VideoSettingEntity(key = key, valueBool = value, valueType = "bool")
-            else -> VideoSettingEntity(key = key, valueJson = value?.toString(), valueType = "json")
-        }
-        database.videoSettingDao().upsert(entity)
-    }
-    
     // ========== LocalCache ==========
     suspend fun getLocalCache(key: String): LocalCacheEntity? = withContext(Dispatchers.IO) {
         database.localCacheDao().getByKey(key)

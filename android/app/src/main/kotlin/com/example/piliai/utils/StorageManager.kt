@@ -30,8 +30,6 @@ class StorageManager(private val context: Context) {
         private val AUTO_PLAY_KEY = booleanPreferencesKey("autoPlayEnable")
         private val SUPER_RES_KEY = stringPreferencesKey("superResolutionMode")
         private val AUDIO_NORM_KEY = booleanPreferencesKey("audioNormalization")
-        private val FULLSCREEN_MODE_KEY = stringPreferencesKey("fullScreenMode")
-        private val UI_SCALE_KEY = floatPreferencesKey("uiScale")
         private val LANGUAGE_KEY = stringPreferencesKey("language")
         private val DARK_MODE_KEY = booleanPreferencesKey("darkMode")
         private val AMOLED_KEY = booleanPreferencesKey("amoledBlack")

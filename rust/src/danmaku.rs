@@ -409,19 +409,6 @@ impl DanmakuMerger {
         delta >= 0.0 && delta <= window_seconds
     }
 
-    #[allow(dead_code)]
-    fn is_similar(&self, a: &DanmakuEntry, b: &DanmakuEntry) -> bool {
-        if a.content != b.content {
-            return false;
-        }
-        if (b.timestamp - a.timestamp) > self.config.window_seconds {
-            return false;
-        }
-        if a.mode != b.mode {
-            return false;
-        }
-        true
-    }
 }
 
 #[cfg(test)]

@@ -1279,11 +1279,6 @@ mod ffi {
             throw(&mut env, error);
         }
     }
-
-    #[allow(dead_code)]
-    fn describe_failure(code: c_int) -> String {
-        static_error(code)
-    }
 }
 
 #[cfg(any(test, not(target_os = "android")))]

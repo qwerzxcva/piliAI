@@ -961,27 +961,6 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         )
     }
 
-    /**
-     * 订阅源专用播放方法（已构建好 MediaSource）。
-     * 只支持 Media3Backend，GPU-next 不支持此路径。
-     */
-    private fun startPlaybackWithMediaSource(
-        mediaSource: androidx.media3.exoplayer.source.MediaSource,
-        autoPlay: Boolean = true
-    ) {
-        ensureBackend()
-        val media3 = backend as? com.example.piliai.playback.backend.Media3Backend
-            ?: run {
-                setError("订阅源播放仅支持 Media3 后端")
-                return
-            }
-        media3.prepareMediaSource(mediaSource, autoPlay)
-        _state.value = _state.value.copy(
-            isPlaying = autoPlay, isBuffering = true,
-            error = null, duration = 0L
-        )
-    }
-
     /** 审核216：pauseOnMinimize——Screen 的 ON_PAUSE/ON_RESUME 回调 */
     fun onAppBackground() {
         viewModelScope.launch {
@@ -1618,8 +1597,6 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
             ?.also { cachedAudioUrl = it }
             ?: cachedAudioUrl  // 失败退回缓存（聊胜于无）
     }
-
-    private fun bestAudio(): String? = cachedAudioUrl
 
     private var cachedAudioUrl: String? = null
 

@@ -15,7 +15,6 @@ class DanmakuNativeLib {
     }
     
     
-    private var mergerPtr: Long = 0
     
     data class DanmakuConfig(
         val windowSeconds: Double = 5.0,
