@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -143,9 +144,17 @@ object SubscribeParser {
                 SubscribeSourceEntity.TYPE_RSS
             ).filter { it != hintType }.forEach { candidates.add(it) }
 
+            // 审核252：读一次「RSS 只保留有集数信息」设置，供各候选解析共用。
+            // 读不到默认 false（老行为：按标题猜集数，猜不到也保留条目）。
+            val filterEpisodeInfoOnly = runCatching {
+                com.example.piliai.utils.StorageManager
+                    .getInstance(com.example.piliai.AppContext.get())
+                    .rssEpisodeOnlyFlow.first()
+            }.getOrDefault(false)
+
             var lastErr: Throwable? = null
             for (t in candidates) {
-                val r = runCatching { parseByType(text, t) }
+                val r = runCatching { parseByType(text, t, filterEpisodeInfoOnly) }
                 if (r.isSuccess) {
                     val parsed = r.getOrThrow()
                     if (parsed.items.isNotEmpty()) return@runCatching parsed
@@ -159,14 +168,24 @@ object SubscribeParser {
         }
     }
 
-    private fun parseByType(text: String, type: Int): ParsedSource = when (type) {
+    private fun parseByType(
+        text: String,
+        type: Int,
+        // 审核252：只保留能解析出集数的条目（animeko ContainsAnyEpisodeInfo）
+        filterEpisodeInfoOnly: Boolean
+    ): ParsedSource = when (type) {
         SubscribeSourceEntity.TYPE_JSON -> parseJson(text)
-        SubscribeSourceEntity.TYPE_RSS -> parseRss(text)
-        else -> parseRss(text) // Bangumi 源多暴露为 RSS/Atom
+        SubscribeSourceEntity.TYPE_RSS -> parseRss(text, filterEpisodeInfoOnly)
+        else -> parseRss(text, filterEpisodeInfoOnly) // Bangumi 源多暴露为 RSS/Atom
     }
 
     /** RSS 2.0 / Atom 解析（XmlPullParser，无需额外依赖） */
-    private fun parseRss(text: String): ParsedSource {
+    private fun parseRss(
+        text: String,
+        // 审核252：只保留能解析出集数的条目（animeko
+        // ContainsAnyEpisodeInfo）。默认 false 保持既有行为。
+        filterEpisodeInfoOnly: Boolean = false
+    ): ParsedSource {
         val factory = XmlPullParserFactory.newInstance().apply {
             isNamespaceAware = true
         }
@@ -291,7 +310,14 @@ object SubscribeParser {
                             link.isNotBlank() -> link
                             else -> ""
                         }
-                        if (t.isNotBlank() || l.isNotBlank()) {
+                        // 审核252：animeko ContainsAnyEpisodeInfo —— 丢弃标题里
+                        // 提取不出集数信息的条目（RssMediaSourceEngine.kt:157-159）。
+                        // DMHY 之类源的 RSS 常混入 OVA/特典/合集，不过滤会让剧集
+                        // 列表出现一堆没有集数标签的项。默认关闭：只按标题猜集数
+                        // 的老行为对纯字幕组源更友好（它们的标题本就没有「第x集」）。
+                        val ep = episode.ifBlank { guessEpisode(t) }
+                        val keep = !filterEpisodeInfoOnly || ep.isNotBlank()
+                        if (keep && (t.isNotBlank() || l.isNotBlank())) {
                             items.add(
                                 ParsedItem(
                                     title = t.ifBlank { l },
@@ -299,7 +325,7 @@ object SubscribeParser {
                                     link = l,
                                     desc = desc.trim(),
                                     pubAt = pubAt,
-                                    episode = episode.ifBlank { guessEpisode(t) }
+                                    episode = ep
                                 )
                             )
                         }

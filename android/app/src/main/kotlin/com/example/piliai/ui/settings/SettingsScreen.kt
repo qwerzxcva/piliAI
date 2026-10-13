@@ -588,6 +588,19 @@ fun SettingsScreen(
                 )
             }
         }
+        fun LazyListScope.subscribeSection() {
+            item { SectionTitle("订阅源") }
+            item {
+                SettingSwitch(
+                    title = "只显示有集数的条目",
+                    subtitle = "过滤掉标题里没有「第x集」的 RSS 条目（OVA/特典/合集）",
+                    icon = Icons.Default.FilterAlt,
+                    checked = state.rssEpisodeOnly,
+                    onChange = { viewModel.setRssEpisodeOnly(it) }
+                )
+            }
+        }
+
         fun LazyListScope.styleSection() {
             // ===== 主题 =====
             item { SectionTitle("外观") }
@@ -728,7 +741,10 @@ fun SettingsScreen(
                     3 -> styleSection()
                     4 -> aboutSection()
                     else -> {
-                        playSection(); dmSection(); subtitleSection(); styleSection(); aboutSection()
+                        // 审核252：订阅源 section 只在「全部」里出现
+                        // （没有单独的订阅分类 tab，避免为一项设加一个分类）
+                        playSection(); dmSection(); subtitleSection()
+                        subscribeSection(); styleSection(); aboutSection()
                     }
                 }
             }

@@ -28,6 +28,9 @@ class StorageManager(private val context: Context) {
         private val ACCENT_COLOR_KEY = stringPreferencesKey("accentColor")
         private val VIDEO_QUALITY_KEY = stringPreferencesKey("defaultVideoQa")
         private val AUTO_PLAY_KEY = booleanPreferencesKey("autoPlayEnable")
+        // 审核252：订阅源 RSS 只保留能解析出集数的条目
+        // （animeko ContainsAnyEpisodeInfo，RssMediaSourceEngine.kt:157-159）
+        private val RSS_EPISODE_ONLY_KEY = booleanPreferencesKey("rssEpisodeOnly")
         private val SUPER_RES_KEY = stringPreferencesKey("superResolutionMode")
         private val AUDIO_NORM_KEY = booleanPreferencesKey("audioNormalization")
         private val LANGUAGE_KEY = stringPreferencesKey("language")
@@ -162,6 +165,14 @@ class StorageManager(private val context: Context) {
     
     val autoPlayFlow: Flow<Boolean> = context.dataStore.data
         .map { preferences -> preferences[AUTO_PLAY_KEY] ?: false }
+
+    /** 审核252：RSS 是否只保留能解析出集数的条目。默认 false（老行为） */
+    val rssEpisodeOnlyFlow: Flow<Boolean> = context.dataStore.data
+        .map { preferences -> preferences[RSS_EPISODE_ONLY_KEY] ?: false }
+
+    suspend fun setRssEpisodeOnly(enabled: Boolean) {
+        context.dataStore.edit { it[RSS_EPISODE_ONLY_KEY] = enabled }
+    }
     
     // Video playback
     val playbackSpeedFlow: Flow<Float> = context.dataStore.data

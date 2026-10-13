@@ -23,6 +23,8 @@ class SettingsViewModel(context: Context) : ViewModel() {
     data class SettingsState(
         // 播放
         val autoPlay: Boolean = false,
+        // 审核252：订阅源 RSS 只保留有集数信息的条目
+        val rssEpisodeOnly: Boolean = false,
         val playbackBackend: String = "media3",
         val completionAction: String = "next",
         val lowLatencyAudio: Boolean = false,  // Kazumi：低延迟音频
@@ -130,6 +132,9 @@ class SettingsViewModel(context: Context) : ViewModel() {
         }
         viewModelScope.launch {
             storage.autoPlayFlow.collect { _state.value = _state.value.copy(autoPlay = it) }
+            storage.rssEpisodeOnlyFlow.collect {
+                _state.value = _state.value.copy(rssEpisodeOnly = it)
+            }
         }
         viewModelScope.launch {
             storage.lowLatencyAudioFlow.collect { _state.value = _state.value.copy(lowLatencyAudio = it) }
@@ -323,6 +328,7 @@ class SettingsViewModel(context: Context) : ViewModel() {
     fun setSubtitleBold(v: Boolean) = viewModelScope.launch { storage.setSubtitleBold(v) }
 
     fun setAutoPlay(v: Boolean) = viewModelScope.launch { storage.setAutoPlay(v) }
+    fun setRssEpisodeOnly(v: Boolean) = viewModelScope.launch { storage.setRssEpisodeOnly(v) }
     fun setLowLatencyAudio(v: Boolean) = viewModelScope.launch { storage.setLowLatencyAudio(v) }
     fun setRenderer(v: Int) = viewModelScope.launch {
         com.example.piliai.utils.RendererPrefs.update(v)
