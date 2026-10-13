@@ -242,8 +242,12 @@ class SubscribeViewModel(
                     launch {
                         semaphore.withPermit {
                             repository.syncSource(s).onFailure { e ->
+                                // 审核264：用翻译后的可读错误，不是 e.message 天书。
+                                // Repository.syncSource 已把同一句翻译写进 source.lastError
+                                // （管理弹窗读它），这里复用同一函数保证两处话术一致。
+                                val readable = repository.describeSyncFailure(s.url, e)
                                 synchronized(errors) {
-                                    errors.add("${s.name}: ${e.message ?: "同步失败"}")
+                                    errors.add("${s.name}: $readable")
                                 }
                             }
                         }

@@ -859,11 +859,54 @@ class SubscribeRepository(
                         name = source.name,
                         cover = source.cover,
                         at = source.lastSyncAt,
-                        err = e.message ?: "同步失败"
+                        // 审核264：把底层网络错误翻译成用户能行动的话。
+                        // 原来直接存 e.message，用户看到的是
+                        // 「Request failed with status code: 403」这种天书，
+                        // 不知道该改链接、该开代理还是等一会儿。
+                        err = describeSyncFailure(source.url, e)
                     )
                 }
             }
         }
+
+    /**
+     * 审核264：把同步失败翻译成用户可行动的描述。
+     *
+     * 覆盖最常见的四类：DNS/连接失败（链接错或站点挂了）、
+     * 403/401（被风控或需要登录）、404（链接路径错）、
+     * 超时（站点慢或网络不通），以及「拿到的不是有效源」这种解析层错误。
+     */
+    /**
+     * 审核264：把同步失败翻译成用户可行动的描述。public 供 ViewModel 复用 ——
+     * refreshAll 汇总错误时也要用同一套话术，不能一个地方可读、一个地方天书。
+     */
+    fun describeSyncFailure(url: String, error: Throwable): String {
+        val raw = error.message.orEmpty()
+        val status = Regex("status code:? ([0-9]{3})").find(raw)?.groupValues?.get(1)?.toIntOrNull()
+        return when {
+            status == 403 || status == 401 ->
+                "源站拒绝访问（$status）——可能被风控，稍后重试或检查是否需要登录"
+            status == 404 -> "链接不存在（404）——请检查订阅源地址是否正确"
+            status == 429 -> "请求过于频繁（429）——稍后重试"
+            status != null && status >= 500 ->
+                "源站服务器错误（$status）——对方挂了，稍后重试"
+            status != null -> "源站返回异常状态码 $status"
+            raw.contains("timeout", ignoreCase = true) ||
+                raw.contains("timed out", ignoreCase = true) ->
+                "连接超时——检查网络或源站是否可达"
+            raw.contains("Unable to resolve host", ignoreCase = true) ||
+                raw.contains("UnknownHost", ignoreCase = true) ->
+                "无法解析域名——链接可能写错，或该站点已失效"
+            raw.contains("Connection reset", ignoreCase = true) ||
+                raw.contains("Connection refused", ignoreCase = true) ->
+                "连接被拒绝——检查网络或代理设置"
+            raw.contains("订阅源返回为空") -> "订阅源返回空内容——链接可能失效"
+            raw.contains("未识别格式") || raw.contains("格式不符") ->
+                "链接内容不是有效的订阅源（支持 RSS/Atom/JSON/Animeko 配置）"
+            raw.isNotBlank() -> raw
+            else -> "同步失败（未知原因）"
+        }
+    }
 
     // ==================== Animeko 网页刮削（web-selector）====================
     //
