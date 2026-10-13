@@ -673,7 +673,6 @@ mod ffi {
         fn mpv_wakeup(ctx: *mut MpvHandle);
         fn mpv_terminate_destroy(ctx: *mut MpvHandle);
         fn mpv_free(data: *mut c_void);
-        fn mpv_error_string(error: c_int) -> *const c_char;
         fn mpv_observe_property(
             ctx: *mut MpvHandle,
             reply_userdata: u64,
@@ -871,17 +870,6 @@ mod ffi {
 
     fn c_string(value: &str) -> BridgeResult<CString> {
         CString::new(value).map_err(|_| BridgeError::InvalidArgument("string"))
-    }
-
-    fn static_error(error: c_int) -> String {
-        let raw = unsafe { mpv_error_string(error) };
-        if raw.is_null() {
-            format!("libmpv error {error}")
-        } else {
-            unsafe { CStr::from_ptr(raw) }
-                .to_string_lossy()
-                .into_owned()
-        }
     }
 
     struct AndroidState {
