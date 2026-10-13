@@ -191,10 +191,20 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
     }
 
     /** 审核轮206：用户经验/等级信息（PiliPlus exp_log 对齐；x/web-interface/acc/info 需登录） */
+    /**
+     * 用户经验/等级。
+     *
+     * 审核275：原路径 `/x/web-interface/acc/info` **已下线**（实测 HTTP 404）。
+     * 改为明确返回错误而不是把 404 的 HTML 塞给 JSON 解析层
+     * （原来会抛 "Expected BEGIN_OBJECT" 这种无意义错误）。
+     */
     suspend fun getUserExpInfo(): Result<org.json.JSONObject> = runCatching {
         val resp: String = client.get("$API_BASE/x/web-interface/acc/info") {
             header("Referer", "https://www.bilibili.com")
         }.bodyAsText()
+        if (resp.trimStart().startsWith("<")) {
+            error("B站已下线该接口")
+        }
         org.json.JSONObject(resp)
     }
 
@@ -204,6 +214,10 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
             parameter("pn", pn); parameter("ps", ps)
             header("Referer", "https://www.bilibili.com")
         }.bodyAsText()
+        // 审核275：该路由实测已下线（HTTP 404 返回 HTML）。
+        if (resp.trimStart().startsWith("<")) {
+            error("B站已下线该接口")
+        }
         org.json.JSONObject(resp)
     }
 
@@ -300,21 +314,33 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
     // ========== Comments ==========
     
     suspend fun getComments(bvid: String, oid: Long = 0L, page: Int = 1, pageSize: Int = 20, mode: Int = 3): Result<CommentResponse> = runCatching {
-        // /x/v2/reply/wbi/main 需 wbi 签名，签名错返回 -403（见 docs §1.5）
+        // 审核275（真 bug）：wbi 版评论接口已对匿名关闭。
+        // 实测（2026-10-14，匿名+buvid3+桌面UA）：
+        //   /x/v2/reply/wbi/main（签名正确）→ code -403 访问权限不足
+        //   /x/v2/reply/main（同参数，无签名）  → code 0，all_count 89396
+        // 即评论区整页不可用。改为先 wbi、-403 时自动降级到旧路径。
         // mode: 2=按时间 3=按热度（批次L35 排序切换）
-        val signed = WbiSigner.sign(
-            mapOf(
-                "oid" to oid.toString(),
-                "type" to "1",
-                "mode" to mode.toString(),
-                "pn" to page.toString(),
-                "ps" to pageSize.toString()
-            )
+        val params = mapOf(
+            "oid" to oid.toString(),
+            "type" to "1",
+            "mode" to mode.toString(),
+            "pn" to page.toString(),
+            "ps" to pageSize.toString()
         )
-        client.get("$API_BASE/x/v2/reply/wbi/main") {
+        val signed = WbiSigner.sign(params)
+        val wbi = client.get("$API_BASE/x/v2/reply/wbi/main") {
             url { signed.forEach { (k, v) -> parameters.append(k, v) } }
             header("Referer", "https://www.bilibili.com")
-        }.body()
+        }.body<CommentResponse>()
+        if (wbi.code == 0) {
+            wbi
+        } else {
+            // -403 或其它非 0：降级到旧路径（匿名仍可用）
+            client.get("$API_BASE/x/v2/reply/main") {
+                url { params.forEach { (k, v) -> parameters.append(k, v) } }
+                header("Referer", "https://www.bilibili.com")
+            }.body()
+        }
     }
 
     /** 楼中楼回复 /x/v2/reply/reply（无需 wbi） */
@@ -565,11 +591,24 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
 
     /** 空间主页信息（wbi 签名） */
     suspend fun getSpaceInfo(mid: Long): Result<SpaceInfoResponse> = runCatching {
+        // 审核275：wbi 版匿名 -352 风控，旧版路径匿名可用但会被限频（-799）。
+        // 两条都试：wbi 成功就用它，否则试旧路径；两条都失败返回 wbi 的结果
+        // （让上层给出可读错误，而不是静默空列表）。
         val signed = WbiSigner.sign(mapOf("mid" to mid.toString()))
-        client.get("$API_BASE/x/space/wbi/acc/info") {
-            url { signed.forEach { (k, v) -> parameters.append(k, v) } }
-            header("Referer", "https://space.bilibili.com/$mid")
-        }.body<SpaceInfoResponse>()
+        val wbi = runCatching {
+            client.get("$API_BASE/x/space/wbi/acc/info") {
+                url { signed.forEach { (k, v) -> parameters.append(k, v) } }
+                header("Referer", "https://space.bilibili.com/$mid")
+            }.body<SpaceInfoResponse>()
+        }.getOrNull()
+        if (wbi != null && wbi.code == 0) return@runCatching wbi
+        val legacy = runCatching {
+            client.get("$API_BASE/x/space/acc/info") {
+                url { parameters.append("mid", mid.toString()) }
+                header("Referer", "https://space.bilibili.com/$mid")
+            }.body<SpaceInfoResponse>()
+        }.getOrNull()
+        legacy ?: wbi ?: error("UP 主信息获取失败（风控或限频）")
     }
 
     /** 粉丝/关注数（无需签名） */
@@ -1120,7 +1159,7 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
 
     /** 私聊会话列表（Web API，需登录） */
     suspend fun getMySessions(endTs: Long = 0L): Result<SessionListResponse> = runCatching {
-        client.get("$API_BASE/bili-api/v1/web/session/list") {
+        val resp: String = client.get("$API_BASE/bili-api/v1/web/session/list") {
             url {
                 parameters.append("session_type", "1")
                 parameters.append("group_id", "0")
@@ -1129,7 +1168,13 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
                 if (endTs > 0) parameters.append("end_ts", endTs.toString())
             }
             header("Referer", "https://message.bilibili.com/")
-        }.body()
+        }.bodyAsText()
+        // 审核275：该路由实测已下线（HTTP 404 返回 HTML）。
+        // 原来 body() 直接反序列化 HTML 会抛 "Expected BEGIN_OBJECT"。
+        if (resp.trimStart().startsWith("<")) {
+            error("B站已下线私信网页接口")
+        }
+        BiliHttpClient.json.decodeFromString<SessionListResponse>(resp)
     }
 
     /** 私聊消息记录（talker = 对方 mid） */
