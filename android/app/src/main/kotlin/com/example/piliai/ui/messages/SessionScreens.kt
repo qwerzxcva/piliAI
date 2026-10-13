@@ -42,7 +42,8 @@ private val tsFmt = SimpleDateFormat("MM-dd HH:mm", Locale.CHINA)
 fun SessionListScreen(
     onBack: () -> Unit = {},
     onGoLogin: () -> Unit = {},
-    onOpenChat: (Long) -> Unit = {}
+    // 审核270：带上对方昵称，ChatScreen 顶栏标题用它（否则永远显示「对话」）
+    onOpenChat: (Long, String) -> Unit = { _, _ -> }
 ) {
     val vm: SessionListViewModel = viewModel()
     val state by vm.state.collectAsStateWithLifecycle()
@@ -108,7 +109,9 @@ fun SessionListScreen(
                                 }
                             }
                         },
-                        modifier = Modifier.clickable { onOpenChat(s.talkerId) }
+                        modifier = Modifier.clickable {
+                            onOpenChat(s.talkerId, s.accountInfo?.name.orEmpty())
+                        }
                     )
                     HorizontalDivider()
                 }

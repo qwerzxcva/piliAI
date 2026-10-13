@@ -66,7 +66,9 @@ fun SearchPill(
         Icon(
             Icons.Default.Search,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            // 审核270：搜索图标用强调色 —— Kototoro 的识别特征是强调色
+            // 贯穿关键交互点，之前整条胶囊都是同一种中性色，没有重点。
+            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.width(18.dp).height(18.dp),
         )
         Spacer(Modifier.width(8.dp))
@@ -101,7 +103,9 @@ fun SegmentedPillRow(
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
                     .background(
-                        if (selected) MaterialTheme.colorScheme.surfaceContainerHighest
+                        // 审核270：选中态用 primary 容器色（而非中性凸起）——
+                        // Kototoro 的分段控件选中项是强调色填充，一眼看出在哪页。
+                        if (selected) MaterialTheme.colorScheme.primaryContainer
                         else Color.Transparent
                     )
                     // 审核241（P2-3）：padding 提到 clickable 之前，

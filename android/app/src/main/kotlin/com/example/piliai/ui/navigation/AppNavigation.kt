@@ -110,8 +110,6 @@ sealed class Screen(val route: String) {
     object DanmakuBlock : Screen("danmakublock")
     object Sessions : Screen("sessions")
 
-    fun chat(talkerId: Long) = "chat/$talkerId"
-
     object Downloads : Screen("downloads")
     object Subscribe : Screen("subscribe") {
         fun createRoute() = "subscribe"
@@ -539,15 +537,24 @@ fun AppNavigation() {
             com.example.piliai.ui.messages.SessionListScreen(
                 onBack = { navController.popBackStack() },
                 onGoLogin = { navController.navigate(Screen.Login.route) },
-                onOpenChat = { talkerId -> navController.navigate("chat/$talkerId") }
+                onOpenChat = { talkerId, name ->
+                    navController.navigate("chat/$talkerId?name=${android.net.Uri.encode(name)}")
+                }
             )
         }
         composable(
-            "chat/{talkerId}",
-            arguments = listOf(navArgument("talkerId") { type = NavType.LongType })
+            "chat/{talkerId}?name={name}",
+            arguments = listOf(
+                navArgument("talkerId") { type = NavType.LongType },
+                navArgument("name") { type = NavType.StringType; defaultValue = "" }
+            ),
         ) { backStackEntry ->
             com.example.piliai.ui.messages.ChatScreen(
                 talkerId = backStackEntry.arguments?.getLong("talkerId") ?: 0L,
+                // 审核270：带上对方昵称，否则顶栏标题永远是「对话」
+                talkerName = backStackEntry.arguments?.getString("name")?.let {
+                    android.net.Uri.decode(it)
+                }.orEmpty(),
                 onBack = { navController.popBackStack() },
                 onGoLogin = { navController.navigate(Screen.Login.route) }
             )
