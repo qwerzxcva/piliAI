@@ -10,62 +10,62 @@ Scope of the check (deliberately narrow, to avoid false positives):
 - only plain `fn name(...)` declarations directly in the ffi module body
 - excludes `extern "C"` blocks (those are libmpv's API, not ours)
 - excludes `impl Trait for Type` blocks (methods there satisfy the trait)
-- excludes `#[cfg(test)]`/`#[allow(dead_code)]` items
+- excludes `#[allow(dead_code)]` items
 
 A reported orphan means the fn is declared and never referenced anywhere in
 the module, which is exactly what clippy's dead_code lint flags.
 """
 from pathlib import Path
 import re
-import sys
+import unittest
 
-SRC = Path('/root/workspace/piliai/rust/src/gpu_next.rs')
-text = SRC.read_text(encoding='utf-8')
-
-start = text.index('mod ffi {')
-tests = text.index('mod tests', start)
-ffi = text[start:tests]
-
-# 1. extern "C" 块：libmpv 的声明，不算我们的死代码
-extern_match = re.search(r'extern "C" \{.*?\n    \}', ffi, re.DOTALL)
-extern_names = set()
-if extern_match:
-    extern_names = set(re.findall(r'^\s*fn (mpv_\w+)\(', extern_match.group(0), re.MULTILINE))
-
-# 2. impl Trait for Type 块：方法受 trait 约束，clippy 不报死代码
-impl_spans = [m.span() for m in re.finditer(r'impl \w+ for \w+ \{.*?\n    \}', ffi, re.DOTALL)]
+# 相对本脚本定位仓库根：CI 的工作目录与本地不同，不能写死绝对路径
+ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / 'rust/src/gpu_next.rs'
 
 
-def in_impl(pos: int) -> bool:
-    return any(a <= pos < b for a, b in impl_spans)
+def ffi_orphans(source: str):
+    """Return [(lineno, name, refs)] for orphaned plain fns in the ffi module."""
+    start = source.index('mod ffi {')
+    tests = source.index('mod tests', start)
+    ffi = source[start:tests]
+
+    # extern "C" 块：libmpv 的声明，不算我们的死代码
+    extern_match = re.search(r'extern "C" \{.*?\n    \}', ffi, re.DOTALL)
+    extern_names = set()
+    if extern_match:
+        extern_names = set(
+            re.findall(r'^\s*fn (mpv_\w+)\(', extern_match.group(0), re.MULTILINE)
+        )
+
+    # impl Trait for Type 块：方法受 trait 约束，clippy 不报死代码
+    impl_spans = [m.span() for m in re.finditer(r'impl \w+ for \w+ \{.*?\n    \}', ffi, re.DOTALL)]
+
+    def in_impl(pos):
+        return any(a <= pos < b for a, b in impl_spans)
+
+    orphans = []
+    for match in re.finditer(r'^\s*fn (\w+)\(', ffi, re.MULTILINE):
+        name = match.group(1)
+        if name in extern_names or in_impl(match.start()):
+            continue
+        line_start = ffi.rfind('\n', 0, match.start()) + 1
+        if 'allow(dead_code)' in ffi[line_start:match.start()]:
+            continue
+        refs = len(re.findall(rf'\b{name}\b', ffi))
+        if refs <= 1:
+            lineno = source[:start].count('\n') + ffi[:match.start()].count('\n') + 1
+            orphans.append((lineno, name, refs))
+    return orphans
 
 
-orphans = []
-for match in re.finditer(r'^\s*fn (\w+)\(', ffi, re.MULTILINE):
-    name = match.group(1)
-    if name in extern_names:
-        continue
-    if in_impl(match.start()):
-        continue
-    # 同一次出现里带 allow(dead_code) 的跳过
-    line_start = ffi.rfind('\n', 0, match.start()) + 1
-    prefix = ffi[line_start:match.start()]
-    if 'allow(dead_code)' in prefix:
-        continue
-    refs = len(re.findall(rf'\b{name}\b', ffi))
-    if refs <= 1:
-        line = text[:start].count('\n') + ffi[:match.start()].count('\n') + 1
-        orphans.append((line, name, refs))
+class FfiOrphanTest(unittest.TestCase):
+    def test_no_orphan_ffi_declarations(self):
+        source = SRC.read_text(encoding='utf-8')
+        orphans = ffi_orphans(source)
+        detail = ', '.join(f'gpu_next.rs:{n} {name} (refs={r})' for n, name, r in orphans)
+        self.assertEqual([], orphans, f'orphan ffi declarations: {detail}')
 
-if orphans:
-    print('ORPHAN ffi declarations (dead on the Android target):')
-    for line, name, refs in orphans:
-        print(f'  gpu_next.rs:{line}  {name}  (refs={refs})')
-    sys.exit(1)
 
-own = [
-    m.group(1) for m in re.finditer(r'^\s*fn (\w+)\(', ffi, re.MULTILINE)
-    if m.group(1) not in extern_names and not in_impl(m.start())
-]
-print(f'ffi module clean: {len(set(own))} own fns referenced '
-      f'({len(extern_names)} libmpv externs skipped)')
+if __name__ == '__main__':
+    unittest.main()
