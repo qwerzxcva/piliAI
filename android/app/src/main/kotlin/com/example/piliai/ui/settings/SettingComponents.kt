@@ -14,6 +14,7 @@ package com.example.piliai.ui.settings
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -57,6 +58,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -184,9 +186,18 @@ fun SettingSwitch(
         supportingContent = { if (subtitle.isNotEmpty()) Text(subtitle) },
         leadingContent = { SettingIconBox(icon) },
         trailingContent = {
-            Switch(checked = checked, onCheckedChange = onChange)
+            // 审核271：开关本身不再消费点击（改由整行 clickable 统一处理）——
+            // 否则点行其它区域没反应，用户觉得「灰色点不了」。
+            Switch(checked = checked, onCheckedChange = null)
         },
-        modifier = Modifier.clip(PiliCardShape),
+        // 审核271：整行可点。selectableGroup/role 让读屏软件把它念成开关
+        modifier = Modifier
+            .clip(PiliCardShape)
+            .toggleable(
+                value = checked,
+                role = Role.Switch,
+                onValueChange = onChange
+            ),
         colors = ListItemDefaults.colors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         )
