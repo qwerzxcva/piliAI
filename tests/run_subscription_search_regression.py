@@ -24,8 +24,16 @@ import kotlinx.coroutines.flow.MutableStateFlow
 
 data class Source(val id: Long, val name: String, val url: String, val enabled: Boolean)
 data class SubscribeItemEntity(
-    val sourceId: Long, val title: String, val cover: String, val link: String,
+    val id: Long, val sourceId: Long, val title: String, val cover: String, val link: String,
     val desc: String, val episode: String, val sourceName: String
+)
+
+// 审核256：生产代码把搜索结果从 SubscribeItemEntity 换成 SearchResultItem
+// （带 kind，点击分派不再靠猜）。stub 跟着改。
+enum class SearchResultKind { RSS_ITEM, WORK }
+data class SearchResultItem(
+    val sourceId: Long, val sourceName: String, val title: String, val cover: String,
+    val link: String, val desc: String, val episode: String, val kind: SearchResultKind
 )
 data class ParsedItem(
     val title: String, val cover: String = "", val link: String = "https://fixture.test/video.mp4",
@@ -53,7 +61,7 @@ class SearchHarness {
     val viewModelScope = CoroutineScope(owner + Dispatchers.Unconfined)
     val original = Source(7L, "Imported source", "https://fixture.test/config", true)
     val _state = MutableStateFlow(UiState(listOf(original)))
-    val _searchResults = MutableStateFlow<List<SubscribeItemEntity>>(emptyList())
+    val _searchResults = MutableStateFlow<List<SearchResultItem>>(emptyList())
     val _episodes = MutableStateFlow<List<String>>(emptyList())
     val _currentSubject = MutableStateFlow<String?>(null)
     var refreshJob: Job? = null
@@ -85,6 +93,8 @@ fun main() = runBlocking {
         yield()
         val item = h._searchResults.value.single()
         check(item.title == "Newest" && item.sourceId == 7L && item.sourceName == "Imported source")
+        // 审核256：rss 源的搜索结果必须是 RSS_ITEM（点开按 link 形态分派）
+        check(item.kind == SearchResultKind.RSS_ITEM)
         check(h._state.value.isSearching && !h._state.value.isRefreshing)
         println("PASS production search: newest response wins and retains source identity")
 

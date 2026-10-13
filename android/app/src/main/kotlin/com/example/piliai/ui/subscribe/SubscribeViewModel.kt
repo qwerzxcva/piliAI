@@ -61,8 +61,8 @@ class SubscribeViewModel(
     val state: StateFlow<UiState> = _state.asStateFlow()
 
     /** Animeko 数据源内搜索的结果（临时视图，不落库） */
-    private val _searchResults = MutableStateFlow<List<SubscribeItemEntity>>(emptyList())
-    val searchResults: StateFlow<List<SubscribeItemEntity>> = _searchResults.asStateFlow()
+    private val _searchResults = MutableStateFlow<List<SearchResultItem>>(emptyList())
+    val searchResults: StateFlow<List<SearchResultItem>> = _searchResults.asStateFlow()
 
     private val _libraryQuery = MutableStateFlow("")
     val libraryQuery: StateFlow<String> = _libraryQuery.asStateFlow()
@@ -461,15 +461,27 @@ class SubscribeViewModel(
                     )
                 }
                 val parsed = result.getOrThrow()
+                // 审核256：搜索结果必须带「怎么处理它」的 kind。
+                // rss 源的搜索结果本身就是条目（点开按 RSS 规则分派），
+                // web-selector 源的搜索结果是作品页（点开要进剧集列表走三步刮削）。
+                // 此前两类都映射成 SubscribeItemEntity 且 sourceName 留空/存源名，
+                // 卡片只能靠 classifySubscriptionLink 猜，作品页 URL 会被判成
+                // WEB_PAGE → 报「不可播放」（用户反馈「功能很多不可用」的一条实证）。
+                val kind = if (factoryId.equals("rss", ignoreCase = true)) {
+                    SearchResultKind.RSS_ITEM
+                } else {
+                    SearchResultKind.WORK
+                }
                 _searchResults.value = parsed.items.map { item ->
-                    SubscribeItemEntity(
+                    SearchResultItem(
                         sourceId = sourceId,
+                        sourceName = source.name,
                         title = item.title,
                         cover = item.cover,
                         link = item.link,
                         desc = item.desc,
                         episode = item.episode,
-                        sourceName = source.name
+                        kind = kind
                     )
                 }
                 if (parsed.items.isEmpty()) {
@@ -556,12 +568,18 @@ class SubscribeViewModel(
                         com.example.piliai.R.string.subscribe_source_unavailable
                     )
                 }
+                // 审核256：web-selector 源的搜索结果统一是「作品」，
+                // 点开进剧集列表（三步刮削的第二步）。
                 _searchResults.value = result.getOrThrow().map {
-                    SubscribeItemEntity(
+                    SearchResultItem(
                         sourceId = source.id,
+                        sourceName = source.name,
                         title = it.name,
+                        cover = "",
                         link = it.url,
-                        sourceName = "subject"
+                        desc = "",
+                        episode = "",
+                        kind = SearchResultKind.WORK
                     )
                 }
             } catch (error: kotlinx.coroutines.CancellationException) {
@@ -749,4 +767,30 @@ class SubscribeViewModel(
     fun clearInfo() {
         _state.value = _state.value.copy(infoMessage = null)
     }
+}
+
+/**
+ * 审核256：订阅源内搜索结果的 UI 模型。
+ *
+ * 与 [SubscribeItemEntity]（落库的条目快照）分开：搜索结果不落库，
+ * 且必须带上「点击后怎么处理」的 kind，否则卡片只能猜。
+ */
+data class SearchResultItem(
+    val sourceId: Long,
+    val sourceName: String,
+    val title: String,
+    val cover: String,
+    val link: String,
+    val desc: String,
+    val episode: String,
+    val kind: SearchResultKind
+)
+
+/** 审核256：搜索结果的点击分派类型。 */
+enum class SearchResultKind {
+    /** rss 源：link 可能是直链/网页/磁力，按 link 形态分派 */
+    RSS_ITEM,
+
+    /** web-selector 源：link 是作品页，点开进剧集列表走三步刮削 */
+    WORK
 }

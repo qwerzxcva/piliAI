@@ -125,14 +125,46 @@ fun SubscribeScreen(
     var webTarget by remember { mutableStateOf<SubscribeItemEntity?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val enabledSourceIds = state.sources.filter { it.enabled }.map { it.id }.toSet()
-    val displayItems = (if (state.isSearching) searchResults else state.items)
-        .filter { it.sourceId in enabledSourceIds }
-        .filter { item ->
-            state.isSearching || libraryQuery.isBlank() ||
-                item.title.contains(libraryQuery.trim(), ignoreCase = true) ||
-                item.sourceName.contains(libraryQuery.trim(), ignoreCase = true) ||
-                item.desc.contains(libraryQuery.trim(), ignoreCase = true)
-        }
+    val query = libraryQuery.trim()
+    // 审核256：搜索结果与订阅源条目是两种类型，统一映射成 SubscribeItemEntity
+    // 供同一套卡片渲染；搜索结果额外带 kind，点击分派时要用。
+    // 用普通 HashMap 而非 mutableStateMapOf：它只在点击时被读，不需要触发重组。
+    val searchKindOf = remember { HashMap<String, SearchResultKind>() }
+    val displayItems = (if (state.isSearching) {
+        searchResults
+            .filter { it.sourceId in enabledSourceIds }
+            .filter { item ->
+                query.isBlank() ||
+                    item.title.contains(query, ignoreCase = true) ||
+                    item.sourceName.contains(query, ignoreCase = true) ||
+                    item.desc.contains(query, ignoreCase = true)
+            }
+            .onEach { item ->
+                // 键 = sourceId + link（同一源内 link 唯一）
+                searchKindOf["${item.sourceId}:${item.link}"] = item.kind
+            }
+            .map { item ->
+                SubscribeItemEntity(
+                    id = 0L,
+                    sourceId = item.sourceId,
+                    title = item.title,
+                    cover = item.cover,
+                    link = item.link,
+                    desc = item.desc,
+                    episode = item.episode,
+                    sourceName = item.sourceName
+                )
+            }
+    } else {
+        state.items
+            .filter { it.sourceId in enabledSourceIds }
+            .filter { item ->
+                query.isBlank() ||
+                    item.title.contains(query, ignoreCase = true) ||
+                    item.sourceName.contains(query, ignoreCase = true) ||
+                    item.desc.contains(query, ignoreCase = true)
+            }
+    })
     // An empty episode list is still an episode view, not the search results.
     val inEpisodeView = currentSubject != null
     val displayItems2 = if (inEpisodeView) {
@@ -370,11 +402,25 @@ fun SubscribeScreen(
                                             onSourcePlay(request, item.title, item.cover)
                                         }
                                     // 作品：进剧集列表
-                                    item.sourceName == "subject" ->
+                                    // 审核256：搜索结果的作品页也走这里。此前搜索
+                                    // 结果的 sourceName 存的是源显示名（如「樱花动漫」），
+                                    // 匹配不上 "subject"，于是落到 classifySubscriptionLink
+                                    // 被判 WEB_PAGE → 报「不可播放」。现在用 kind 判定，
+                                    // 与 sourceName 存什么无关。
+                                    item.sourceName == "subject" ||
+                                        searchKindOf["${item.sourceId}:${item.link}"] ==
+                                        SearchResultKind.WORK ->
                                         viewModel.openSubject(item.link, item.title)
                                     // RSS 型 Animeko 源：link 是 searchUrl（.xml），
                                     // 点开应弹关键词搜索（走 RSS 解析）
-                                    item.sourceName == "rss" -> searchTarget = item
+                                    // 审核256：搜索结果也按 kind 判定（它的 sourceName
+                                    // 存的是源显示名，匹配不上 "rss"）。
+                                    // 括号必须有：混用 && / || 时 Kotlin 左结合会把
+                                    // 后面的直链判定吞掉。
+                                    (item.sourceName == "rss") ||
+                                        (searchKindOf["${item.sourceId}:${item.link}"] ==
+                                            SearchResultKind.RSS_ITEM &&
+                                            looksLikeRssFeedUrl(item.link)) -> searchTarget = item
                                     // 磁力/种子不能交给 ExoPlayer，也不能当成网页去刮。
                                     classifySubscriptionLink(item.link) ==
                                         SubscriptionLinkKind.BITTORRENT ->
@@ -625,6 +671,19 @@ internal enum class SubscriptionLinkKind {
  * 磁力与种子不是网页，也不能交给 ExoPlayer；直链媒体、HLS 与 DASH
  * 才进播放器。判定为直链不代表一定能播（可能 403/风控）。
  */
+
+/**
+ * 审核256：判断链接是否是 RSS/Atom feed 地址。
+ * RSS 型 Animeko 源的 searchUrl 就是 feed 地址（.xml/.rss/atom），
+ * 点它不该进播放器，而应弹关键词搜索框。
+ */
+private fun looksLikeRssFeedUrl(url: String): Boolean {
+    val path = url.substringBefore('?').substringBefore('#').lowercase()
+    return path.endsWith(".xml") || path.endsWith(".rss") ||
+        path.endsWith(".atom") || path.endsWith("/feed") ||
+        path.contains("/rss") || path.contains("/feed")
+}
+
 internal fun classifySubscriptionLink(url: String): SubscriptionLinkKind {
     val value = url.trim()
     if (value.isEmpty()) return SubscriptionLinkKind.EMPTY
