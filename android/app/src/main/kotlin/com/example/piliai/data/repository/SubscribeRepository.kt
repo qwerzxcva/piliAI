@@ -598,7 +598,15 @@ class SubscribeRepository(
                     updatedAt = System.currentTimeMillis()
                 )
             }
-            titles.upsert(entity)
+            // 审核258：新增追番要顺手推 Bangumi。此前只有 setTitleCollectionType
+            // 会 push，followTitle 不推 —— 用户在订阅页点爱心追的番只存在于本地，
+            // Bangumi 网页上看不到，换设备/重装就丢。
+            // 失败不回滚本地：网络失败不该吃掉用户刚点的那一下。
+            val rowId = titles.upsert(entity)
+            if (bangumiId > 0L && rowId > 0L) {
+                pushCollectionType(rowId)
+            }
+            rowId
         }
     }
 
@@ -677,8 +685,16 @@ class SubscribeRepository(
                         name = slim?.displayTitle?.takeIf { it.isNotBlank() } ?: existing.name,
                         cover = slim?.images?.large?.takeIf { it.isNotBlank() } ?: existing.cover,
                         intro = slim?.shortSummary?.takeIf { !it.isNullOrBlank() } ?: existing.intro,
-                        collectionType = com.example.piliai.database.SubscribeTitleEntity
-                            .fromBangumiType(item.type),
+                        // 审核258：只在「本地没有未推送的更新」时才采纳远端状态。
+                        // 判定用 updatedAt 与 bangumiSyncedAt：本地在最后一次成功同步
+                        // 之后又被改过（用户刚点了收藏状态）就保留本地值，
+                        // 否则下次 sync 会把用户刚点的状态冲掉。
+                        collectionType = if (existing.updatedAt > existing.bangumiSyncedAt) {
+                            existing.collectionType
+                        } else {
+                            com.example.piliai.database.SubscribeTitleEntity
+                                .fromBangumiType(item.type)
+                        },
                         // 远端集数更大才覆盖（本地可能有更细的源数据）
                         latestEpisode = maxOf(existing.latestEpisode, episodes),
                         rating = if (slim?.score ?: 0.0 > 0) slim!!.score else existing.rating,

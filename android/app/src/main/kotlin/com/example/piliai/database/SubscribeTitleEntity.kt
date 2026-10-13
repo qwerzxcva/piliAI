@@ -110,11 +110,11 @@ interface SubscribeTitleDao {
     @Upsert
     suspend fun upsertAll(list: List<SubscribeTitleEntity>)
 
-    @Query("UPDATE subscribe_title SET collectionType = :type WHERE id = :id")
-    suspend fun setCollectionType(id: Long, type: Int)
+    @Query("UPDATE subscribe_title SET collectionType = :type, updatedAt = :now WHERE id = :id")
+    suspend fun setCollectionType(id: Long, type: Int, now: Long = System.currentTimeMillis())
 
-    @Query("UPDATE subscribe_title SET lastWatchedEpisode = :episode WHERE id = :id")
-    suspend fun setWatchedEpisode(id: Long, episode: Int)
+    @Query("UPDATE subscribe_title SET lastWatchedEpisode = :episode, updatedAt = :now WHERE id = :id")
+    suspend fun setWatchedEpisode(id: Long, episode: Int, now: Long = System.currentTimeMillis())
 
     @Query("UPDATE subscribe_title SET latestEpisode = :episode WHERE id = :id")
     suspend fun setLatestEpisode(id: Long, episode: Int)
