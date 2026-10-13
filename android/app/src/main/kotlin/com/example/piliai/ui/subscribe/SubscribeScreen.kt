@@ -110,12 +110,19 @@ class SubscribeViewModelFactory : androidx.lifecycle.ViewModelProvider.Factory {
 fun SubscribeScreen(
     viewModel: SubscribeViewModel = viewModel(factory = SubscribeViewModelFactory()),
     onPlay: (url: String, title: String, cover: String) -> Unit,
+    // 审核261：从 Bangumi 详情页带过来的初始搜索词
+    initialQuery: String = "",
     onBack: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onOpenSubject: (Long) -> Unit = {},
     onSourcePlay: (com.example.piliai.playback.SourcePlaybackRequest, String, String) -> Unit
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+
+    // 审核261：带初始搜索词进来时回填库内搜索框（用户可直接改或清空）
+    LaunchedEffect(initialQuery) {
+        if (initialQuery.isNotBlank()) viewModel.setLibraryQuery(initialQuery)
+    }
     val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
     val libraryQuery by viewModel.libraryQuery.collectAsStateWithLifecycle()
     var showLibrarySearch by remember { mutableStateOf(false) }

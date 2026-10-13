@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -50,7 +51,9 @@ import com.example.piliai.data.remote.BangumiApi
 fun BangumiSubjectScreen(
     subjectId: Long,
     onBack: () -> Unit,
-    onFollow: (Long, String, String, Int) -> Unit = { _, _, _, _ -> }
+    onFollow: (Long, String, String, Int) -> Unit = { _, _, _, _ -> },
+    // 审核261：去订阅源搜同名番剧（Bangumi 只给资料，片源在订阅源里）
+    onSearchInSubscriptions: (String) -> Unit = {}
 ) {
     var subject by remember(subjectId) { mutableStateOf<BangumiApi.Subject?>(null) }
     var loadFailed by remember(subjectId) { mutableStateOf(false) }
@@ -105,6 +108,17 @@ fun BangumiSubjectScreen(
                 actions = {
                     val s = subject
                     if (s != null && s.id > 0L) {
+                        // 审核261：先去订阅源找片源（用户的核心链路：
+                        // Bangumi 看介绍 -> 订阅源放视频）
+                        IconButton(
+                            onClick = { onSearchInSubscriptions(s.title) }
+                        ) {
+                            Icon(
+                                Icons.Default.Search,
+                                contentDescription = "在订阅源搜索",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         IconButton(
                             onClick = {
                                 onFollow(s.id, s.title, s.cover, s.bestEpisodeCount)

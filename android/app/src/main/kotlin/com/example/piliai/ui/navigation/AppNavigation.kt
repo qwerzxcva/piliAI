@@ -109,7 +109,17 @@ sealed class Screen(val route: String) {
     fun chat(talkerId: Long) = "chat/$talkerId"
 
     object Downloads : Screen("downloads")
-    object Subscribe : Screen("subscribe")
+    object Subscribe : Screen("subscribe") {
+        fun createRoute() = "subscribe"
+
+        /**
+         * 审核261：带初始搜索词的订阅页。
+         * Bangumi 详情页用它在订阅源里搜同名番剧（用户核心场景：
+         * 在 Bangumi 看介绍 -> 去订阅源找片源）。
+         */
+        fun createSearchRoute(query: String) =
+            "subscribe?q=${android.net.Uri.encode(query)}"
+    }
     object BangumiSubject : Screen("bgmsubject/{id}") {
         fun createRoute(id: Long) = "bgmsubject/$id"
     }
@@ -547,8 +557,18 @@ fun AppNavigation() {
             )
         }
         // 订阅页：Animeko「订阅源」移植
-        composable(Screen.Subscribe.route) {
+        composable(
+            route = Screen.Subscribe.route,
+            arguments = listOf(
+                navArgument("q") { type = NavType.StringType; defaultValue = "" }
+            )
+        ) { entry ->
+            // 审核261：从 Bangumi 详情页带过来的搜索词
+            val initialQuery = entry.arguments?.getString("q")?.let {
+                android.net.Uri.decode(it)
+            }.orEmpty()
             com.example.piliai.ui.subscribe.SubscribeScreen(
+                initialQuery = initialQuery,
                 onBack = { navController.popBackStack() },
                 onPlay = { url, title, cover ->
                     // 外部源直链：走专用路由，播放器直接吃 URL（Kazumi 式直链播放）
@@ -579,6 +599,10 @@ fun AppNavigation() {
                 subjectId = entry.arguments?.getLong("id") ?: 0L,
                 onBack = { navController.popBackStack() },
                 // 审核243：详情页直接追番（Bangumi 直连，sourceId=0）
+                // 审核261：Bangumi 资料 -> 订阅源搜片源
+                onSearchInSubscriptions = { title ->
+                    navController.navigate(Screen.Subscribe.createSearchRoute(title))
+                },
                 onFollow = { id, title, cover, episodes ->
                     // 详情页只拿得到 Bangumi 侧信息：以 bgm:{id} 作 sourceKey，
                     // 走 Bangumi 同步路径（sourceId=0）而不是某个订阅源。
