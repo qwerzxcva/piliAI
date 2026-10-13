@@ -373,7 +373,12 @@ fun VideoPlayerScreen(
         // 从去重键解析时间戳（键格式 "ts_content" 或纯 id）；解析失败返回 Long.MAX_VALUE（不淘汰）
         fun tsOf(key: String): Long =
             key.substringBefore('_').toLongOrNull() ?: Long.MAX_VALUE
-        LaunchedEffect(state.isPlaying, state.currentTime, state.danmakuOn) {
+        // 审核274（真 bug）：dmViewRef 必须进 LaunchedEffect 的 key。
+        // 原来是 (isPlaying, currentTime, danmakuOn) —— AndroidView 的 factory
+        // 首次组合时 dmViewRef 还是 null，effect 首次执行就 return；
+        // 之后虽然 currentTime 变化会重跑，但**视图就绪前那几个时间点的弹幕
+        // 永久丢失**（表现为「刚进播放器前几秒没弹幕」）。
+        LaunchedEffect(state.isPlaying, state.currentTime, state.danmakuOn, dmViewRef) {
             val v = dmViewRef ?: return@LaunchedEffect
             if (!state.danmakuOn) { v.clearAll(); return@LaunchedEffect }
             // 审核轮122：去重集合按窗口淘汰，避免长视频（数小时）无界增长泄漏内存。

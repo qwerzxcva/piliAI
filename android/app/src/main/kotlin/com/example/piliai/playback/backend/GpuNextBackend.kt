@@ -93,6 +93,12 @@ class GpuNextBackend(
         bridge.setOption("reset-on-next-file", "speed,pause")
         // hr-seek=yes：精确 seek（按关键帧+微调），拖进度条更准
         bridge.setOption("hr-seek", "yes")
+        // 审核274：wiliwili 的直播流必需参数（mpv_core.cpp:379-380 实测，
+        // 注释原文「过低的值可能导致部分直播流无法正确播放」）——
+        // 缩短 lavf 的探测时长与降低探测分数阈值，直播流（m3u8 无明确
+        // Content-Type）才能起播；默认值对点播太保守。
+        bridge.setOption("demuxer-lavf-analyzeduration", "0.4")
+        bridge.setOption("demuxer-lavf-probescore", "24")
         // 审核237：vo 用「gpu-next,gpu」优先级链——GLES2.0 老设备上 libplacebo
         // 初始化失败时自动回退 gpu，而不是黑屏（bv resolveVideoOutputMode:630-636）
         bridge.setOption("vo", "gpu-next,gpu")
@@ -198,6 +204,13 @@ class GpuNextBackend(
             bridge.observeProperty("video-codec", FORMAT_STRING)
             bridge.observeProperty("audio-codec", FORMAT_STRING)
             bridge.observeProperty("demuxer-cache-time", FORMAT_DOUBLE)
+            // 审核274：补 wiliwili 观察的属性（mpv_core.cpp:403-418 实测）——
+            // playback-abort：播放中止（错误/不可播放），比等 END_FILE 更早发现失败
+            bridge.observeProperty("playback-abort", FORMAT_STRING)
+            // cache-speed：下载速度（B/s），可用于 UI 显示「加载中 1.2MB/s」
+            bridge.observeProperty("cache-speed", FORMAT_INT64)
+            // percent-pos：播放百分比（mpv 自己算，比 currentTime/duration 更准）
+            bridge.observeProperty("percent-pos", FORMAT_DOUBLE)
         }
     }
 
