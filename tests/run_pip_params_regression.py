@@ -21,14 +21,29 @@ if not effect.endswith('    }'):
     raise RuntimeError('Production PiP effect boundary changed; review the extractor')
 effect = effect[:-len('    }')]
 helper_start = source.index('private fun PlayerView?.pipAspectRatio(): Rational {')
-# 原边界 `index('/**', helper_start)` 在审核242 插入手势安全区注释后
-# 提前截断，丢掉 buildPipParams/enterPiP。改为截到 createPlayerView 声明
-# 前的文档注释起点（该注释是 helpers 区间的确定下界）。
-create_player_view = source.index('private fun createPlayerView', helper_start)
-helper_end = source.rindex('/**', helper_start, create_player_view)
+# 审核246：提取终点必须锚在函数体上，不能锚在注释上。
+#
+# 历史：原实现用 `index('/**', helper_start)` 当边界，即「pipAspectRatio
+# 之后第一个 KDoc」。审核242 在 pipAspectRatio 与 buildPipParams 之间插了
+# 手势安全区常量 + KDoc，第一个 /** 的位置就漂到常量块，提取范围只覆盖到
+# pipAspectRatio，buildPipParams/enterPiP 被静默漏掉 —— 只在跑回归时才炸
+# （CI Run 38335765484 就是这样红的）。
+#
+# 第一版修法改成「createPlayerView 之前的最后一个 /**」（rindex），但**仍然
+# 是以注释为边界**：任何人在 helpers 区尾部加一句 KDoc 都会再漂移一次。
+#
+# 现在改成：显式定位 enterPiP 的函数体结束大括号，并加自检 —— 提取结果里
+# 必须同时含 buildPipParams 与 enterPiP，否则直接 raise 让 CI 早失败，
+# 而不是生成一份悄悄漏掉被测代码的回归。
+enter_pip_start = source.index('fun android.app.Activity.enterPiP(', helper_start)
+helper_end = source.index('\n}\n', enter_pip_start) + len('\n}\n')
 helpers = source[helper_start:helper_end].replace(
     '@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)\n', ''
 )
+if 'buildPipParams' not in helpers or 'enterPiP' not in helpers:
+    raise RuntimeError('Production PiP helper extraction lost buildPipParams/enterPiP; review the extractor')
+if 'buildPipParams' not in helpers or 'enterPiP' not in helpers:
+    raise RuntimeError('Production PiP helper extraction lost buildPipParams/enterPiP; review the extractor')
 
 stubs = {
     'Rational.kt': '''package android.util
