@@ -422,6 +422,21 @@ private fun VideoCardItem(card: VideoItem, onClick: () -> Unit) {
                         .background(MaterialTheme.colorScheme.surfaceContainerHigh),
                     contentScale = ContentScale.Crop,
                 )
+                // 审核270：封面底部渐变遮罩（Kototoro/BiliPai 标志性视觉）——
+                // 保证角标文字在亮/暗封面上都可读，同时增加层次。
+                // 放在角标之前，角标叠在渐变之上。
+                Box(
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .height(36.dp)
+                        .background(
+                            Brush.verticalGradient(
+                                0f to Color.Transparent,
+                                1f to Color.Black.copy(alpha = 0.45f)
+                            )
+                        )
+                )
                 Row(
                     modifier = Modifier
                         .align(Alignment.BottomStart)

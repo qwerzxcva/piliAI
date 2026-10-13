@@ -350,7 +350,9 @@ private fun DynamicCard(
                 Text(
                     "${formatCount(stat.forward)}转发 · ${formatCount(stat.comment)}评论 · ${formatCount(stat.like)}点赞",
                     fontSize = 11.sp,
-                    color = Color(0xFF999999)
+                    // 审核270：跟随主题的次要文字色（暗色/亮色自动切换），
+                    // 不用硬编码灰 —— AMOLED 纯黑主题下 0xFF999999 会发雾
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

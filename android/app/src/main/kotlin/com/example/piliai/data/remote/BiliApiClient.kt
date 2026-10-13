@@ -55,14 +55,17 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
     suspend fun getFeedRcmd(freshIdx: Int, pageSize: Int = 30): Result<FeedRcmdResponse> = runCatching {
         // 匿名也需要 buvid3：B站风控对无 buvid 的推荐流直接 -352
         runCatching { AccountSession.ensureBuvid() }
-        val signed = WbiSigner.sign(
-            mapOf(
-                "fresh_type" to "4",
-                "ps" to pageSize.toString(),
-                "fresh_idx" to freshIdx.toString(),
-                "fresh_idx_1h" to freshIdx.toString(),
-            )
+        val params = mapOf(
+            "fresh_type" to "4",
+            "ps" to pageSize.toString(),
+            "fresh_idx" to freshIdx.toString(),
+            "fresh_idx_1h" to freshIdx.toString(),
         )
+        // 审核270：签名失败时降级为无签名请求。
+        // 实测（2026-10-13，匿名 + 桌面 UA + Referer）不带 w_rid 也返回 code 0；
+        // 而 WbiSigner.getKeys() 依赖 nav 接口，匿名风控下可能取不到 key ——
+        // 原来一失败就让首页整体降级到 popular，用户看到「刷不出推荐」。
+        val signed = runCatching { WbiSigner.sign(params) }.getOrDefault(params)
         client.get("$API_BASE/x/web-interface/wbi/index/top/feed/rcmd") {
             url { signed.forEach { (k, v) -> parameters.append(k, v) } }
             header("Referer", "https://www.bilibili.com")
