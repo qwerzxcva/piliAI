@@ -83,9 +83,15 @@ class CommentViewModel(private val bvid: String) : ViewModel() {
                         hasMore = list.isNotEmpty()
                     )
                 } else {
+                    // 审核276：把服务端的 code/message 带出来，别再显示
+                    // 无信息的「加载失败」——用户分不清是 -403（需登录）
+                    // 还是风控，只能干瞪眼。
+                    val raw = resp.message?.takeIf { it.isNotBlank() }
+                        ?: "评论加载失败（code=${resp.code}）"
                     _state.value = _state.value.copy(
                         isLoading = false, isLoadingMore = false,
-                        error = resp.data?.let { "加载失败" } ?: "评论加载失败"
+                        error = com.example.piliai.data.remote.BiliErrorTranslator
+                            .translate(raw) ?: raw
                     )
                 }
             }.onFailure { e ->

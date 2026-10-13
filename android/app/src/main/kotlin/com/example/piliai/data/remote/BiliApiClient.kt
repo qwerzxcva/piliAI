@@ -9,6 +9,40 @@ import io.ktor.http.*
 import kotlinx.serialization.json.Json
 
 /**
+ * 审核276：B 站错误码 → 人话。
+ *
+ * API 实测报告确认用户会遇到的裸错误码（原来 message 直接透传给用户，
+ * 看到 "-352" 完全不知道该怎么办）。
+ */
+object BiliErrorTranslator {
+
+    /** 把响应 message / 异常 message 翻译成可行动的描述 */
+    fun translate(raw: String?): String? {
+        val text = raw?.trim().orEmpty()
+        if (text.isEmpty()) return null
+        return when {
+            text == "-352" || text.contains("-352") ->
+                "触发风控，请稍后重试或登录账号"
+            text == "-403" || text.contains("-403") ->
+                "需要登录后访问"
+            text == "-101" || text.contains("-101") || text.contains("账号未登录") ->
+                "请先登录 B 站账号"
+            text == "-404" || text.contains("-404") ->
+                "内容不存在或已失效"
+            text == "-799" || text.contains("-799") || text.contains("请求过于频繁") ->
+                "请求过于频繁，请稍后再试"
+            text == "62012" || text.contains("62012") ->
+                "评论区已关闭"
+            text.contains("v_voucher") ->
+                "需要通过验证，请稍后重试或登录"
+            text.contains("访问权限不足") -> "需要登录后访问"
+            text.contains("风控") -> "触发风控，请稍后重试或登录账号"
+            else -> null
+        }
+    }
+}
+
+/**
  * Bilibili API Client using Ktor
  */
 class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
@@ -634,10 +668,17 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
             if (keyword.isNotEmpty()) put("keyword", keyword)
         }
         val signed = WbiSigner.sign(params)
-        client.get("$API_BASE/x/space/wbi/arc/search") {
+        val resp: String = client.get("$API_BASE/x/space/wbi/arc/search") {
             url { signed.forEach { (k, v) -> parameters.append(k, v) } }
             header("Referer", "https://space.bilibili.com/$mid")
-        }.body<SpaceArchiveResponse>()
+        }.bodyAsText()
+        // 审核276：该接口匿名必被风控（实测 HTTP 412 + HTML 风控页，wbi 签名
+        // 无法绕过）。原来 body() 直接反序列化 HTML 会抛 JSON 异常，
+        // 用户看到的是「Expected BEGIN_OBJECT」而不是「需要登录」。
+        if (resp.trimStart().startsWith("<")) {
+            error("UP 主投稿列表需要登录后查看（匿名被风控）")
+        }
+        BiliHttpClient.json.decodeFromString<SpaceArchiveResponse>(resp)
     }
 
     /** 关注/取关 UP 主（csrf）。act: 1 关注 / 2 取关 */

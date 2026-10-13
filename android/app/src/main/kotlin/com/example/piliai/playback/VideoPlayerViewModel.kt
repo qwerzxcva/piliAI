@@ -1152,7 +1152,12 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     }
     
     fun setError(error: String?) {
-        if (error != null) _state.value = _state.value.copy(error = error)
+        if (error != null) {
+            // 审核276：错误码翻译成人话（用户原来看到裸的 "-352"/"-403"）
+            _state.value = _state.value.copy(
+                error = com.example.piliai.data.remote.BiliErrorTranslator.translate(error) ?: error
+            )
+        }
     }
 
     /**

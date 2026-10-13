@@ -10,6 +10,9 @@ import kotlinx.serialization.SerialName
 @Serializable
 data class CommentResponse(
     val code: Int = 0,
+    // 审核276：补 message 字段——原来没有，导致 code != 0 时
+    // 上层只能显示无信息的「加载失败」（分不清 -403 还是风控）
+    val message: String? = null,
     val data: CommentData? = null
 )
 
