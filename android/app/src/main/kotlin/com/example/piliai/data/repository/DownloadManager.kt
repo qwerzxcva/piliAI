@@ -71,10 +71,12 @@ object DownloadManager {
                 // 2) playurl + Rust 选流（清晰度跟随 DataStore 设置）
                 val qn = com.example.piliai.utils.StorageManager.getInstance(appCtx).videoQualityFlow.first()
                     .let { when (it) { "1080p" -> 80; "720p" -> 64; "480p" -> 32; else -> 64 } }
-                val play = repo.getPlayUrl(bvid, cid, qn = qn).getOrNull()
+                val play = repo.getPlayUrlWithCandidates(bvid, cid, qn = qn).getOrNull()
                     ?: throw IllegalStateException("playurl 获取失败")
-                val videoUrl = play.second
-                val audioUrl = play.third
+                val videoCand = play.second.first
+                val audioCand = play.second.second
+                val videoUrl = videoCand?.primary
+                val audioUrl = audioCand?.primary
                 if (videoUrl.isNullOrEmpty()) throw IllegalStateException("未取到视频流")
 
                 // 3) 目录
@@ -88,15 +90,19 @@ object DownloadManager {
 
                 // 4) 双流下载（video 必需，audio 可选）
                 val videoFile = File(dir, "video.m4s")
-                downloadTo(videoUrl, videoFile) { p ->
-                    dao.upsert(current(dao, bvid).copy(progress = p * 0.8f))
-                }
+                downloadTo(
+                    videoUrl, videoFile,
+                    candidates = videoCand?.backups.orEmpty(),
+                    onProgress = { p -> dao.upsert(current(dao, bvid).copy(progress = p * 0.8f)) }
+                )
                 val audioFile = File(dir, "audio.m4s")
                 var audioSize = 0L
                 if (!audioUrl.isNullOrEmpty()) {
-                    downloadTo(audioUrl, audioFile) { p ->
-                        dao.upsert(current(dao, bvid).copy(progress = 0.8f + p * 0.2f))
-                    }
+                    downloadTo(
+                        audioUrl, audioFile,
+                        candidates = audioCand?.backups.orEmpty(),
+                        onProgress = { p -> dao.upsert(current(dao, bvid).copy(progress = 0.8f + p * 0.2f)) }
+                    )
                     audioSize = audioFile.length()
                 }
 
@@ -359,11 +365,44 @@ object DownloadManager {
 
     // ---------- 基础下载（带进度回调 0..1） ----------
 
+    /**
+     * 审核290：下载单个流，支持 CDN 候选列表故障转移。
+     *
+     * B 站 playurl 返回的首个 CDN 节点可能 TLS 握手超时（实测遇到过 mcdn
+     * 节点抖动，而同一流的 backupUrl 节点完全正常）。原实现只传单个 URL，
+ * 一遇到这种节点整个下载就失败。现在按 candidates 顺序尝试，全部失败
+     * 才抛错。
+     */
     private suspend fun downloadTo(
         url: String,
         target: File,
+        candidates: List<String> = emptyList(),
         onProgress: suspend (Float) -> Unit
     ) = withContext(Dispatchers.IO) {
+        val urls = (listOf(url) + candidates.filter { it != url }).distinct()
+        var lastError: Exception? = null
+        for ((index, attempt) in urls.withIndex()) {
+            try {
+                downloadOne(attempt, target, onProgress)
+                return@withContext
+            } catch (e: Exception) {
+                lastError = e
+                // 还有候选可试：清理半成品，换下一个节点
+                if (index < urls.lastIndex) {
+                    target.delete()
+                    continue
+                }
+            }
+        }
+        throw lastError ?: IllegalStateException("下载失败（无可用 CDN 节点）")
+    }
+
+    /** 单次下载尝试（不含节点切换） */
+    private suspend fun downloadOne(
+        url: String,
+        target: File,
+        onProgress: suspend (Float) -> Unit
+    ) {
         var already = if (target.exists()) target.length() else 0L
         val conn = URL(url).openConnection() as java.net.HttpURLConnection
         conn.connectTimeout = 30_000

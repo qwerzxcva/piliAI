@@ -16,29 +16,62 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 
+/** 审核290：瞬时风控（-352/-799/-412）的最大重试次数 */
+const val MAX_TRANSIENT_RISK_RETRIES = 2
+
 /**
- * 审核288：B 站风控时返回的是 **HTML 风控页**（HTTP 200 或 412 + `<!DOCTYPE`），
- * 而不是 JSON。裸 `.body<T>()` 会抛「Unexpected JSON token ... had '<'」这种
- * 用户完全看不懂的异常，并且会绕过上层「code != 0 才降级」的逻辑
- * （见 HomeRepository 降级链）。
+ * 审核288/290：安全的 JSON GET——风控 HTML 拦截 + 瞬时风控重试。
  *
- * BiliApiClient 里有 59 处 `client.get(...)...}.body()`，逐个手动加
- * requireJson 不现实。这个扩展函数与 HttpClient.get 签名保持兼容
- * （path + 尾随 lambda），调用点只需把 `client.get` 改成 `client.getSafe`
- * 并去掉结尾的 `.body()`，其余代码不动。
+ * 与 HttpClient.get 签名保持兼容（第一个位置参数是 path，尾随 lambda 是
+ * 请求配置）。调用点把 `client.get(path) { ... }.body()` 改成
+ * `client.getSafe(path) { ... }` 即可。
  *
- * Json 实例直接从 BiliHttpClient 取，不占参数位——否则尾随 lambda 会被
- * 绑到错误的参数上。
+ * 审核290 补重试：实测 B 站对 -352/-799 的拒绝**常常是瞬时的**——同一个
+ * ranking/v2 请求，第一次 -352、几秒后就是 code=0 返回 100 条数据。
+ * HttpRequestRetry 只覆盖 5xx 和 IO 异常，覆盖不到「HTTP 200 + code=-352」
+ * 这种形态。这里补上：命中瞬时风控码就退避重试，避免一次抖动就整页失败。
  */
 suspend inline fun <reified T : Any> HttpClient.getSafe(
     path: String,
     noinline block: HttpRequestBuilder.() -> Unit = {}
 ): T = withContext(Dispatchers.IO) {
-    val text = get(path) { block() }.bodyAsText()
-    if (text.trimStart().startsWith("<")) {
-        error("B站返回风控页面（非 JSON），请稍后重试")
+    var attempt = 0
+    var result: T? = null
+    while (result == null) {
+        val text = get(path) { block() }.bodyAsText()
+        if (text.trimStart().startsWith("<")) {
+            error("B站返回风控页面（非 JSON），请稍后重试")
+        }
+        val code = peekJsonCode(text)
+        if (code != null && isTransientRiskCode(code) && attempt < MAX_TRANSIENT_RISK_RETRIES) {
+            attempt++
+            // 退避：第一次 800ms，之后 1600ms（B 站建议请求间隔 >= 1s）
+            kotlinx.coroutines.delay(if (attempt == 1) 800L else 1600L)
+            continue
+        }
+        result = BiliHttpClient.json.decodeFromString<T>(text)
     }
-    BiliHttpClient.json.decodeFromString<T>(text)
+    result
+}
+
+/**
+ * 审核290：识别「瞬时风控」错误码。
+ *
+ * 实测发现 B 站对 -352/-799 的返回**不总是持久风控**：同一个 ranking/v2
+ * 请求，第一次 -352、几秒后重试就是 code=0 且返回 100 条数据。容器/弱网
+ * 环境下这种瞬时拒绝很常见。
+ */
+fun isTransientRiskCode(code: Int): Boolean = code == -352 || code == -799 || code == -412
+
+/** 从 JSON 文本里快速取 code 字段（解析失败或字段缺失返回 null，不抛异常） */
+fun peekJsonCode(text: String): Int? {
+    if (!text.contains("\"code\"")) return null
+    return try {
+        val obj = org.json.JSONObject(text)
+        if (obj.has("code")) obj.optInt("code") else null
+    } catch (_: Exception) {
+        null
+    }
 }
 
 object BiliHttpClient {

@@ -830,15 +830,24 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         loadRelated(bvid)
 
         // 2) playurl + Rust 流选择
-        val (resp, videoUrl2, audioUrl2) = repo.getPlayUrl(bvid, effectiveCid, qn = currentQn)
+        val playResult = repo.getPlayUrlWithCandidates(bvid, effectiveCid, qn = currentQn)
             .getOrElse {
                 setError("playurl 获取失败: ${it.message}")
                 return
             }
+        val resp = playResult.first
+        val videoCand = playResult.second.first
+        val audioCand = playResult.second.second
         ensureCurrent(generation)
         this.effectiveCid = effectiveCid
         this.currentBvid = bvid
+        val videoUrl2 = videoCand?.primary
+        val audioUrl2 = audioCand?.primary
         cachedAudioUrl = audioUrl2
+        // 审核290：保存 CDN 候选列表（baseUrl + backupUrl）。B 站分配的首个节点
+        // 可能 TLS 握手超时（实测遇到过），有备用节点才能切换重试。
+        videoUrlCandidates = videoCand?.all.orEmpty()
+        audioUrlCandidates = audioCand?.all.orEmpty()
         loadOnlineCount(bvid, effectiveCid)   // 批次L40：实时在线人数
         if (videoUrl2.isNullOrEmpty()) {
             setError("未解析到视频流地址（可能需要登录后观看）")
@@ -1270,7 +1279,52 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     }
     
     override fun onError(message: String) {
+        // 审核290：CDN 节点故障自动切换。B 站 playurl 返回的**首个节点可能
+        // TLS 握手超时**（实测遇到过 mcdn 节点抖动，同一流的 backupUrl 节点
+        // 却完全正常）。原来这里直接报错，用户看到「播放失败」却无法自救。
+        if (trySwitchCdnNode(message)) return
         setError(message)
+    }
+
+    /**
+     * 审核290：当前流播放失败时尝试切换到下一个 CDN 节点。
+     * @return true = 已切换并重启播放（调用方不应再报错）
+     */
+    private fun trySwitchCdnNode(message: String): Boolean {
+        // 只在网络/IO 类错误时切换；解码错误换节点也没用
+        val lower = message.lowercase()
+        val isNetworkError = lower.contains("unable to connect") ||
+            lower.contains("timeout") ||
+            lower.contains("timed out") ||
+            lower.contains("connection") ||
+            lower.contains("ssl") ||
+            lower.contains("handshake") ||
+            lower.contains("network") ||
+            lower.contains("ioexception") ||
+            lower.contains("eof") ||
+            lower.contains("403") ||
+            lower.contains("404")
+        if (!isNetworkError) return false
+
+        val currentVideo = currentUri
+        val idx = videoUrlCandidates.indexOfFirst { it == currentVideo }
+        // 已经试过最后一个节点，或压根没有候选列表
+        if (idx < 0 || idx >= videoUrlCandidates.lastIndex) return false
+
+        val nextVideo = videoUrlCandidates[idx + 1]
+        // 音频同步切到同序号的备用节点（没有则沿用主音频）
+        val nextAudio = audioUrlCandidates.getOrNull(idx + 1)
+            ?: audioUrlCandidates.firstOrNull()
+            ?: cachedAudioUrl
+        if (nextVideo.isEmpty()) return false
+
+        android.util.Log.i(
+            "PiliPlayer",
+            "CDN 节点切换：${idx} -> ${idx + 1}/${videoUrlCandidates.size}（原因：$message）"
+        )
+        showToast("网络不佳，正在切换线路…")
+        startPlayback(nextVideo, nextAudio)
+        return true
     }
     
     override fun onVideoSizeChanged(width: Int, height: Int) {
@@ -1681,6 +1735,16 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     }
 
     private var cachedAudioUrl: String? = null
+
+    /**
+     * 审核290：当前流的 CDN 候选列表（baseUrl + backupUrl）。
+     *
+     * B 站 playurl 给每条流返回多个 CDN 节点，实测中遇到过**首个节点 TLS
+     * 握手超时、备用节点完全正常**的情况。原来的实现只取 baseUrl，一遇到
+     * 这种节点整个播放就失败。保存候选列表供播放失败时切换节点重试。
+     */
+    private var videoUrlCandidates: List<String> = emptyList()
+    private var audioUrlCandidates: List<String> = emptyList()
     /** 审核267：当前播放地址（取帧用）；本地文件为 file:// Uri */
     private var currentUri: String = ""
 

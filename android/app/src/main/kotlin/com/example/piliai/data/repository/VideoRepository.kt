@@ -62,40 +62,95 @@ class VideoRepository(private val apiClient: BiliApiClient = BiliApiClient()) {
         qn: Int = 80
     ): Result<Triple<PlayUrlResponse, String?, String?>> = withContext(Dispatchers.IO) {
         apiClient.getPlayUrl(bvid, cid, qn).mapCatching { resp ->
-            val selected = resp.rawJson?.let {
-                // 审核219：默认音质（PiliPlus defaultAudioQa 对齐）经设置键传入 Rust 选流
-                // 审核221：蜂窝网络下优先用 *Cellular 覆盖项（空则回退 WiFi 设置）
-                val ctx = com.example.piliai.AppContext.get()
-                val storage = com.example.piliai.utils.StorageManager.getInstance(ctx)
-                val cellular = com.example.piliai.utils.NetworkType.isCellular(ctx)
-                val audioQaRaw = if (cellular) {
-                    storage.audioQaCellularFlow.first().ifBlank { storage.audioQaFlow.first() }
-                } else storage.audioQaFlow.first()
-                val audioQn = audioQaRaw.toIntOrNull() ?: 0
-                // 审核221：蜂窝时视频画质覆盖（defaultVideoQaCellular）
-                val effectiveQn = if (cellular) {
-                    storage.videoQaCellularFlow.first().toIntOrNull()?.takeIf { it > 0 } ?: qn
-                } else qn
-                val preferCodec = if (cellular) {
-                    storage.preferCodecCellularFlow.first().ifBlank { storage.preferCodecFlow.first() }
-                } else storage.preferCodecFlow.first()
-                PlayUrlNativeLib.select(it, effectiveQn, audioQn, preferCodec)
-            }
-            if (selected != null) {
-                val arr = JSONObject(selected)
-                val video = arr.optJSONObject("video")?.optString("baseUrl")?.toHttpsUrl()
-                val audio = arr.optJSONObject("audio")?.optString("baseUrl")?.toHttpsUrl()
-                Triple(resp, video, audio)
-            } else {
-                val video = (resp.data?.dash?.video?.firstOrNull()?.baseUrl
-                    ?: resp.data?.durl?.firstOrNull()?.url)?.toHttpsUrl()
-                val audio = resp.data?.dash?.audio?.firstOrNull()?.baseUrl?.toHttpsUrl()
-                Triple(resp, video, audio)
-            }
+            val streams = resolveStreams(resp.rawJson, qn)
+            val video = streams?.first?.primary?.toHttpsUrl()
+            val audio = streams?.second?.primary?.toHttpsUrl()
+            Triple(resp, video, audio)
         }.onSuccess { (_, video, _) ->
             _playUrl.value = video
         }.onFailure {
             _error.value = it.message ?: "获取播放地址失败"
+        }
+    }
+
+    /**
+     * 审核290：带 CDN 候选列表的播放地址（主 URL + backupUrl 备用节点）。
+     *
+     * 实测发现 B 站分配的**首个 CDN 节点可能 TLS 握手超时**，而同一流的
+     * backupUrl 节点完全正常。只取 baseUrl 的实现一遇到这种节点就整个播放失败
+     * ——这是「普通视频也播放失败」的根因。播放器据此在主 URL 失败时切换节点。
+     */
+    suspend fun getPlayUrlWithCandidates(
+        bvid: String,
+        cid: Long,
+        qn: Int = 80
+    ): Result<Pair<PlayUrlResponse, Pair<PlayUrlCandidate?, PlayUrlCandidate?>>> =
+        withContext(Dispatchers.IO) {
+            apiClient.getPlayUrl(bvid, cid, qn).mapCatching { resp ->
+                val streams = resolveStreams(resp.rawJson, qn)
+                Pair(resp, Pair(streams?.first, streams?.second))
+            }
+        }
+
+    /**
+     * 从 playurl 原始 JSON 解析出选中的 video/audio 流（含 CDN 候选）。
+     * Rust select_streams 输出与原始响应同构（baseUrl + backupUrl）。
+     */
+    private suspend fun resolveStreams(
+        rawJson: String?,
+        qn: Int
+    ): Pair<PlayUrlCandidate?, PlayUrlCandidate?>? {
+        if (rawJson.isNullOrBlank()) return null
+        val selected = try {
+            // 审核219/221：音质/画质/编码偏好经设置键传入 Rust 选流
+            val ctx = com.example.piliai.AppContext.get()
+            val storage = com.example.piliai.utils.StorageManager.getInstance(ctx)
+            val cellular = com.example.piliai.utils.NetworkType.isCellular(ctx)
+            val audioQaRaw = if (cellular) {
+                storage.audioQaCellularFlow.first().ifBlank { storage.audioQaFlow.first() }
+            } else storage.audioQaFlow.first()
+            val audioQn = audioQaRaw.toIntOrNull() ?: 0
+            val effectiveQn = if (cellular) {
+                storage.videoQaCellularFlow.first().toIntOrNull()?.takeIf { it > 0 } ?: qn
+            } else qn
+            val preferCodec = if (cellular) {
+                storage.preferCodecCellularFlow.first().ifBlank { storage.preferCodecFlow.first() }
+            } else storage.preferCodecFlow.first()
+            PlayUrlNativeLib.select(rawJson, effectiveQn, audioQn, preferCodec)
+        } catch (_: Exception) {
+            null
+        }
+        if (selected != null) {
+            val arr = JSONObject(selected)
+            val video = PlayUrlCandidate.fromJson(arr.optJSONObject("video"))
+            val audio = PlayUrlCandidate.fromJson(arr.optJSONObject("audio"))
+            if (video != null || audio != null) return Pair(video, audio)
+        }
+        // Rust 不可用时的 Kotlin 回退：直接读原始响应的 dash
+        return try {
+            val root = JSONObject(rawJson)
+            val dash = root.optJSONObject("data")?.optJSONObject("dash")
+                ?: root.optJSONObject("result")?.optJSONObject("dash")
+            val video = dash?.optJSONArray("video")?.optJSONObject(0)?.let {
+                PlayUrlCandidate.fromJson(it)
+            }
+            val audio = dash?.optJSONArray("audio")?.let { aud ->
+                // 取带宽最高的一条
+                var best: org.json.JSONObject? = null
+                var bestBw = -1L
+                for (i in 0 until aud.length()) {
+                    val s = aud.optJSONObject(i) ?: continue
+                    val bw = s.optLong("bandwidth", 0L)
+                    if (bw > bestBw) {
+                        bestBw = bw
+                        best = s
+                    }
+                }
+                best?.let { PlayUrlCandidate.fromJson(it) }
+            }
+            Pair(video, audio)
+        } catch (_: Exception) {
+            null
         }
     }
 
