@@ -1,5 +1,7 @@
 package com.example.piliai.ui.pages.livelist
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -16,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
@@ -189,11 +192,19 @@ private fun LiveAreaCard(room: LiveRecRoom, onClick: () -> Unit) {
     ) {
         Column {
             Box {
+                // 审核281：直播卡片封面补 rim 描边 + 阴影 + surfaceVariant 底色，
+                // 与首页视频卡/VideoListRow 同一套封面规格（Kototoro 移植）。
+                // 原先只有 clip，无描边无阴影，在暗色主题下封面边缘发糊。
+                val rimBrush = com.example.piliai.ui.theme.rememberCoverRimBrush()
+                val coverShape = RoundedCornerShape(10.dp)
                 AsyncImage(
                     model = room.cover.toCoverUrl(),
                     contentDescription = room.title,
                     modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)
-                        .clip(RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp)),
+                        .shadow(2.dp, coverShape, clip = false)
+                        .clip(coverShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .border(0.5.dp, rimBrush, coverShape),
                     contentScale = ContentScale.Crop
                 )
                 // 观看人数
