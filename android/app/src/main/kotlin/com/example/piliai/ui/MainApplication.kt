@@ -58,7 +58,10 @@ class MainApplication : Application() {
         )
 
         // 匿名启动即取 buvid3（风控接口强依赖），协程后台执行
+        // 审核291：先恢复上次持久化的指纹，取不到才请求 finger/spi。
+        // 这样重启 App 后 B 站看到的仍是同一设备，不会每次冷启动都当新设备。
         appScope.launch {
+            AccountSession.restoreBuvidFromStorage()
             AccountSession.ensureBuvid()
         }
 

@@ -48,6 +48,11 @@ class StorageManager(private val context: Context) {
         // Kazumi 特性：低延迟音频（缩短 AudioTrack 缓冲，代价是弱网易卡顿）
         private val LOW_LATENCY_AUDIO_KEY = booleanPreferencesKey("lowLatencyAudio")
         private val NOTIFICATION_ENABLED_KEY = booleanPreferencesKey("notificationEnabled")
+        // 审核291：buvid3/buvid4 匿名风控指纹持久化。B 站对无 buvid 的请求
+        // 容易 -352/-412（搜索/点赞/推荐流尤其明显）。原来只在内存里，进程一杀
+        // 就丢，重启后 B 站视为「新设备」，等于每次冷启动都重新攒信任。
+        private val BUVID3_KEY = stringPreferencesKey("buvid3")
+        private val BUVID4_KEY = stringPreferencesKey("buvid4")
         
         // Video settings
         private val PLAYBACK_SPEED_KEY = floatPreferencesKey("playbackSpeed")
@@ -166,6 +171,20 @@ class StorageManager(private val context: Context) {
     val homeFeedSourceFlow: Flow<String> = context.dataStore.data
         .map { preferences -> preferences[HOME_FEED_SOURCE_KEY] ?: "auto" }
 
+    /**
+     * 审核291：持久化的 buvid3（匿名风控指纹）。
+     *
+     * 空串表示尚未获取过——AccountSession.ensureBuvid 会先读这里，
+     * 取不到才请求 finger/spi，拿到后回写。这样重启 App 后仍是同一
+     * 设备指纹，不会每次冷启动都被 B 站当成新设备。
+     */
+    val buvid3Flow: Flow<String> = context.dataStore.data
+        .map { preferences -> preferences[BUVID3_KEY] ?: "" }
+
+    /** 审核291：持久化的 buvid4 */
+    val buvid4Flow: Flow<String> = context.dataStore.data
+        .map { preferences -> preferences[BUVID4_KEY] ?: "" }
+
     /** Kazumi：低延迟音频（AudioTrack 缓冲最小化） */
     val lowLatencyAudioFlow: Flow<Boolean> = context.dataStore.data
         .map { preferences -> preferences[LOW_LATENCY_AUDIO_KEY] ?: false }
@@ -245,6 +264,20 @@ class StorageManager(private val context: Context) {
     suspend fun setPlaybackBackend(id: String) {
         context.dataStore.edit { preferences ->
             preferences[PLAYBACK_BACKEND_KEY] = id
+        }
+    }
+
+    /**
+     * 审核291：持久化匿名风控指纹（buvid3/buvid4）。
+     *
+     * 由 AccountSession.ensureBuvid 拿到新值后回写，重启 App 时先读这里，
+     * 避免每次冷启动都被 B 站当成新设备。
+     */
+    suspend fun saveBuvid(buvid3: String, buvid4: String) {
+        if (buvid3.isBlank()) return
+        context.dataStore.edit { preferences ->
+            preferences[BUVID3_KEY] = buvid3
+            if (buvid4.isNotBlank()) preferences[BUVID4_KEY] = buvid4
         }
     }
 

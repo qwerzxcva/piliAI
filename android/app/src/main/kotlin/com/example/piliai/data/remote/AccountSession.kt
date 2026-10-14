@@ -3,6 +3,7 @@ package com.example.piliai.data.remote
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsText
+import kotlinx.coroutines.flow.first
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -75,8 +76,31 @@ object AccountSession {
     fun hasBuvid3(): Boolean = !cookies["buvid3"].isNullOrEmpty()
 
     /**
+     * 审核291：从持久化存储恢复 buvid（App 启动时调用）。
+     *
+     * 原来 buvid 只在内存里，进程一杀就丢，重启后 B 站视为「新设备」——
+     * 等于每次冷启动都重新攒风控信任。启动时先把上次的值读回来。
+     */
+    suspend fun restoreBuvidFromStorage() {
+        if (hasBuvid3()) return
+        runCatching {
+            val storage = com.example.piliai.utils.StorageManager.getInstance(
+                com.example.piliai.AppContext.get()
+            )
+            val b3 = storage.buvid3Flow.first()
+            if (b3.isNotEmpty()) {
+                cookies["buvid3"] = b3
+                storage.buvid4Flow.first().takeIf { it.isNotEmpty() }?.let {
+                    cookies["buvid4"] = it
+                }
+            }
+        }
+    }
+
+    /**
      * 匿名获取 buvid3/buvid4（GET /x/frontend/finger/spi，返回 b_3/b_4）。
-     * 匿名启动时调用一次并持久化到内存；由 BiliHttpClient 挂到后续请求。
+     *
+     * 审核291：拿到后**回写持久化存储**，下次冷启动直接复用同一指纹。
      */
     suspend fun ensureBuvid(): Boolean {
         if (hasBuvid3()) return true
@@ -90,7 +114,16 @@ object AccountSession {
             val b4 = data.optString("b_4")
             if (b3.isNotEmpty()) cookies["buvid3"] = b3
             if (b4.isNotEmpty()) cookies["buvid4"] = b4
-            hasBuvid3()
+            val ok = hasBuvid3()
+            if (ok) {
+                // 回写持久化：重启后仍是同一设备指纹
+                runCatching {
+                    com.example.piliai.utils.StorageManager.getInstance(
+                        com.example.piliai.AppContext.get()
+                    ).saveBuvid(b3, b4)
+                }
+            }
+            ok
         }.getOrDefault(false)
     }
 }
