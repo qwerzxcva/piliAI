@@ -277,13 +277,14 @@ private fun DynamicCard(
 
             if (v != null && v.bvid.isNotEmpty()) {
                 Spacer(Modifier.height(10.dp))
-                // 审核284：视频引用块改用 VideoListRow 的封面规格
-                // （rim 描边 + 阴影 + surfaceVariant 底色）——原先是 140×88
-                // 写死尺寸 + 8dp 圆角 + 无描边，与全站视觉语言脱节。
+                // 审核284：视频引用块封面补 rim 描边 + 阴影 + surfaceVariant 底色——
+                // 原先是 140×88 写死尺寸 + 8dp 圆角 + 无描边，与全站视觉语言脱节。
                 // 保留固定 88dp 高度：动态卡片是嵌入块，不能像列表行那样自然撑高。
+                // 不加 clickable：整张动态卡在 DynamicCard 外层已可点（见上方 .let 分支），
+                // 这里再叠一层会造成「点引用块与点卡片其他区域」行为分裂。
                 val rimBrush = com.example.piliai.ui.theme.rememberCoverRimBrush()
                 val coverShape = RoundedCornerShape(10.dp)
-                Row(Modifier.clickable { onOpenVideo(v.bvid, 0L) }) {
+                Row {
                     Box(
                         Modifier
                             .width(140.dp)
