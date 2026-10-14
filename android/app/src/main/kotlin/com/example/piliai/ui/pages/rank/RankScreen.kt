@@ -124,53 +124,36 @@ fun RankScreen(
                     contentPadding = PaddingValues(vertical = 4.dp)
                 ) {
                     itemsIndexed(items) { idx, item ->
-                        RankRow(idx + 1, item, onClick = { onOpenVideo(item.bvid) })
-                        HorizontalDivider()
+                        com.example.piliai.ui.components.VideoListRow(
+                            title = item.title,
+                            coverUrl = item.pic.toCoverUrl(),
+                            supportingText = buildString {
+                                append(item.owner?.name ?: "")
+                                append(" · ")
+                                append(formatViews(item.stat?.view ?: 0))
+                            },
+                            sourceText = if (item.duration > 0) "时长 ${formatDuration(item.duration)}" else null,
+                            trailing = {
+                                // 排名：前三名用强调色，其余中性（保留原有辨识度）
+                                Text(
+                                    "${idx + 1}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = when (idx + 1) {
+                                        1 -> MaterialTheme.colorScheme.primary
+                                        2 -> MaterialTheme.colorScheme.primary.copy(alpha = 0.75f)
+                                        3 -> MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
+                                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                    modifier = Modifier.width(28.dp),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                )
+                            },
+                            onClick = { onOpenVideo(item.bvid) },
+                        )
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun RankRow(rank: Int, item: RankItem, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            "$rank",
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
-            color = when {
-                rank == 1 -> androidx.compose.ui.graphics.Color(0xFFFB7299)
-                rank == 2 -> androidx.compose.ui.graphics.Color(0xFFFF9F43)
-                rank == 3 -> androidx.compose.ui.graphics.Color(0xFFF7B731)
-                else -> MaterialTheme.colorScheme.onSurfaceVariant
-            },
-            modifier = Modifier.width(32.dp)
-        )
-        AsyncImage(
-            model = item.pic.toCoverUrl(), contentDescription = item.title,
-            modifier = Modifier.size(width = 120.dp, height = 72.dp)
-                .clip(MaterialTheme.shapes.medium)
-        )
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(item.title, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodyMedium)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                buildString {
-                    append(item.owner?.name ?: "")
-                    append(" · ")
-                    append(formatViews(item.stat?.view ?: 0))
-                },
-                fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
     }
 }
@@ -179,4 +162,13 @@ private fun formatViews(v: Long): String = when {
     v >= 100_000_000 -> "%.1f亿".format(v / 100_000_000f)
     v >= 10_000 -> "%.1f万".format(v / 10_000f)
     else -> v.toString()
+}
+
+/** 秒 → mm:ss / h:mm:ss */
+private fun formatDuration(sec: Int): String {
+    if (sec <= 0) return ""
+    val h = sec / 3600
+    val m = (sec % 3600) / 60
+    val s = sec % 60
+    return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%02d:%02d".format(m, s)
 }

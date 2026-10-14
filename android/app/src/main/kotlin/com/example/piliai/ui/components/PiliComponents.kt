@@ -13,6 +13,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -27,7 +29,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.piliai.ui.theme.PiliCardShape
+import com.example.piliai.ui.theme.rememberCoverRimBrush
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Search
@@ -148,6 +155,94 @@ fun SectionHeader(
                 )
             }
         }
+    }
+}
+
+/**
+ * 审核280：横向视频列表行。移植 Kototoro HomeListRailRow
+ * （core-ui/.../core/ui/home/HomeUi.kt:367）的封面规格与文字层级：
+ * - 封面：shadow(2.dp) + clip + surfaceVariant + border(0.5.dp, rim)
+ * - 标题：bodyMedium + SemiBold + 14.5sp/18sp 行高，onSurface，maxLines=2
+ * - 副信息：labelMedium + Medium，primary 色（Kototoro 用强调色做支撑行）
+ * - 来源行：labelSmall，onSurfaceVariant
+ *
+ * 用于排行榜/热门/搜索结果等横排列表页——这些页面此前是裸 Row +
+ * HorizontalDivider + 硬编码色值，是全 App「廉价感」的主要来源。
+ */
+@Composable
+fun VideoListRow(
+    title: String,
+    coverUrl: String,
+    modifier: Modifier = Modifier,
+    supportingText: String? = null,
+    sourceText: String? = null,
+    coverWidth: androidx.compose.ui.unit.Dp = 120.dp,
+    trailing: (@Composable () -> Unit)? = null,
+    onClick: () -> Unit = {},
+) {
+    val rimBrush = rememberCoverRimBrush()
+    val coverShape = RoundedCornerShape(10.dp)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Box(
+            modifier = Modifier
+                .width(coverWidth)
+                .aspectRatio(16f / 9f)
+                .shadow(2.dp, coverShape, clip = false)
+                .clip(coverShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .border(0.5.dp, rimBrush, coverShape),
+        ) {
+            AsyncImage(
+                model = coverUrl,
+                contentDescription = title,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+        }
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.5.sp,
+                    lineHeight = 18.sp,
+                ),
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (supportingText != null) {
+                Text(
+                    text = supportingText,
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontWeight = FontWeight.Medium,
+                    ),
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (sourceText != null) {
+                Text(
+                    text = sourceText,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        trailing?.invoke()
     }
 }
 
