@@ -372,14 +372,16 @@ fun SkeletonVideoCard(modifier: Modifier = Modifier) {
 
 /** 骨架网格（首页 Loading 态） */
 @Composable
-fun SkeletonVideoGrid(modifier: Modifier = Modifier, rows: Int = 3) {
-    // 审核271/280：间距与首页成功态一致（Kototoro GridSpacing 8dp、页边 12dp）——
-    // 不一致会让加载完成后间距跳变，观感断层。
+fun SkeletonVideoGrid(modifier: Modifier = Modifier, columns: Int = 2, rows: Int = 3) {
+    // 审核271/283：间距与首页成功态一致（Kototoro GridSpacing 8dp、页边 12dp）——
+    // 不一致会让加载完成后间距跳变，观感断层。列数由调用方按可用宽度算好传入，
+    // 与成功态 LazyVerticalGrid 保持一致。
     Column(modifier = modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         repeat(rows) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SkeletonVideoCard(Modifier.weight(1f))
-                SkeletonVideoCard(Modifier.weight(1f))
+                repeat(columns) {
+                    SkeletonVideoCard(Modifier.weight(1f))
+                }
             }
         }
     }

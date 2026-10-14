@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -233,24 +234,42 @@ fun HomeScreen(
                 }
             }
 
+            // 审核283：网格列数按可用宽度算（Loading 骨架屏与 Success 网格共用），
+            // 移植 Kototoro resolveGridColumnCount（KototoroContentListScreen.kt:742）。
+            // 手机竖屏仍是 2 列；平板/折叠屏展开时自动到 3~4 列，不会出现
+            // 「大屏上卡片被拉成巨卡」的廉价观感。目标卡宽取
+            // moviePosterCardStyle 下限 160dp，卡距 8dp、页边 12dp。
+            var homeGridColumns by remember { androidx.compose.runtime.mutableIntStateOf(2) }
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                homeGridColumns = resolveGridColumnCount(
+                    availableWidth = maxWidth - 24.dp,
+                    targetItemWidth = 160.dp,
+                    spacing = 8.dp,
+                )
+            }
+
             when (val s = state) {
                 is HomeUiState.Loading -> {
                     // 审核234：骨架屏替代转圈（BiliPai HomeFeedSkeletonCard 观感，感知加载更快）
-                    com.example.piliai.ui.components.SkeletonVideoGrid(Modifier.fillMaxSize())
+                    // 审核283：列数与成功态一致，避免加载完成时网格跳变
+                    com.example.piliai.ui.components.SkeletonVideoGrid(
+                        modifier = Modifier.fillMaxSize(),
+                        columns = homeGridColumns,
+                    )
                 }
                 is HomeUiState.Success -> {
                     val topRcmd by viewModel.topRcmd.collectAsStateWithLifecycle()
                     LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
+                        columns = GridCells.Fixed(homeGridColumns),
                         state = gridState,
-                        // 审核271/280：卡距 8dp 对齐 Kototoro GridSpacing
-                        // （KototoroContentListScreen.kt:117），页边 12dp 对齐
-                        // AppLayoutTokens.compactItemHorizontalPadding。
-                        // 封面 16:9 不变（视频内容决定，不照搬漫画的竖封面）。
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
+                            // 审核271/280：卡距 8dp 对齐 Kototoro GridSpacing
+                            // （KototoroContentListScreen.kt:117），页边 12dp 对齐
+                            // AppLayoutTokens.compactItemHorizontalPadding。
+                            // 封面 16:9 不变（视频内容决定，不照搬漫画的竖封面）。
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
                         // 顶部 Hero 轮播（Kototoro 风格：240dp 高、底部 20dp 圆角、
                         // 100dp 渐变遮罩、胶囊指示器）
                         if (topRcmd.isNotEmpty()) {
@@ -317,6 +336,27 @@ fun HomeScreen(
             }
         }
     }
+}
+
+/**
+ * 审核283：按可用宽度算网格列数（移植 Kototoro resolveGridColumnCount，
+ * KototoroContentListScreen.kt:742）。
+ *
+ * `floor((availableWidth + spacing) / (minCellWidth + spacing))`，其中
+ * minCellWidth = targetItemWidth * 0.94（Kototoro GridColumnMinFitRatio，:113）——
+ * 允许卡片比目标宽度略窄，避免「差一点就能多放一列」的浪费。
+ */
+private fun resolveGridColumnCount(
+    availableWidth: androidx.compose.ui.unit.Dp,
+    targetItemWidth: androidx.compose.ui.unit.Dp,
+    spacing: androidx.compose.ui.unit.Dp,
+): Int {
+    val minFitRatio = 0.94f
+    val minCellWidth = targetItemWidth.value * minFitRatio
+    val columns = kotlin.math.floor(
+        (availableWidth.value + spacing.value) / (minCellWidth + spacing.value)
+    ).toInt()
+    return columns.coerceAtLeast(2)
 }
 
 /**
