@@ -7,6 +7,7 @@ import com.example.piliai.data.repository.HomeRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 sealed interface HomeUiState {
@@ -26,6 +27,18 @@ class HomeViewModel(
 
     init {
         if (storage != null) {
+            // 审核279：首页数据源偏好。先同步读一次缓存值（下次 refresh 生效），
+            // 再 collect 持续同步——否则首次进首页用默认 auto，
+            // 用户设了「每周必看」也要等设置页再进才生效。
+            viewModelScope.launch {
+                repo.setPreferredSource(storage.homeFeedSourceFlow.first())
+                storage.homeFeedSourceFlow.collect { pref ->
+                    if (repo.preferredSource != pref) {
+                        repo.setPreferredSource(pref)
+                        refresh()
+                    }
+                }
+            }
             viewModelScope.launch {
                 kotlinx.coroutines.flow.combine(
                     storage.minDurationForRcmdFlow,

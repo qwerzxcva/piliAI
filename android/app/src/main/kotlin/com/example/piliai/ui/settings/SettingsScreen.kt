@@ -65,6 +65,8 @@ fun SettingsScreen(
     var showAboutDialog by remember { mutableStateOf(false) }
     var showRendererDialog by remember { mutableStateOf(false) }
     var showBackendDialog by remember { mutableStateOf(false) }
+    // 审核279：首页数据源选择弹窗
+    var showFeedSourceDialog by remember { mutableStateOf(false) }
     var showCompletionDialog by remember { mutableStateOf(false) }
     var showBufferDialog by remember { mutableStateOf(false) }
     var showHwDecodeDialog by remember { mutableStateOf(false) }
@@ -139,6 +141,17 @@ fun SettingsScreen(
                     ),
                     icon = Icons.Default.Speed,
                     onClick = { showBackendDialog = true }
+                )
+            }
+            item {
+                // 审核279：首页数据源（可多选切换）——某个接口被风控时
+                // 用户能手动切到能用的，不用干等自动降级。
+                SettingRow(
+                    title = "首页数据源",
+                    subtitle = com.example.piliai.data.repository.HomeRepository
+                        .prefLabel(state.homeFeedSource),
+                    icon = Icons.Default.Home,
+                    onClick = { showFeedSourceDialog = true }
                 )
             }
             item {
@@ -1134,6 +1147,58 @@ fun SettingsScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showBackendDialog = false }) {
+                    Text(stringResource(R.string.playback_settings_cancel))
+                }
+            }
+        )
+    }
+
+    // 审核279：首页数据源选择（自动/推荐流/热门/入站必刷/每周必看）
+    if (showFeedSourceDialog) {
+        AlertDialog(
+            onDismissRequest = { showFeedSourceDialog = false },
+            title = { Text("首页数据源") },
+            text = {
+                Column {
+                    com.example.piliai.data.repository.HomeRepository.PREF_VALUES
+                        .forEach { pref ->
+                            Row(
+                                Modifier.fillMaxWidth().clickable {
+                                    viewModel.setHomeFeedSource(pref)
+                                    showFeedSourceDialog = false
+                                }.padding(vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = state.homeFeedSource == pref,
+                                    onClick = {
+                                        viewModel.setHomeFeedSource(pref)
+                                        showFeedSourceDialog = false
+                                    }
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        com.example.piliai.data.repository.HomeRepository
+                                            .prefLabel(pref),
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    if (pref != com.example.piliai.data.repository
+                                            .HomeRepository.PREF_AUTO
+                                    ) {
+                                        Text(
+                                            "失败时不自动切换",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showFeedSourceDialog = false }) {
                     Text(stringResource(R.string.playback_settings_cancel))
                 }
             }

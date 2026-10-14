@@ -41,6 +41,9 @@ class StorageManager(private val context: Context) {
         // Kazumi 特性：视频渲染器（0=SurfaceView默认 1=TextureView）
         private val RENDERER_KEY = intPreferencesKey("videoRenderer")
         private val PLAYBACK_BACKEND_KEY = stringPreferencesKey("playbackBackend")
+        // 审核279：首页数据源偏好（auto=自动降级 / recommend=推荐流 / popular=热门）。
+        // 某个接口被风控时用户可手动切到能用的，不用干等。
+        private val HOME_FEED_SOURCE_KEY = stringPreferencesKey("homeFeedSource")
         private val COMPLETION_ACTION_KEY = stringPreferencesKey("completionAction")
         // Kazumi 特性：低延迟音频（缩短 AudioTrack 缓冲，代价是弱网易卡顿）
         private val LOW_LATENCY_AUDIO_KEY = booleanPreferencesKey("lowLatencyAudio")
@@ -159,6 +162,10 @@ class StorageManager(private val context: Context) {
     val completionActionFlow: Flow<String> = context.dataStore.data
         .map { preferences -> preferences[COMPLETION_ACTION_KEY] ?: "next" }
 
+    /** 审核279：首页数据源偏好（auto/recommend/popular） */
+    val homeFeedSourceFlow: Flow<String> = context.dataStore.data
+        .map { preferences -> preferences[HOME_FEED_SOURCE_KEY] ?: "auto" }
+
     /** Kazumi：低延迟音频（AudioTrack 缓冲最小化） */
     val lowLatencyAudioFlow: Flow<Boolean> = context.dataStore.data
         .map { preferences -> preferences[LOW_LATENCY_AUDIO_KEY] ?: false }
@@ -244,6 +251,13 @@ class StorageManager(private val context: Context) {
     suspend fun setCompletionAction(action: String) {
         context.dataStore.edit { preferences ->
             preferences[COMPLETION_ACTION_KEY] = action
+        }
+    }
+
+    /** 审核279：设置首页数据源（auto/recommend/popular） */
+    suspend fun setHomeFeedSource(source: String) {
+        context.dataStore.edit { preferences ->
+            preferences[HOME_FEED_SOURCE_KEY] = source
         }
     }
 

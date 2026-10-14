@@ -32,8 +32,64 @@ import kotlinx.coroutines.withContext
  */
 class HomeRepository(private val apiClient: BiliApiClient = BiliApiClient()) {
 
-    /** 当前生效的数据源，供 UI 展示「推荐 / 热门」来源 */
-    enum class FeedSource { RECOMMEND, POPULAR }
+    /**
+     * 当前生效的数据源，供 UI 展示来源。
+     *
+     * 审核279：新增 PRECIOUS（入站必刷）/ WEEKLY（每周必看）——用户要求
+     * 设置里可多选切换，某个接口被风控时能切到能用的。
+     */
+    enum class FeedSource { RECOMMEND, POPULAR, PRECIOUS, WEEKLY }
+
+    companion object {
+        /** 设置项取值：auto=自动降级 / recommend / popular / precious / weekly */
+        const val PREF_AUTO = "auto"
+        const val PREF_RECOMMEND = "recommend"
+        const val PREF_POPULAR = "popular"
+        const val PREF_PRECIOUS = "precious"
+        const val PREF_WEEKLY = "weekly"
+
+        val PREF_VALUES = listOf(PREF_AUTO, PREF_RECOMMEND, PREF_POPULAR, PREF_PRECIOUS, PREF_WEEKLY)
+
+        fun feedSourceOf(pref: String): FeedSource = when (pref) {
+            PREF_RECOMMEND -> FeedSource.RECOMMEND
+            PREF_POPULAR -> FeedSource.POPULAR
+            PREF_PRECIOUS -> FeedSource.PRECIOUS
+            PREF_WEEKLY -> FeedSource.WEEKLY
+            else -> FeedSource.RECOMMEND // auto
+        }
+
+        /** UI 标签（设置弹窗与首页提示条共用） */
+        fun prefLabel(pref: String): String = when (pref) {
+            PREF_RECOMMEND -> "个性化推荐"
+            PREF_POPULAR -> "全站热门"
+            PREF_PRECIOUS -> "入站必刷"
+            PREF_WEEKLY -> "每周必看"
+            else -> "自动（推荐优先）"
+        }
+    }
+
+    /** 用户偏好（StorageManager.homeFeedSource）；auto 时才允许降级 */
+    @Volatile
+    var preferredSource: String = PREF_AUTO
+        private set
+
+    /** 设置数据源偏好（设置页调用；下次 refresh 生效） */
+    fun setPreferredSource(pref: String) {
+        val normalized = if (pref in PREF_VALUES) pref else PREF_AUTO
+        if (preferredSource != normalized) {
+            preferredSource = normalized
+            // 切换后重置翻页游标，避免用旧源的页码拉新源
+            freshIdx = 1
+            popularPage = 1
+            preciousPage = 1
+            weeklyNumber = 0
+            _hasMore.value = true
+        }
+    }
+
+    /** 非 auto 时强制用指定源，失败不降级（用户选了什么就用什么） */
+    private val forcedSource: FeedSource?
+        get() = if (preferredSource == PREF_AUTO) null else feedSourceOf(preferredSource)
 
     private val _videos = MutableStateFlow<List<VideoItem>>(emptyList())
     val videos: StateFlow<List<VideoItem>> = _videos.asStateFlow()
@@ -57,6 +113,12 @@ class HomeRepository(private val apiClient: BiliApiClient = BiliApiClient()) {
     /** popular 兜底页码 */
     private var popularPage = 1
 
+    /** 入站必刷页码 */
+    private var preciousPage = 1
+
+    /** 每周必看期数（0=未加载，从最新一期起） */
+    private var weeklyNumber = 0
+
     private var loading = false
 
     /**
@@ -67,9 +129,23 @@ class HomeRepository(private val apiClient: BiliApiClient = BiliApiClient()) {
         runCatching {
             freshIdx = 1
             popularPage = 1
+            preciousPage = 1
+            weeklyNumber = 0
             _hasMore.value = true
-            loadFeed(freshIdx)
+            loadFirstPage()
                 .getOrElse { throw it }
+        }
+    }
+
+    /** 按当前偏好加载第一页（auto 时带降级链） */
+    private suspend fun loadFirstPage(): Result<List<VideoItem>> {
+        val forced = forcedSource ?: FeedSource.RECOMMEND
+        _feedSource.value = forced
+        return when (forced) {
+            FeedSource.RECOMMEND -> loadFeed(1)
+            FeedSource.POPULAR -> loadPopular(1)
+            FeedSource.PRECIOUS -> loadPrecious(1)
+            FeedSource.WEEKLY -> loadWeekly()
         }
     }
 
@@ -93,6 +169,24 @@ class HomeRepository(private val apiClient: BiliApiClient = BiliApiClient()) {
                     if (appended.isNotEmpty()) popularPage = next
                     appended
                 }
+                FeedSource.PRECIOUS -> {
+                    val next = preciousPage + 1
+                    val appended = loadPrecious(next).getOrElse { throw it }
+                    if (appended.isNotEmpty()) preciousPage = next
+                    appended
+                }
+                FeedSource.WEEKLY -> {
+                    // 每周必看：翻页 = 加载上一期
+                    val previous = weeklyNumber - 1
+                    if (previous < 1) {
+                        _hasMore.value = false
+                        emptyList()
+                    } else {
+                        val appended = loadWeekly(previous).getOrElse { throw it }
+                        if (appended.isNotEmpty()) weeklyNumber = previous
+                        appended
+                    }
+                }
             }
         }
     }
@@ -109,14 +203,14 @@ class HomeRepository(private val apiClient: BiliApiClient = BiliApiClient()) {
             try {
                 val resp = runCatching { apiClient.getFeedRcmd(idx).getOrThrow() }
                     .getOrElse {
-                        // 审核278：网络层失败（风控 HTML / 超时 / 签名失败）也要降级
-                        // 到 popular——原来只有 code != 0 才降级，抛异常就直接冒泡
-                        // 到用户脸上的「加载失败」（就是截图里那个）。
+                        // 审核278/279：auto 才降级；用户手动指定了就报错不降级
+                        if (forcedSource != null) throw it
                         _feedSource.value = FeedSource.POPULAR
                         _error.value = "推荐流暂不可用，已切换到热门"
                         return@runCatching loadPopular(1).getOrThrow()
                     }
                 if (resp.code != 0) {
+                    if (forcedSource != null) error(resp.message ?: "推荐流获取失败")
                     // 风控/签名失败：降级到 popular，并保留已有列表
                     _feedSource.value = FeedSource.POPULAR
                     _error.value = resp.message ?: "推荐流不可用，已切换到热门"
@@ -152,6 +246,57 @@ class HomeRepository(private val apiClient: BiliApiClient = BiliApiClient()) {
                 val items = resp.data?.list.orEmpty()
                 if (page == 1) _videos.value = items else appendUnique(items)
                 _hasMore.value = items.isNotEmpty()
+                items
+            } finally {
+                _isLoading.value = false
+                loading = false
+            }
+        }
+    }
+
+    /**
+     * 审核279：入站必刷（popular/precious，一次最多 100 条）。
+     * 第 1 页整页替换，后续页追加。
+     */
+    private suspend fun loadPrecious(page: Int): Result<List<VideoItem>> {
+        return runCatching {
+            loading = true
+            _isLoading.value = true
+            _error.value = null
+            try {
+                val resp = apiClient.getPopularPrecious().getOrThrow()
+                if (resp.code != 0) error(resp.message ?: "入站必刷获取失败")
+                val items = resp.data?.list.orEmpty()
+                if (page == 1) _videos.value = items else appendUnique(items)
+                // 一次拿满 100 条，没有真正翻页
+                _hasMore.value = false
+                items
+            } finally {
+                _isLoading.value = false
+                loading = false
+            }
+        }
+    }
+
+    /**
+     * 审核279：每周必看。number=null 时先取最新期数，再拉该期详情。
+     * 翻页（loadMore）传 number-1 拉上一期。
+     */
+    private suspend fun loadWeekly(number: Int? = null): Result<List<VideoItem>> {
+        return runCatching {
+            loading = true
+            _isLoading.value = true
+            _error.value = null
+            try {
+                val target = number ?: apiClient.getWeeklyList().getOrThrow()
+                    .data?.list?.maxByOrNull { it.number }?.number
+                    ?: error("无法获取每周必看期数")
+                val resp = apiClient.getWeeklyDetail(target).getOrThrow()
+                if (resp.code != 0) error(resp.message ?: "每周必看获取失败（可能需要登录）")
+                val items = resp.data?.list.orEmpty()
+                weeklyNumber = target
+                if (number == null) _videos.value = items else appendUnique(items)
+                _hasMore.value = target > 1
                 items
             } finally {
                 _isLoading.value = false

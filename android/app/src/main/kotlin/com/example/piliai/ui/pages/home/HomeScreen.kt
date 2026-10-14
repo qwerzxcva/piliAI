@@ -211,23 +211,34 @@ fun HomeScreen(
             onRefresh = { viewModel.refresh() },
             modifier = Modifier.fillMaxSize().padding(padding),
         ) {
-            // 审核237：推荐流被风控降级为热门时给一行提示（此前静默，用户以为刷新坏了）
-            if (feedSource == com.example.piliai.data.repository.HomeRepository.FeedSource.POPULAR &&
+            // 审核279：显示当前生效的数据源。原来只在降级为热门时提示，
+            // 用户切到「入站必刷/每周必看」后看不出当前是哪档。
+            if (feedSource != com.example.piliai.data.repository.HomeRepository.FeedSource.RECOMMEND &&
                 state is HomeUiState.Success
             ) {
+                val label = when (feedSource) {
+                    com.example.piliai.data.repository.HomeRepository.FeedSource.POPULAR ->
+                        "全站热门"
+                    com.example.piliai.data.repository.HomeRepository.FeedSource.PRECIOUS ->
+                        "入站必刷"
+                    com.example.piliai.data.repository.HomeRepository.FeedSource.WEEKLY ->
+                        "每周必看"
+                    else -> ""
+                }
                 androidx.compose.material3.Surface(
                     color = MaterialTheme.colorScheme.surfaceContainerHighest,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp),
                     shape = RoundedCornerShape(10.dp),
                 ) {
                     Text(
-                        "个性化推荐暂不可用（已切换为全站热门）",
+                        "当前：$label（设置 → 首页数据源 可切换）",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                     )
                 }
             }
+
             when (val s = state) {
                 is HomeUiState.Loading -> {
                     // 审核234：骨架屏替代转圈（BiliPai HomeFeedSkeletonCard 观感，感知加载更快）

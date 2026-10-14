@@ -29,6 +29,8 @@ class SettingsViewModel(context: Context) : ViewModel() {
         val danmakuMaxPerSecond: Int = 0,
         val playbackBackend: String = "media3",
         val completionAction: String = "next",
+        // 审核279：首页数据源偏好（auto/recommend/popular/precious/weekly）
+        val homeFeedSource: String = "auto",
         val lowLatencyAudio: Boolean = false,  // Kazumi：低延迟音频
         val renderer: Int = 0,                 // Kazumi：渲染器 0=SurfaceView 1=TextureView
         val videoQuality: String = "auto",   // auto/1080p/720p/480p
@@ -152,6 +154,7 @@ class SettingsViewModel(context: Context) : ViewModel() {
         }
         viewModelScope.launch {
             storage.completionActionFlow.collect { _state.value = _state.value.copy(completionAction = it) }
+            storage.homeFeedSourceFlow.collect { _state.value = _state.value.copy(homeFeedSource = it) }
         }
         viewModelScope.launch {
             storage.videoQualityFlow.collect { _state.value = _state.value.copy(videoQuality = it) }
@@ -346,6 +349,11 @@ class SettingsViewModel(context: Context) : ViewModel() {
     }
     fun setCompletionAction(action: String) = viewModelScope.launch {
         storage.setCompletionAction(action)
+    }
+
+    /** 审核279：设置首页数据源 */
+    fun setHomeFeedSource(source: String) = viewModelScope.launch {
+        storage.setHomeFeedSource(source)
     }
     fun setBufferDuration(v: Int) = viewModelScope.launch {
         com.example.piliai.utils.RendererPrefs.updateBufferDuration(v)
