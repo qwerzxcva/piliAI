@@ -380,60 +380,27 @@ fun MemberScreen(
                             }
                         }
                         items(state.seasonVideos, key = { "sv${it.bvid}" }) { v ->
-                            Card(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
-                                    .clickable { onOpenVideo(v.bvid, v.cid) }
-                            ) {
-                                Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    AsyncImage(
-                                        model = v.pic.toCoverUrl(),
-                                        contentDescription = v.title,
-                                        modifier = Modifier.width(120.dp).aspectRatio(16f / 9f)
-                                            .clip(RoundedCornerShape(6.dp)),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                    Spacer(Modifier.width(10.dp))
-                                    Text(
-                                        v.title,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        maxLines = 2, overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
+                            // 审核284：改用 VideoListRow（rim 描边封面规格）——
+                            // 原先是 Card 包 Row + 6dp 圆角裸封面，空间页视觉最旧的一处。
+                            com.example.piliai.ui.components.VideoListRow(
+                                title = v.title,
+                                coverUrl = v.pic.toCoverUrl(),
+                                coverWidth = 120.dp,
+                                onClick = { onOpenVideo(v.bvid, v.cid) },
+                            )
                         }
                     } else {
                         items(state.seasons, key = { s ->
                             "s${s.meta?.seasonId ?: 0}-${s.meta?.seriesId ?: 0}"
                         }) { s ->
                             val meta = s.meta
-                            Card(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
-                                    .clickable { viewModel.openSeason(s) }
-                            ) {
-                                Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    AsyncImage(
-                                        model = meta?.cover.toCoverUrl(),
-                                        contentDescription = meta?.name,
-                                        modifier = Modifier.width(110.dp).aspectRatio(16f / 9f)
-                                            .clip(RoundedCornerShape(6.dp)),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                    Spacer(Modifier.width(10.dp))
-                                    Column(Modifier.weight(1f)) {
-                                        Text(
-                                            meta?.name ?: meta?.title ?: "",
-                                            style = MaterialTheme.typography.titleSmall,
-                                            maxLines = 1, overflow = TextOverflow.Ellipsis
-                                        )
-                                        Spacer(Modifier.height(4.dp))
-                                        Text(
-                                            "共 ${meta?.total ?: 0} 个视频",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                            }
+                            com.example.piliai.ui.components.VideoListRow(
+                                title = meta?.name ?: meta?.title ?: "",
+                                coverUrl = meta?.cover.toCoverUrl(),
+                                supportingText = "共 ${meta?.total ?: 0} 个视频",
+                                coverWidth = 110.dp,
+                                onClick = { viewModel.openSeason(s) },
+                            )
                         }
                     }
                 }
@@ -503,53 +470,22 @@ private fun StatCell(label: String, value: String, onClick: () -> Unit = {}) {
     }
 }
 
+/**
+ * 审核284：UP 主空间投稿行。改用 VideoListRow（rim 描边封面规格）——
+ * 原先是 140×88 写死 + 6dp 圆角裸封面 + 时长角标叠在封面右下。
+ * 时长改走 supportingText（primary 色），播放/弹幕/日期走 sourceText。
+ */
 @Composable
 private fun SpaceVideoRow(video: SpaceVideoItem, onClick: (String) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth()
-            .clickable { if (video.bvid.isNotEmpty()) onClick(video.bvid) }
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-    ) {
-        Box {
-            AsyncImage(
-                model = video.pic.toCoverUrl(),
-                contentDescription = video.title,
-                modifier = Modifier.width(140.dp).height(88.dp).clip(RoundedCornerShape(6.dp)),
-                contentScale = ContentScale.Crop
-            )
-            Text(
-                video.length,
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.White,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(4.dp)
-                    .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(3.dp))
-                    .padding(horizontal = 4.dp, vertical = 1.dp)
-            )
-        }
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                video.title,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                maxLines = 2, overflow = TextOverflow.Ellipsis
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "播放 ${formatCount(video.play)} · 弹幕 ${formatCount(video.videoReview)}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                formatDate(video.created),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
+    com.example.piliai.ui.components.VideoListRow(
+        title = video.title,
+        coverUrl = video.pic.toCoverUrl(),
+        supportingText = if (video.length.isNotBlank()) "时长 ${video.length}" else null,
+        sourceText = "播放 ${formatCount(video.play)} · 弹幕 ${formatCount(video.videoReview)}" +
+            if (video.created > 0) " · ${formatDate(video.created)}" else "",
+        coverWidth = 140.dp,
+        onClick = { if (video.bvid.isNotEmpty()) onClick(video.bvid) },
+    )
 }
 
 private fun formatCount(n: Long): String = when {

@@ -15,6 +15,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -219,6 +220,7 @@ fun SectionHeader(
  * 用于排行榜/热门/搜索结果等横排列表页——这些页面此前是裸 Row +
  * HorizontalDivider + 硬编码色值，是全 App「廉价感」的主要来源。
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun VideoListRow(
     title: String,
@@ -229,13 +231,21 @@ fun VideoListRow(
     coverWidth: androidx.compose.ui.unit.Dp = 120.dp,
     trailing: (@Composable () -> Unit)? = null,
     onClick: () -> Unit = {},
+    onLongClick: (() -> Unit)? = null,
 ) {
     val rimBrush = rememberCoverRimBrush()
     val coverShape = RoundedCornerShape(10.dp)
+    val rowModifier = if (onLongClick != null) {
+        // combinedClickable 是 ExperimentalFoundationApi，与调用方（如收藏页多选）
+        // 的 OptIn 保持一致；只在真传了 onLongClick 时才走这条路径。
+        Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)
+    } else {
+        Modifier.clickable(onClick = onClick)
+    }
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .then(rowModifier)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.Top,

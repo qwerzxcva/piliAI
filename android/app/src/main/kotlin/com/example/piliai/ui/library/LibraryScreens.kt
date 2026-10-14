@@ -517,48 +517,18 @@ private fun MediaRow(
     onClick: () -> Unit = {},
     onLongClick: () -> Unit = {}
 ) {
-    // 审核271：对齐 Kototoro 列表项规格（KototoroContentCard.kt:630/640/650）——
-    // 行内边距 16/8dp、卡片圆角 16dp、零 elevation（Kototoro 用 surface 分层而非阴影）、
-    // 封面用 CompactContentCoverShape 8dp 圆角。
-    Card(
-        modifier = Modifier.fillMaxWidth().combinedClickable(
-            onClick = onClick, onLongClick = onLongClick
-        ),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        ),
-    ) {
-        Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            AsyncImage(
-                model = cover.toCoverUrl(),
-                contentDescription = title,
-                modifier = Modifier
-                    .width(120.dp)
-                    .height(72.dp)
-                    .clip(RoundedCornerShape(8.dp)),
-                contentScale = ContentScale.Crop
-            )
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    title,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    fontWeight = FontWeight.Medium
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-    }
+    // 审核284：改用通用 VideoListRow（rim 描边 + 阴影 + surfaceVariant 底色）——
+    // 原先是 Card(16dp 圆角) 包 Row + 120×72 写死封面 + 8dp 圆角裸封面，
+    // 收藏/历史/稍后再看三页共用这个行，是全 App 视觉最旧的列表行之一。
+    // 长按（多选）通过 VideoListRow 的 onLongClick 保留。
+    com.example.piliai.ui.components.VideoListRow(
+        title = title,
+        coverUrl = cover.toCoverUrl(),
+        supportingText = subtitle,
+        coverWidth = 120.dp,
+        onClick = onClick,
+        onLongClick = onLongClick,
+    )
 }
 
 private fun formatDur(seconds: Int): String {

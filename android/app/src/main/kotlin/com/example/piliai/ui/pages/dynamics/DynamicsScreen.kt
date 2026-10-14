@@ -1,5 +1,7 @@
 package com.example.piliai.ui.pages.dynamics
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -13,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -274,18 +277,35 @@ private fun DynamicCard(
 
             if (v != null && v.bvid.isNotEmpty()) {
                 Spacer(Modifier.height(10.dp))
-                Row(Modifier.clip(RoundedCornerShape(8.dp))) {
-                    AsyncImage(
-                        model = v.pic.toCoverUrl(),
-                        contentDescription = v.title,
-                        modifier = Modifier.width(140.dp).height(88.dp),
-                        contentScale = ContentScale.Crop
-                    )
+                // 审核284：视频引用块改用 VideoListRow 的封面规格
+                // （rim 描边 + 阴影 + surfaceVariant 底色）——原先是 140×88
+                // 写死尺寸 + 8dp 圆角 + 无描边，与全站视觉语言脱节。
+                // 保留固定 88dp 高度：动态卡片是嵌入块，不能像列表行那样自然撑高。
+                val rimBrush = com.example.piliai.ui.theme.rememberCoverRimBrush()
+                val coverShape = RoundedCornerShape(10.dp)
+                Row(Modifier.clickable { onOpenVideo(v.bvid, 0L) }) {
+                    Box(
+                        Modifier
+                            .width(140.dp)
+                            .height(88.dp)
+                            .shadow(2.dp, coverShape, clip = false)
+                            .clip(coverShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .border(0.5.dp, rimBrush, coverShape)
+                    ) {
+                        AsyncImage(
+                            model = v.pic.toCoverUrl(),
+                            contentDescription = v.title,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
                     Column(Modifier.padding(start = 10.dp).height(88.dp)) {
                         Text(
                             v.title,
-                            fontWeight = FontWeight.Medium,
+                            fontWeight = FontWeight.SemiBold,
                             fontSize = 14.sp,
+                            lineHeight = 18.sp,
                             maxLines = 2, overflow = TextOverflow.Ellipsis
                         )
                         Spacer(Modifier.weight(1f))
@@ -318,11 +338,18 @@ private fun DynamicCard(
                                 overflow = TextOverflow.Ellipsis
                             )
                             Spacer(Modifier.height(6.dp))
+                            // 审核284：转发块封面补 rim 描边 + 阴影（原先是
+                            // 6dp 圆角 + 无描边，动态页唯一没有封面规格的一处）
+                            val fwdRim = com.example.piliai.ui.theme.rememberCoverRimBrush()
+                            val fwdShape = RoundedCornerShape(10.dp)
                             AsyncImage(
                                 model = fwdVideo.pic.toCoverUrl(),
                                 contentDescription = null,
                                 modifier = Modifier.fillMaxWidth().height(120.dp)
-                                    .clip(RoundedCornerShape(6.dp)),
+                                    .shadow(2.dp, fwdShape, clip = false)
+                                    .clip(fwdShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .border(0.5.dp, fwdRim, fwdShape),
                                 contentScale = ContentScale.Crop
                             )
                         } else if (fwdDraw.isNotEmpty()) {
