@@ -223,8 +223,6 @@ class LibraryViewModel(
     private var favPn = 1
     private var favLoadingMore = false
     private var favHasMore = true
-    private val _favHasMore = MutableStateFlow(true)
-    val favHasMoreFlow: StateFlow<Boolean> = _favHasMore.asStateFlow()
 
     fun loadMoreMedias(mediaId: Long) {
         if (favLoadingMore || !favHasMore) return
@@ -234,13 +232,12 @@ class LibraryViewModel(
                 val known = _medias.value.map { it.id }.toSet()
                 _medias.value = _medias.value + items.filterNot { it.id in known }
                 favHasMore = more
-                _favHasMore.value = more
             }.onFailure { favPn-- }
             favLoadingMore = false
         }
     }
 
-    fun resetFavPage() { favPn = 1; favHasMore = true; _favHasMore.value = true }
+    fun resetFavPage() { favPn = 1; favHasMore = true }
 }
 
 /** 收藏夹列表 */
