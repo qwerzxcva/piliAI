@@ -138,7 +138,7 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
 
     /** 批次L30：番剧时间表（匿名可用） */
     suspend fun getBangumiTimeline(): Result<TimelineResponse> = runCatching {
-        client.get("$API_BASE/pgc/web/timeline") {
+        client.getSafe("$API_BASE/pgc/web/timeline") {
             url {
                 parameters.append("types", "1")
                 parameters.append("before", "6")
@@ -146,7 +146,7 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
             }
             header("Referer", "https://www.bilibili.com/anime/timeline/")
             commonHeaders.forEach { (k, v) -> header(k, v) }
-        }.body()
+        }
     }
 
     /** 批次L31：通用 GET（返回 JSON 文本） */
@@ -154,11 +154,11 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
         client.get(url) {
             header("Referer", "https://live.bilibili.com/")
             commonHeaders.forEach { (k, v) -> header(k, v) }
-        }.bodyAsText()
+        }.bodyAsText().let { requireJson(it) }
 
     /** 批次L31：直播间大航海（舰长）列表，匿名可用 */
     suspend fun getGuardTopList(roomId: Long, ruid: Long): Result<GuardTopListResponse> = runCatching {
-        client.get("https://api.live.bilibili.com/xlive/app-room/v2/guardTab/topList") {
+        client.getSafe("https://api.live.bilibili.com/xlive/app-room/v2/guardTab/topList") {
             url {
                 parameters.append("roomid", roomId.toString())
                 parameters.append("page", "1")
@@ -167,30 +167,30 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
             }
             header("Referer", "https://live.bilibili.com/")
             commonHeaders.forEach { (k, v) -> header(k, v) }
-        }.body()
+        }
     }
 
     /** 批次L32：视频分区最新（匿名可用） */
     suspend fun getNewList(rid: Int, page: Int = 1, ps: Int = 20): Result<NewListResponse> = runCatching {
-        client.get("$API_BASE/x/web-interface/newlist") {
+        client.getSafe("$API_BASE/x/web-interface/newlist") {
             url {
                 parameters.append("rid", rid.toString())
                 parameters.append("ps", ps.toString())
                 parameters.append("pn", page.toString())
             }
             commonHeaders.forEach { (k, v) -> header(k, v) }
-        }.body()
+        }
     }
 
     // ========== Video Info ==========
     
     suspend fun getVideoInfo(bvid: String): Result<VideoInfoResponse> = runCatching {
-        client.get("$API_BASE/x/web-interface/view") {
+        client.getSafe("$API_BASE/x/web-interface/view") {
             url {
                 parameters.append("bvid", bvid)
             }
             header("Referer", "https://www.bilibili.com")
-        }.body()
+        }
     }
     
     // ========== Play URL ==========
@@ -214,6 +214,9 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
             }
             header("Referer", "https://www.bilibili.com")
         }.bodyAsText().let { text ->
+            // 审核288：playurl 是关键接口，风控返回 HTML 时给可读错误
+            // （否则报「Expected BEGIN_OBJECT」，用户不知道是风控）
+            requireJson(text)
             // 审核：复用单例 Json，避免每次请求重建（性能）
             BiliHttpClient.json.decodeFromString<PlayUrlResponse>(text)
                 .copy(rawJson = text)
@@ -297,6 +300,10 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
             parameter("pn", pn); parameter("ps", ps)
             header("Referer", "https://www.bilibili.com")
         }.bodyAsText()
+        // 审核288：风控/下线时返回 HTML，JSONObject 会抛「not a JSON object」
+        if (resp.trimStart().startsWith("<")) {
+            error("B站返回风控页面（非 JSON），请稍后重试")
+        }
         org.json.JSONObject(resp)
     }
 
@@ -317,15 +324,15 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
 
     /** 批次L23：专栏文章正文（匿名可用） */
     suspend fun getArticleView(id: Long): Result<ArticleViewResponse> = runCatching {
-        client.get("$API_BASE/x/article/view") {
+        client.getSafe("$API_BASE/x/article/view") {
             url { parameters.append("id", id.toString()) }
             header("Referer", "https://www.bilibili.com")
-        }.body()
+        }
     }
 
     /** 批次L24：UP 主专栏列表（匿名可用） */
     suspend fun getSpaceArticles(mid: Long, pn: Int = 1, ps: Int = 20): Result<SpaceArticleResponse> = runCatching {
-        client.get("$API_BASE/x/space/article") {
+        client.getSafe("$API_BASE/x/space/article") {
             url {
                 parameters.append("mid", mid.toString())
                 parameters.append("pn", pn.toString())
@@ -333,7 +340,7 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
                 parameters.append("sort", "publish_time")
             }
             header("Referer", "https://www.bilibili.com")
-        }.body()
+        }
     }
 
     /** 批次L22：视频 AI 总结（wbi 签名，需登录，匿名 -403） */
@@ -345,10 +352,10 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
                 "up_mid" to upMid.toString()
             )
         )
-        client.get("$API_BASE/x/web-interface/view/conclusion/get") {
+        client.getSafe("$API_BASE/x/web-interface/view/conclusion/get") {
             url { signed.forEach { (k, v) -> parameters.append(k, v) } }
             header("Referer", "https://www.bilibili.com")
-        }.body()
+        }
     }
 
     suspend fun search(keyword: String, page: Int = 1, order: String = "totalrank"): Result<SearchResponse> = runCatching {
@@ -357,19 +364,19 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
         val signed = WbiSigner.sign(
             mapOf("keyword" to keyword, "page" to page.toString(), "order" to order)
         )
-        client.get("$API_BASE/x/web-interface/wbi/search/all/v2") {
+        client.getSafe("$API_BASE/x/web-interface/wbi/search/all/v2") {
             url { signed.forEach { (k, v) -> parameters.append(k, v) } }
             header("Referer", "https://www.bilibili.com")
-        }.body()
+        }
     }
     
     suspend fun searchSuggest(keyword: String): Result<SearchSuggest> = runCatching {
-        client.get("$API_BASE/suggestion/search") {
+        client.getSafe("$API_BASE/suggestion/search") {
             url {
                 parameters.append("keyword", keyword)
             }
             header("Referer", "https://www.bilibili.com")
-        }.body()
+        }
     }
     
     // ========== Comments ==========
@@ -397,16 +404,16 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
             wbi
         } else {
             // -403 或其它非 0：降级到旧路径（匿名仍可用）
-            client.get("$API_BASE/x/v2/reply/main") {
+            client.getSafe("$API_BASE/x/v2/reply/main") {
                 url { params.forEach { (k, v) -> parameters.append(k, v) } }
                 header("Referer", "https://www.bilibili.com")
-            }.body()
+            }
         }
     }
 
     /** 楼中楼回复 /x/v2/reply/reply（无需 wbi） */
     suspend fun getReplyList(oid: Long, rootRpid: Long, page: Int = 1, pageSize: Int = 20): Result<ReplyListResponse> = runCatching {
-        client.get("$API_BASE/x/v2/reply/reply") {
+        client.getSafe("$API_BASE/x/v2/reply/reply") {
             url {
                 parameters.append("oid", oid.toString())
                 parameters.append("type", "1")
@@ -415,7 +422,7 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
                 parameters.append("ps", pageSize.toString())
             }
             header("Referer", "https://www.bilibili.com")
-        }.body()
+        }
     }
 
     /** 评论点赞 /x/v2/reply/action（csrf）。like: 1 点赞 / 0 取消 */
@@ -466,64 +473,64 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
                 "web_location" to "1315875"
             )
         )
-        client.get("$API_BASE/x/v2/reply/at") {
+        client.getSafe("$API_BASE/x/v2/reply/at") {
             url { signed.forEach { (k, v) -> parameters.append(k, v) } }
             header("Referer", "https://www.bilibili.com/")
-        }.body()
+        }
     }
     
     // ========== Danmaku ==========
     
     suspend fun getDanmaku(cid: Long, oid: Long = 0L): Result<DanmakuResponse> = runCatching {
-        client.get("$API_BASE/x/v1/dm/list.so") {
+        client.getSafe("$API_BASE/x/v1/dm/list.so") {
             url {
                 parameters.append("oid", oid.toString())
                 parameters.append("pid", cid.toString())
                 parameters.append("type", "1")
             }
             header("Referer", "https://www.bilibili.com")
-        }.body()
+        }
     }
     
     // ========== User Info ==========
     
     suspend fun getUserInfo(uid: Long): Result<UserInfoResponse> = runCatching {
-        client.get("$API_BASE/x/space/wbi/acc/info") {
+        client.getSafe("$API_BASE/x/space/wbi/acc/info") {
             url {
                 parameters.append("mid", uid.toString())
             }
             header("Referer", "https://space.bilibili.com")
-        }.body()
+        }
     }
     
     suspend fun getUserSpace(uid: Long): Result<UserInfoResponse> = runCatching {
-        client.get("$API_BASE/x/space/acc/info") {
+        client.getSafe("$API_BASE/x/space/acc/info") {
             url {
                 parameters.append("mid", uid.toString())
             }
             header("Referer", "https://space.bilibili.com")
-        }.body()
+        }
     }
     
     // ========== Dynamics ==========
     
     suspend fun getUserDynamics(uid: Long, offset: Long = 0L): Result<DynamicsResponse> = runCatching {
-        client.get("$API_BASE/x/polymer/web-dynamic/v1/feed/space") {
+        client.getSafe("$API_BASE/x/polymer/web-dynamic/v1/feed/space") {
             url {
                 parameters.append("host_uid", uid.toString())
                 parameters.append("offset", offset.toString())
             }
             header("Referer", "https://t.bilibili.com")
-        }.body()
+        }
     }
     
     suspend fun getFollowingsFeed(offset: Long = 0L): Result<DynamicsResponse> = runCatching {
-        client.get("$API_BASE/x/polymer/web-dynamic/v1/feed/all") {
+        client.getSafe("$API_BASE/x/polymer/web-dynamic/v1/feed/all") {
             url {
                 parameters.append("offset", offset.toString())
             }
             header("Referer", "https://t.bilibili.com")
-        }.body()
+        }
     }
     
     // ========== Live ==========
@@ -532,32 +539,32 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
     // ========== Favorites ==========
 
     suspend fun getFavorites(uid: Long, pageSize: Int = 20, mediaType: String = "video"): Result<Map<String, Any>> = runCatching {
-        client.get("$API_BASE/x/v3/fav/folder/created/list-all") {
+        client.getSafe("$API_BASE/x/v3/fav/folder/created/list-all") {
             url {
                 parameters.append("up_mid", uid.toString())
                 parameters.append("media_type", mediaType)
             }
             header("Referer", "https://www.bilibili.com")
-        }.body()
+        }
     }
 
     /** 当前用户收藏夹列表（需登录，用于取默认收藏夹 id） */
     suspend fun getMyFavFolders(): Result<List<FavFolder>> = runCatching {
         val mid = AccountSession.mid
         require(mid > 0L) { "未登录" }
-        val resp: FavFolderListResponse = client.get("$API_BASE/x/v3/fav/folder/created/list-all") {
+        val resp: FavFolderListResponse = client.getSafe("$API_BASE/x/v3/fav/folder/created/list-all") {
             url { parameters.append("up_mid", mid.toString()) }
             header("Referer", "https://www.bilibili.com")
-        }.body()
+        }
         resp.data.orEmpty()
     }
 
     /** 查询视频交互状态（like=1 已赞, coin=1 已投币, favourite=1 已藏；需登录） */
     suspend fun getVideoRelation(aid: Long): Result<Triple<Boolean, Boolean, Boolean>> = runCatching {
-        val resp: RelationResponse = client.get("$API_BASE/x/web-interface/archive/relation") {
+        val resp: RelationResponse = client.getSafe("$API_BASE/x/web-interface/archive/relation") {
             url { parameters.append("aid", aid.toString()) }
             header("Referer", "https://www.bilibili.com")
-        }.body()
+        }
         val d = resp.data
         if (resp.code == 0 && d != null) {
             Triple(d.like == 1, d.coin == 1, d.favourite == 1)
@@ -571,24 +578,24 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
      * 需 SESSDATA（未登录返回 -101）。
      */
     suspend fun getDynamicFeed(offset: String? = null): Result<DynamicFeedResponse> = runCatching {
-        client.get("$API_BASE/x/polymer/web-dynamic/v1/feed/all") {
+        client.getSafe("$API_BASE/x/polymer/web-dynamic/v1/feed/all") {
             url {
                 parameters.append("type", "all")
                 if (!offset.isNullOrEmpty()) parameters.append("offset", offset)
                 parameters.append("web_location", "333.1369")
             }
             header("Referer", "https://www.bilibili.com")
-        }.body()
+        }
     }
 
     // ========== Video extras（批次A：播放器补全） ==========
 
     /** 相关视频推荐（无需登录） */
     suspend fun getRelatedVideos(bvid: String): Result<List<RelatedVideo>> = runCatching {
-        val resp: RelatedVideoResponse = client.get("$API_BASE/x/web-interface/archive/related") {
+        val resp: RelatedVideoResponse = client.getSafe("$API_BASE/x/web-interface/archive/related") {
             url { parameters.append("bvid", bvid) }
             header("Referer", "https://www.bilibili.com")
-        }.body()
+        }
         if (resp.code == 0) resp.data.orEmpty() else error(resp.message.ifEmpty { "相关视频获取失败" })
     }
 
@@ -596,10 +603,10 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
 
     /** 热搜榜（无需登录） */
     suspend fun getSearchTrending(): Result<List<TrendingItem>> = runCatching {
-        val resp: SearchTrendingResponse = client.get("$API_BASE/x/v2/search/trending/ranking") {
+        val resp: SearchTrendingResponse = client.getSafe("$API_BASE/x/v2/search/trending/ranking") {
             url { parameters.append("limit", "20") }
             header("Referer", "https://search.bilibili.com")
-        }.body()
+        }
         if (resp.code == 0) {
             (resp.data?.top_list.orEmpty()) + resp.data?.list.orEmpty()
         } else error(resp.message.ifEmpty { "热搜获取失败" })
@@ -628,10 +635,10 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
         if (order.isNotEmpty()) params["order"] = order
         if (duration > 0) params["duration"] = duration.toString()
         val signed = WbiSigner.sign(params)
-        client.get("$API_BASE/x/web-interface/wbi/search/type") {
+        client.getSafe("$API_BASE/x/web-interface/wbi/search/type") {
             url { signed.forEach { (k, v) -> parameters.append(k, v) } }
             header("Referer", "https://search.bilibili.com")
-        }.body()
+        }
     }
 
     /**
@@ -642,11 +649,11 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
     suspend inline fun <reified T : Any> getFavoritesRaw(
         path: String,
         noinline params: io.ktor.http.ParametersBuilder.() -> Unit = {}
-    ): T = BiliHttpClient.client.get("https://api.bilibili.com/$path") {
+    ): T = BiliHttpClient.client.getSafe("https://api.bilibili.com/$path") {
         // URLBuilder.parameters 就是 ParametersBuilder，应用 lambda
         url.parameters.apply(params)
         header("Referer", "https://www.bilibili.com")
-    }.body()
+    }
 
     // ========== UP 主空间（批次C） ==========
 
@@ -723,7 +730,7 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
 
     /** 直播列表（分页，按人气） */
     suspend fun getLiveList(page: Int = 1, pageSize: Int = 30): Result<LiveListResponse> = runCatching {
-        client.get("https://api.live.bilibili.com/xlive/app-interface/v2/second/getList") {
+        client.getSafe("https://api.live.bilibili.com/xlive/app-interface/v2/second/getList") {
              url {
                 parameters.append("platform", "web")
                 parameters.append("parent_area_id", "0")
@@ -733,66 +740,66 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
                 parameters.append("page_size", pageSize.toString())
             }
             header("Referer", "https://live.bilibili.com")
-        }.body()
+        }
     }
 
     /** 批次L25：直播分区列表（room/v1/Area/getList，匿名可用） */
     suspend fun getLiveAreaList(): Result<LiveAreaListResponse> = runCatching {
-        client.get("https://api.live.bilibili.com/room/v1/Area/getList") {
+        client.getSafe("https://api.live.bilibili.com/room/v1/Area/getList") {
             header("Referer", "https://live.bilibili.com")
-        }.body()
+        }
     }
 
     /** 批次L25：直播推荐流（webMain/getMoreRecList，匿名可用；分区过滤在前端做） */
     suspend fun getLiveRecList(): Result<LiveRecListResponse> = runCatching {
-        client.get("https://api.live.bilibili.com/xlive/web-interface/v1/webMain/getMoreRecList") {
+        client.getSafe("https://api.live.bilibili.com/xlive/web-interface/v1/webMain/getMoreRecList") {
             url { parameters.append("platform", "web") }
             header("Referer", "https://live.bilibili.com")
-        }.body()
+        }
     }
 
     /** 批次L26：入站必刷（匿名可用，一次返回全部 98 条） */
     suspend fun getPopularPrecious(): Result<PreciousResponse> = runCatching {
-        client.get("$API_BASE/x/web-interface/popular/precious") {
+        client.getSafe("$API_BASE/x/web-interface/popular/precious") {
             url {
                 parameters.append("page_size", "100")
                 parameters.append("page", "1")
             }
             header("Referer", "https://www.bilibili.com")
-        }.body()
+        }
     }
 
     /** 批次L26：每周必看期数列表（匿名可用） */
     suspend fun getWeeklyList(): Result<WeeklyListResponse> = runCatching {
-        client.get("$API_BASE/x/web-interface/popular/series/list") {
+        client.getSafe("$API_BASE/x/web-interface/popular/series/list") {
             header("Referer", "https://www.bilibili.com")
-        }.body()
+        }
     }
 
     /** 批次L28：每周必看期数详情（需 buvid3 cookie 防 -352） */
     suspend fun getWeeklyDetail(number: Int): Result<WeeklyDetailResponse> = runCatching {
         AccountSession.ensureBuvid()
-        client.get("$API_BASE/x/web-interface/popular/series/one") {
+        client.getSafe("$API_BASE/x/web-interface/popular/series/one") {
             url { parameters.append("number", number.toString()) }
             header("Referer", "https://www.bilibili.com/v/popular/weekly")
-        }.body()
+        }
     }
 
     /** 批次L27：UP 主合集/系列列表（polymer web-space，匿名可用） */
     suspend fun getSeasonsSeries(mid: Long, pageNum: Int = 1, pageSize: Int = 20): Result<SeasonsSeriesResponse> = runCatching {
-        client.get("$API_BASE/x/polymer/web-space/seasons_series_list") {
+        client.getSafe("$API_BASE/x/polymer/web-space/seasons_series_list") {
             url {
                 parameters.append("mid", mid.toString())
                 parameters.append("page_num", pageNum.toString())
                 parameters.append("page_size", pageSize.toString())
             }
             header("Referer", "https://space.bilibili.com")
-        }.body()
+        }
     }
 
     /** 批次L27：合集内视频列表（seasons_archives_list，匿名可用） */
     suspend fun getSeasonArchives(mid: Long, seasonId: Long, pageNum: Int = 1, pageSize: Int = 20): Result<SeasonArchivesResponse> = runCatching {
-        client.get("$API_BASE/x/polymer/web-space/seasons_archives_list") {
+        client.getSafe("$API_BASE/x/polymer/web-space/seasons_archives_list") {
             url {
                 parameters.append("mid", mid.toString())
                 parameters.append("season_id", seasonId.toString())
@@ -800,12 +807,12 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
                 parameters.append("page_size", pageSize.toString())
             }
             header("Referer", "https://space.bilibili.com")
-        }.body()
+        }
     }
 
     /** 批次L27：系列内视频列表（/x/series/archives，匿名可用；archives 可能为 null） */
     suspend fun getSeriesArchives(mid: Long, seriesId: Long, pageNum: Int = 1, pageSize: Int = 20): Result<SeasonArchivesResponse> = runCatching {
-        client.get("$API_BASE/x/series/archives") {
+        client.getSafe("$API_BASE/x/series/archives") {
             url {
                 parameters.append("mid", mid.toString())
                 parameters.append("series_id", seriesId.toString())
@@ -815,20 +822,20 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
                 parameters.append("ps", pageSize.toString())
             }
             header("Referer", "https://space.bilibili.com")
-        }.body()
+        }
     }
 
     // ========== 番剧/影视（批次D） ==========
 
     /** 番剧详情（season_id 或 ep_id）。注意：pgc 接口在 api.bilibili.com，返回字段直属 result */
     suspend fun getPgcSeason(seasonId: Long = 0L, epId: Long = 0L): Result<PgcSeasonResponse> = runCatching {
-        client.get("$API_BASE/pgc/view/web/season") {
+        client.getSafe("$API_BASE/pgc/view/web/season") {
             url {
                 if (seasonId > 0) parameters.append("season_id", seasonId.toString())
                 if (epId > 0) parameters.append("ep_id", epId.toString())
             }
             header("Referer", "https://www.bilibili.com/bangumi/")
-        }.body()
+        }
     }
 
     /** pgc 索引分类列表（批次L2）：season_type 1番剧 2电影 3纪录片 4国创 5电视剧 7综艺 */
@@ -837,7 +844,7 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
         page: Int,
         order: String = "update"
     ): Result<PgcIndexResponse> = runCatching {
-        client.get("$API_BASE/pgc/season/index/result") {
+        client.getSafe("$API_BASE/pgc/season/index/result") {
             url {
                 parameters.append("season_type", seasonType.toString())
                 parameters.append("type", "1")
@@ -846,19 +853,19 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
                 parameters.append("pagesize", "20")
             }
             header("Referer", "https://www.bilibili.com/")
-        }.body()
+        }
     }
 
     /** 进度条缩略图雪碧图（批次L3 storyboard） */
     suspend fun getVideoShot(bvid: String, cid: Long): Result<VideoShotResponse> = runCatching {
-        client.get("$API_BASE/x/player/videoshot") {
+        client.getSafe("$API_BASE/x/player/videoshot") {
             url {
                 parameters.append("bvid", bvid)
                 parameters.append("cid", cid.toString())
                 parameters.append("index", "1")
             }
             header("Referer", "https://www.bilibili.com/")
-        }.body()
+        }
     }
 
     /** 番剧播放地址（pgc playurl，ep_id + cid） */
@@ -873,10 +880,10 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
                 "fourk" to "1"
             )
         )
-        client.get("$API_BASE/pgc/player/web/playurl") {
+        client.getSafe("$API_BASE/pgc/player/web/playurl") {
             url { signed.forEach { (k, v) -> parameters.append(k, v) } }
             header("Referer", "https://www.bilibili.com/bangumi/")
-        }.body()
+        }
     }
 
     /** 追番/取消追番（csrf）。season_id 或 ep_id 二选一 */
@@ -894,43 +901,43 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
 
     /** 关注列表（需登录） */
     suspend fun getFollowings(mid: Long, page: Int = 1, pageSize: Int = 50): Result<FollowingsResponse> = runCatching {
-        client.get("$API_BASE/x/relation/followings") {
+        client.getSafe("$API_BASE/x/relation/followings") {
             url {
                 parameters.append("vmid", mid.toString())
                 parameters.append("pn", page.toString())
                 parameters.append("ps", pageSize.toString())
             }
             header("Referer", "https://space.bilibili.com/$mid")
-        }.body()
+        }
     }
 
     /** 粉丝列表（需登录） */
     suspend fun getFollowers(mid: Long, page: Int = 1, pageSize: Int = 50): Result<FollowingsResponse> = runCatching {
-        client.get("$API_BASE/x/relation/followers") {
+        client.getSafe("$API_BASE/x/relation/followers") {
             url {
                 parameters.append("vmid", mid.toString())
                 parameters.append("pn", page.toString())
                 parameters.append("ps", pageSize.toString())
             }
             header("Referer", "https://space.bilibili.com/$mid")
-        }.body()
+        }
     }
 
     /** 未读消息数（需登录） */
     suspend fun getMsgUnread(): Result<MsgUnreadResponse> = runCatching {
-        client.get("$API_BASE/x/msgfeed/unread") {
+        client.getSafe("$API_BASE/x/msgfeed/unread") {
             url {
                 parameters.append("platform", "web")
                 parameters.append("build", "0")
                 parameters.append("mobi_app", "web")
             }
             header("Referer", "https://message.bilibili.com")
-        }.body()
+        }
     }
 
     /** 回复我的（需登录） */
     suspend fun getMsgReply(page: Int = 1): Result<MsgFeedResponse> = runCatching {
-        client.get("$API_BASE/x/msgfeed/reply") {
+        client.getSafe("$API_BASE/x/msgfeed/reply") {
             url {
                 parameters.append("platform", "web")
                 parameters.append("build", "0")
@@ -938,12 +945,12 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
                 parameters.append("pn", page.toString())
             }
             header("Referer", "https://message.bilibili.com")
-        }.body()
+        }
     }
 
     /** @我的（需登录） */
     suspend fun getMsgAt(page: Int = 1): Result<MsgFeedResponse> = runCatching {
-        client.get("$API_BASE/x/msgfeed/at") {
+        client.getSafe("$API_BASE/x/msgfeed/at") {
             url {
                 parameters.append("platform", "web")
                 parameters.append("build", "0")
@@ -951,12 +958,12 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
                 parameters.append("pn", page.toString())
             }
             header("Referer", "https://message.bilibili.com")
-        }.body()
+        }
     }
 
     /** 收到的赞（需登录） */
     suspend fun getMsgLike(page: Int = 1): Result<MsgFeedResponse> = runCatching {
-        client.get("$API_BASE/x/msgfeed/like") {
+        client.getSafe("$API_BASE/x/msgfeed/like") {
             url {
                 parameters.append("platform", "web")
                 parameters.append("build", "0")
@@ -964,14 +971,14 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
                 parameters.append("pn", page.toString())
             }
             header("Referer", "https://message.bilibili.com")
-        }.body()
+        }
     }
 
     // ========== 直播（批次F） ==========
 
     /** 直播间播放信息（含 HLS/FLV 流地址）。roomId 支持短号 */
     suspend fun getLivePlayInfo(roomId: Long): Result<LivePlayInfoResponse> = runCatching {
-        client.get("https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo") {
+        client.getSafe("https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo") {
             url {
                 parameters.append("room_id", roomId.toString())
                 parameters.append("protocol", "0,1")     // 0=flv 1=hls
@@ -980,15 +987,15 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
                 parameters.append("qn", "10000")         // 最高画质
             }
             header("Referer", "https://live.bilibili.com")
-        }.body()
+        }
     }
 
     /** 直播间信息（标题/分区/人气） */
     suspend fun getLiveRoomInfo(roomId: Long): Result<LiveRoomInfoResponse> = runCatching {
-        client.get("https://api.live.bilibili.com/xlive/web-interface/v1/index/getInfoByRoom") {
+        client.getSafe("https://api.live.bilibili.com/xlive/web-interface/v1/index/getInfoByRoom") {
             url { parameters.append("room_id", roomId.toString()) }
             header("Referer", "https://live.bilibili.com")
-        }.body()
+        }
     }
 
     /** 直播人气入口上报（进入直播间必须调，否则风控） */
@@ -1004,17 +1011,26 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
 
     /** 弹幕连接信息：token + host 列表（wss://host:wssPort/sub） */
     suspend fun getDanmuInfo(roomId: Long): Result<DanmuInfoResponse> = runCatching {
-        client.get("https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo") {
+        client.getSafe("https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo") {
             url {
                 parameters.append("id", roomId.toString())
                 parameters.append("type", "0")
             }
             header("Referer", "https://live.bilibili.com/")
-        }.body()
+        }
     }
 
-    /** 发送直播弹幕（csrf） */
+    /**
+     * 发送直播弹幕（csrf）。
+     *
+     * 审核288（真 bug）：直播弹幕接口的 CSRF 字段名是 `csrf_token`，而
+     * postAuthForm 自动加的是 `csrf`。原来这里把 csrf_token 硬编码成空串，
+     * 导致发弹幕必然返回 -111（csrf 校验失败）——用户看到「发送失败」但
+     * 完全不知道原因。改为从登录态取 bili_jct 填入。
+     */
     suspend fun sendLiveDanmaku(roomId: Long, message: String): Result<Boolean> = runCatching {
+        val csrf = AccountSession.snapshot()["bili_jct"].orEmpty()
+        if (csrf.isEmpty()) error("请先登录 B 站账号")
         val resp: String = BiliHttpClient.postAuthForm(
             "https://api.live.bilibili.com/xlive/web-room/v1/index/SendMsg",
             linkedMapOf(
@@ -1025,7 +1041,7 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
                 "fontsize" to "25",
                 "rnd" to (System.currentTimeMillis() / 1000).toString(),
                 "roomid" to roomId.toString(),
-                "csrf_token" to ""
+                "csrf_token" to csrf
             )
         )
         org.json.JSONObject(resp).optInt("code") == 0
@@ -1064,28 +1080,28 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
 
     /** /x/player/v2 —— 字幕列表等播放器附加信息 */
     suspend fun getPlayerV2(bvid: String, cid: Long): Result<PlayerV2Response> = runCatching {
-        client.get("$API_BASE/x/player/v2") {
+        client.getSafe("$API_BASE/x/player/v2") {
             url {
                 parameters.append("bvid", bvid)
                 parameters.append("cid", cid.toString())
             }
             header("Referer", "https://www.bilibili.com/")
-        }.body()
+        }
     }
 
     /** 拉取字幕内容 JSON（subtitle_url，协议相对 // 开头） */
     suspend fun fetchSubtitleBody(url: String): Result<SubtitleBody> = runCatching {
         val full = if (url.startsWith("//")) "https:$url" else url
-        client.get(full) {
+        client.getSafe(full) {
             header("Referer", "https://www.bilibili.com/")
-        }.body()
+        }
     }
 
     // ========== History / 稍后再看（批次G） ==========
 
     /** 排行榜（批次L17）：需桌面 UA + rank referer，否则 -352 风控 */
     suspend fun getRanking(rid: Int = 0, type: String = "all"): Result<RankResponse> = runCatching {
-        client.get("$API_BASE/x/web-interface/ranking/v2") {
+        client.getSafe("$API_BASE/x/web-interface/ranking/v2") {
             url {
                 parameters.append("rid", rid.toString())
                 parameters.append("type", type)
@@ -1093,12 +1109,12 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
             header("Referer", "https://www.bilibili.com/v/popular/rank/all")
             header("User-Agent",
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
-        }.body()
+        }
     }
 
     /** 批次L34：分区排行榜（ranking/region 匿名可用；rid=0 无效需传分区） */
     suspend fun getRegionRanking(rid: Int): Result<RegionRankResponse> = runCatching {
-        client.get("$API_BASE/x/web-interface/ranking/region") {
+        client.getSafe("$API_BASE/x/web-interface/ranking/region") {
             url {
                 parameters.append("rid", rid.toString())
                 parameters.append("day", "3")
@@ -1106,49 +1122,49 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
             header("Referer", "https://www.bilibili.com/v/popular/rank/all")
             header("User-Agent",
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
-        }.body()
+        }
     }
 
     /** 批次L45：UP主付费课程列表（cheese/pugv，匿名可用，无课程返回空） */
     suspend fun getMemberCheese(mid: Long): Result<CheesePageResponse> = runCatching {
-        client.get("$API_BASE/pugv/app/web/season/page") {
+        client.getSafe("$API_BASE/pugv/app/web/season/page") {
             url {
                 parameters.append("mid", mid.toString())
                 parameters.append("pn", "1")
                 parameters.append("ps", "10")
             }
             header("Referer", "https://space.bilibili.com/$mid")
-        }.body()
+        }
     }
 
     /** 批次L43：UP主空间公告（匿名可用，可能为空字符串） */
     suspend fun getSpaceNotice(mid: Long): Result<String> = runCatching {
-        val resp: SpaceNoticeResponse = client.get("$API_BASE/x/space/notice") {
+        val resp: SpaceNoticeResponse = client.getSafe("$API_BASE/x/space/notice") {
             url { parameters.append("mid", mid.toString()) }
             header("Referer", "https://space.bilibili.com/$mid")
-        }.body()
+        }
         if (resp.code == 0) resp.data.orEmpty() else error(resp.message.ifEmpty { "公告获取失败" })
     }
 
     /** 批次L40：播放页实时在线人数（匿名可用） */
     suspend fun getOnlineTotal(bvid: String, cid: Long): Result<Long> = runCatching {
-        val resp: OnlineTotalResponse = client.get("$API_BASE/x/player/online/total") {
+        val resp: OnlineTotalResponse = client.getSafe("$API_BASE/x/player/online/total") {
             url {
                 parameters.append("bvid", bvid)
                 parameters.append("cid", cid.toString())
             }
             header("Referer", "https://www.bilibili.com")
-        }.body()
+        }
         if (resp.code == 0) (resp.data?.total ?: resp.data?.count ?: "0").toLongOrNull() ?: 0L
         else error(resp.message.ifEmpty { "在线人数获取失败" })
     }
 
     /** 批次L38：UP主代表作（匿名可用，精选置顶，最多3条） */
     suspend fun getMasterpiece(mid: Long): Result<List<MasterpieceArc>> = runCatching {
-        val resp: MasterpieceResponse = client.get("$API_BASE/x/space/masterpiece") {
+        val resp: MasterpieceResponse = client.getSafe("$API_BASE/x/space/masterpiece") {
             url { parameters.append("vmid", mid.toString()) }
             header("Referer", "https://space.bilibili.com/$mid")
-        }.body()
+        }
         if (resp.code == 0) resp.data else error(resp.message.ifEmpty { "代表作获取失败" })
     }
 
@@ -1158,21 +1174,21 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
         viewAt: Long = 0L,
         ps: Int = 20
     ): Result<HistoryResponse> = runCatching {
-        client.get("$API_BASE/x/web-interface/history/cursor") {
+        client.getSafe("$API_BASE/x/web-interface/history/cursor") {
             url {
                 parameters.append("ps", ps.toString())
                 if (max > 0) parameters.append("max", max.toString())
                 if (viewAt > 0) parameters.append("view_at", viewAt.toString())
             }
             header("Referer", "https://www.bilibili.com")
-        }.body()
+        }
     }
 
     /** 稍后再看列表 /x/v2/history/toview（需登录） */
     suspend fun getToView(): Result<ToViewResponse> = runCatching {
-        client.get("$API_BASE/x/v2/history/toview") {
+        client.getSafe("$API_BASE/x/v2/history/toview") {
             header("Referer", "https://www.bilibili.com")
-        }.body()
+        }
     }
 
     /** 添加稍后再看（csrf） */
@@ -1247,7 +1263,7 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
 
     /** 私聊消息记录（talker = 对方 mid） */
     suspend fun fetchSessionMsgs(talkerId: Long, sessionTs: Long = 0L): Result<SessionMsgsResponse> = runCatching {
-        client.get("$API_BASE/bili-api/v1/web/session/poll") {
+        client.getSafe("$API_BASE/bili-api/v1/web/session/poll") {
             url {
                 parameters.append("talker_id", talkerId.toString())
                 parameters.append("session_type", "1")
@@ -1256,7 +1272,7 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
                 if (sessionTs > 0) parameters.append("session_ts", sessionTs.toString())
             }
             header("Referer", "https://message.bilibili.com/")
-        }.body()
+        }
     }
 
     /** 发送私聊消息（csrf）；sender_uid = 自己 mid */
@@ -1312,10 +1328,10 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
 
     /** 大表情包详情 /x/emote/package（1=小黄脸，244=小黄脸动态） */
     suspend fun getEmotePackage(id: Long): Result<EmotePackageResponse> = runCatching {
-        client.get("$API_BASE/x/emote/package") {
+        client.getSafe("$API_BASE/x/emote/package") {
             url { parameters.append("id", id.toString()) }
             header("Referer", "https://www.bilibili.com")
-        }.body()
+        }
     }
 
     // ========== WBI Signature ==========
