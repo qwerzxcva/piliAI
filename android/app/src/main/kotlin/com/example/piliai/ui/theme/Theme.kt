@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -284,6 +285,35 @@ val PiliTokens = InterfaceStyleTokens(
  * 后续要整体调圆角只改这里。
  */
 val PiliCardShape = RoundedCornerShape(PiliTokens.cardCornerRadius)
+
+/**
+ * 审核280：封面「rim」描边刷（Kototoro rememberCoverRimBorderBrush 移植，
+ * SharedContentCardBadges.kt:246）。0.5dp 竖向渐变描边让封面在任意底色上都有
+ * 边缘，这是 Kototoro 卡片「不显廉价」的关键之一——只有圆角没有描边时，
+ * 封面与背景交界处发糊。
+ */
+@Composable
+fun rememberCoverRimBrush(): Brush {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val outlineVariant = MaterialTheme.colorScheme.outlineVariant
+    return remember(isDark, outlineVariant) {
+        Brush.verticalGradient(
+            0.0f to Color.White.copy(alpha = if (isDark) 0.22f else 0.55f),
+            0.4f to Color.White.copy(alpha = if (isDark) 0.08f else 0.20f),
+            1.0f to Color.White.copy(alpha = if (isDark) 0.04f else 0.10f),
+        )
+    }
+}
+
+/** Kototoro compact grid 标题遮罩色标（SharedPosterCover.kt:52-60） */
+val PiliCoverScrimStops = arrayOf(
+    0.0f to Color.Transparent,
+    0.20f to Color.Black.copy(alpha = 0.05f),
+    0.40f to Color.Black.copy(alpha = 0.16f),
+    0.60f to Color.Black.copy(alpha = 0.34f),
+    0.80f to Color.Black.copy(alpha = 0.54f),
+    1.0f to Color.Black.copy(alpha = 0.72f),
+)
 
 /** Kototoro 风格形状 token（Shapes 由 token 派生，KototoroShapes.kt） */
 val PiliShapes = Shapes(

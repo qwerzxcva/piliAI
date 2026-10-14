@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -134,41 +135,34 @@ fun SkeletonVideoCard(modifier: Modifier = Modifier) {
         label = "alpha",
     )
     val shimmer = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = alpha)
-    Column(modifier = modifier.clip(PiliCardShape)) {
+    // 审核280：与成功态卡片同构——封面 + 封面内两行占位条（标题已改为 overlay，
+    // 不再有封面外的标题条）+ 封面外一行 UP 主占位。
+    Column(modifier = modifier) {
         Box(
             Modifier
                 .fillMaxWidth()
                 .aspectRatio(16f / 9f)
-                .background(shimmer)
-        )
-        Spacer(Modifier.height(8.dp))
-        Box(
-            Modifier
-                .padding(horizontal = 8.dp)
-                .fillMaxWidth(0.9f)
-                .height(12.dp)
-                .clip(RoundedCornerShape(6.dp))
+                .clip(RoundedCornerShape(12.dp))
                 .background(shimmer)
         )
         Spacer(Modifier.height(6.dp))
         Row(
-            Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            Modifier.padding(horizontal = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(Modifier.width(18.dp).height(18.dp).clip(CircleShape).background(shimmer))
-            Spacer(Modifier.width(6.dp))
-            Box(Modifier.width(64.dp).height(10.dp).clip(RoundedCornerShape(5.dp)).background(shimmer))
+            Box(Modifier.size(16.dp).clip(CircleShape).background(shimmer))
+            Spacer(Modifier.width(5.dp))
+            Box(Modifier.width(56.dp).height(10.dp).clip(RoundedCornerShape(5.dp)).background(shimmer))
         }
-        Spacer(Modifier.height(4.dp))
     }
 }
 
 /** 骨架网格（首页 Loading 态） */
 @Composable
 fun SkeletonVideoGrid(modifier: Modifier = Modifier, rows: Int = 3) {
-    // 审核271：间距与首页成功态一致（Kototoro GridSpacing 8dp、页边 20dp）——
+    // 审核271/280：间距与首页成功态一致（Kototoro GridSpacing 8dp、页边 12dp）——
     // 不一致会让加载完成后间距跳变，观感断层。
-    Column(modifier = modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier = modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         repeat(rows) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SkeletonVideoCard(Modifier.weight(1f))

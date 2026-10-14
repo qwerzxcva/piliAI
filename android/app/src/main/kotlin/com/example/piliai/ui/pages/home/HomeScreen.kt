@@ -6,6 +6,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -62,18 +63,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.piliai.data.model.VideoItem
 import com.example.piliai.utils.toHttpsUrl
 import com.example.piliai.utils.toCoverUrl
-import com.example.piliai.ui.theme.PiliCardShape
+import com.example.piliai.ui.theme.PiliCoverScrimStops
+import com.example.piliai.ui.theme.rememberCoverRimBrush
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -249,13 +255,13 @@ fun HomeScreen(
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(2),
                         state = gridState,
-                        // 审核271：卡距从 6dp 提到 10dp、页边从 10dp 提到 12dp。
-                        // 原规格（BiliPai 的紧凑档）在竖屏上偏挤：封面小、文字区憋，
-                        // 与 Kototoro 的疏朗感差距主要来自这里。封面比例 16:9 保持不变
-                        // （视频内容决定，不能学漫画 App 的竖封面）。
+                        // 审核271/280：卡距 8dp 对齐 Kototoro GridSpacing
+                        // （KototoroContentListScreen.kt:117），页边 12dp 对齐
+                        // AppLayoutTokens.compactItemHorizontalPadding。
+                        // 封面 16:9 不变（视频内容决定，不照搬漫画的竖封面）。
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         // 顶部 Hero 轮播（Kototoro 风格：240dp 高、底部 20dp 圆角、
                         // 100dp 渐变遮罩、胶囊指示器）
@@ -407,144 +413,150 @@ private fun HeroCarousel(
     }
 }
 
+/**
+ * 审核280：首页视频卡。视觉语言对齐 Kototoro 源码级规格：
+ * - 封面：0.5dp rim 渐变描边 + 2dp 阴影 + surfaceVariant 底色
+ *   （rememberCoverRimBorderBrush / TabletPosterCover，SharedContentCardBadges.kt:246）
+ * - 标题压在封面底部 overlay（CompactGridTitleOverlay，SharedPosterCover.kt:63），
+ *   不再放封面外下方：省垂直空间、层级更清晰，是 Kototoro 的标志性观感
+ * - 遮罩用 6 段色标（末端黑 72%），标题带文字阴影保证亮封面可读
+ * - UP 主行留在封面外下方（视频 App 需要作者归属，Kototoro 的副标题同理）
+ */
 @Composable
 private fun VideoCardItem(card: VideoItem, onClick: () -> Unit) {
-    // 审核（丑根因）：原标题 Text 用 Box 默认 TopStart 直接压在封面上，
-    // 无背景区分，既丑又难读。改为「封面 + 下方文字区」的标准卡片结构：
-    // 播放量/时长作为角标叠在图上，标题置于下方分层 surface（AMOLED 灰阶）。
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = PiliCardShape, // 审核234：BiliPai 利落圆角
-        colors = androidx.compose.material3.CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        ),
-        elevation = androidx.compose.material3.CardDefaults.cardElevation(
-            defaultElevation = 0.dp,
-        ),
+    val rimBrush = rememberCoverRimBrush()
+    val coverShape = RoundedCornerShape(12.dp)
+    val titleSize = 13.sp
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
     ) {
-        Column {
-            // 封面 + 角标（播放量、时长）
-            Box {
-                AsyncImage(
-                    model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
-                        .data(card.pic.toCoverUrl())
-                        .crossfade(180)
-                        .build(),
-                    contentDescription = card.title,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(16f / 9f)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                        // 审核271：封面圆角 12dp（Kototoro ContentCoverCornerRadius，
-                        // SharedContentCardStyle.kt:8）——与卡片圆角分开取值，
-                        // 封面自己圆角、卡片容器另算，这是 Kototoro 的做法。
-                        .clip(RoundedCornerShape(12.dp)),
-                    contentScale = ContentScale.Crop,
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f)
+                // 2dp 阴影先于 clip：阴影按封面形状外扩，clip=false 才能透出来
+                .shadow(2.dp, coverShape, clip = false)
+                .clip(coverShape)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .border(0.5.dp, rimBrush, coverShape),
+        ) {
+            AsyncImage(
+                model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                    .data(card.pic.toCoverUrl())
+                    .crossfade(180)
+                    .build(),
+                contentDescription = card.title,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+            // 播放量 + 弹幕：左上角一排（Kototoro 徽标同样叠在封面上层）
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(6.dp)
+                    .background(
+                        Color.Black.copy(alpha = 0.45f),
+                        RoundedCornerShape(4.dp)
+                    )
+                    .padding(horizontal = 5.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Filled.PlayCircleOutline,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(13.dp),
                 )
-                // 审核270：封面底部渐变遮罩（Kototoro/BiliPai 标志性视觉）——
-                // 保证角标文字在亮/暗封面上都可读，同时增加层次。
-                // 放在角标之前，角标叠在渐变之上。
-                Box(
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .height(36.dp)
-                        .background(
-                            Brush.verticalGradient(
-                                0f to Color.Transparent,
-                                1f to Color.Black.copy(alpha = 0.45f)
-                            )
-                        )
+                Spacer(Modifier.width(3.dp))
+                Text(
+                    text = card.viewCountText,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White,
                 )
-                Row(
+                Spacer(Modifier.width(6.dp))
+                Icon(
+                    Icons.Filled.ChatBubbleOutline,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(13.dp),
+                )
+                Spacer(Modifier.width(3.dp))
+                Text(
+                    text = card.danmakuCountText,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White,
+                )
+            }
+            // 时长：右上角
+            if (card.durationText.isNotBlank()) {
+                Text(
+                    text = card.durationText,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White,
                     modifier = Modifier
-                        .align(Alignment.BottomStart)
+                        .align(Alignment.TopEnd)
                         .padding(6.dp)
                         .background(
-                            Color.Black.copy(alpha = 0.55f),
+                            Color.Black.copy(alpha = 0.45f),
                             RoundedCornerShape(4.dp)
                         )
-                        .padding(horizontal = 4.dp, vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        Icons.Filled.PlayCircleOutline,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(14.dp),
-                    )
-                    Spacer(Modifier.width(3.dp))
-                    Text(
-                        text = card.viewCountText,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White,
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Icon(
-                        Icons.Filled.ChatBubbleOutline,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(14.dp),
-                    )
-                    Spacer(Modifier.width(3.dp))
-                    Text(
-                        text = card.danmakuCountText,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White,
-                    )
-                }
-                if (card.durationText.isNotBlank()) {
-                    Text(
-                        text = card.durationText,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White,
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(6.dp)
-                            .background(
-                                Color.Black.copy(alpha = 0.55f),
-                                RoundedCornerShape(4.dp)
-                            )
-                            .padding(horizontal = 4.dp, vertical = 2.dp),
-                    )
-                }
-            }
-            // 下方文字区：标题 + UP 主/描述
-            Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-                Text(
-                    text = card.title,
-                    // 审核271：标题从 bodyMedium 提升到 titleSmall + SemiBold——
-                    // Kototoro 的卡片标题是视觉锚点，原来 14sp 常规体压不住，
-                    // 卡片显得没有层级。padding 也从 8/6 提到 10/8 配合疏朗化。
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurface,
+                        .padding(horizontal = 5.dp, vertical = 3.dp),
                 )
-                Spacer(Modifier.height(6.dp))
-                // 审核223：UP 主行（头像 + 名称）——B站 App 同款布局
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (card.authorFace.isNotBlank()) {
-                        AsyncImage(
-                            model = card.authorFace.toCoverUrl(),
-                            contentDescription = null,
-                            modifier = Modifier
-                                .size(18.dp)
-                                .clip(CircleShape),
-                            contentScale = ContentScale.Crop,
-                        )
-                        Spacer(Modifier.width(5.dp))
-                    }
-                    Text(
-                        text = card.author,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
             }
+            // 底部遮罩 + overlay 标题（CompactGridTitleOverlay 移植）
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(46.dp)
+                    .background(Brush.verticalGradient(colorStops = PiliCoverScrimStops)),
+            )
+            Text(
+                text = card.title,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontSize = titleSize,
+                    lineHeight = (titleSize.value + 3.5f).sp,
+                    fontWeight = FontWeight.SemiBold,
+                    shadow = Shadow(
+                        color = Color.Black.copy(alpha = 0.75f),
+                        offset = Offset(0f, 1.5f),
+                        blurRadius = 5f,
+                    ),
+                ),
+                color = Color.White,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        // 封面外仅保留 UP 主行：头像 + 名称（视频内容需要作者归属）
+        Row(
+            modifier = Modifier.padding(start = 2.dp, top = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (card.authorFace.isNotBlank()) {
+                AsyncImage(
+                    model = card.authorFace.toCoverUrl(),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(16.dp)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop,
+                )
+                Spacer(Modifier.width(5.dp))
+            }
+            Text(
+                text = card.author,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
