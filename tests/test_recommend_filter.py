@@ -8,7 +8,9 @@ class RecommendFilterStatic(unittest.TestCase):
         p = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..',
                          'android/app/src/main/kotlin/com/example/piliai/utils/RecommendFilter.kt')
         self.assertTrue(os.path.exists(p), p)
-        self.src = open(p, encoding='utf-8').read()
+        # with 关闭文件句柄：否则 unittest 报 ResourceWarning（CI 可能因此失败）
+        with open(p, encoding='utf-8') as f:
+            self.src = f.read()
 
     def test_has_filter_dims(self):
         for kw in ['filterDuration', 'filterLikeRatio', 'filterTitle', 'exemptFilterForFollowed',
