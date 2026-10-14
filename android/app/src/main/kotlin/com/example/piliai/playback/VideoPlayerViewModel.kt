@@ -1572,7 +1572,11 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
                         )
                         _danmakuQueue.add(danmaku)
                         _danmakuQueue.sortBy { it.timestamp }
-                        setError("弹幕发送成功")
+                        // 审核304（真 bug）：原来是 setError("弹幕发送成功")——
+                        // setError 会触发全屏红色错误覆盖层并隐藏播放控制条，
+                        // 用户发一条弹幕就像播放器崩了。与审核262 修
+                        // 「稍后再看」是同一个 bug 模式，这里漏了。成功走 toast。
+                        showToast("弹幕发送成功")
                     } else setError("弹幕发送失败（可能需要登录或被风控）")
                 }
                 .onFailure { setError("弹幕发送失败: ${it.message}") }
