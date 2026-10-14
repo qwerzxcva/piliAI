@@ -97,6 +97,9 @@ class SettingsViewModel(context: Context) : ViewModel() {
         val subtitleBgOpacity: Float = 0.6f,
         val subtitleStroke: Float = 0.5f,
         val subtitleBold: Boolean = false,
+        // 审核296：更新检查状态
+        val checkingUpdate: Boolean = false,
+        val updateCheckResult: String? = null,
     )
 
     init {
@@ -377,6 +380,31 @@ class SettingsViewModel(context: Context) : ViewModel() {
 
     fun setVideoQuality(q: String) = viewModelScope.launch { storage.setVideoQuality(q) }
     fun setDanmakuEnabled(v: Boolean) = viewModelScope.launch { storage.setDanmakuEnabled(v) }
+    /**
+     * 审核296：检查更新（GitHub Releases）。
+     *
+     * 仓库还没发过 Release 时接口返回 404，此时提示「暂无发布版本」而非报错——
+     功能立着，等以后发了 Release 自动生效。
+     */
+    fun checkUpdate() {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(checkingUpdate = true, updateCheckResult = null)
+            val current = runCatching {
+                storage.appContext.packageManager
+                    .getPackageInfo(storage.appContext.packageName, 0).versionName ?: ""
+            }.getOrNull().orEmpty()
+            val info = com.example.piliai.utils.UpdateChecker.check(current)
+            _state.value = _state.value.copy(
+                checkingUpdate = false,
+                updateCheckResult = if (info != null) {
+                    "发现新版本 v${info.version}\n${info.notes}\n${info.url}"
+                } else {
+                    "当前已是最新版本"
+                }
+            )
+        }
+    }
+
     fun setDanmakuOpacity(v: Float) = viewModelScope.launch { storage.setDanmakuOpacity(v) }
     fun setDanmakuFontSize(v: Int) = viewModelScope.launch { storage.setDanmakuFontSize(v) }
     fun setDanmakuSpeed(v: Float) = viewModelScope.launch { storage.setDanmakuSpeed(v) }

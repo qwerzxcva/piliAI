@@ -22,7 +22,10 @@ import kotlinx.coroutines.flow.map
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
 class StorageManager(private val context: Context) {
-    
+
+    /** 审核296：暴露 applicationContext 供更新检查读 versionName */
+    internal val appContext: Context get() = context.applicationContext
+
     companion object {
         private val THEME_MODE_KEY = stringPreferencesKey("themeMode")
         private val ACCENT_COLOR_KEY = stringPreferencesKey("accentColor")

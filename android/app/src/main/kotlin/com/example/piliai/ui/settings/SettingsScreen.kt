@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ViewQuilt
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -1045,14 +1047,47 @@ fun SettingsScreen(
             },
             title = { androidx.compose.material3.Text("关于 PiliNara") },
             text = {
-                androidx.compose.material3.Text(
-                    "PiliNara —— B站第三方客户端\n\n" +
-                        "架构：Kotlin + Jetpack Compose + Rust native (ARM64)\n" +
-                        "网络：Ktor + Wbi 签名\n" +
-                        "存储：Room + DataStore\n" +
-                        "播放：Media3 ExoPlayer\n\n" +
-                        "本项目为 Flutter 原版的功能移植实现。"
-                )
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    androidx.compose.material3.Text(
+                        "PiliNara —— B站第三方客户端\n\n" +
+                            "架构：Kotlin + Jetpack Compose + Rust native (ARM64)\n" +
+                            "网络：Ktor + Wbi 签名\n" +
+                            "存储：Room + DataStore\n" +
+                            "播放：Media3 ExoPlayer\n\n" +
+                            "本项目为 Flutter 原版的功能移植实现。"
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    // 审核296：真实版本号 + 检查更新（GitHub Releases）
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    val pkgVersion = remember(context) {
+                        runCatching {
+                            context.packageManager
+                                .getPackageInfo(context.packageName, 0).versionName
+                        }.getOrNull() ?: "unknown"
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "当前版本 v$pkgVersion",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        androidx.compose.material3.TextButton(
+                            onClick = { viewModel.checkUpdate() },
+                            enabled = !state.checkingUpdate
+                        ) {
+                            Text(if (state.checkingUpdate) "检查中…" else "检查更新")
+                        }
+                    }
+                    state.updateCheckResult?.let { msg ->
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            msg,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
         )
     }
