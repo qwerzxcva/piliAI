@@ -165,6 +165,8 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     private var relatedBanWords: String = ""
 
     init {
+        // 审核295：空降助手——注册 seek 通道，让评论页点时间戳能跳到这里
+        com.example.piliai.playback.VideoSeekBus.register { ms -> seekTo(ms) }
         startPositionClock()
         // 读取 DataStore 持久化设置：默认清晰度 + 弹幕开关（真实作用于播放链路）
         val storage = com.example.piliai.utils.StorageManager.getInstance(appContext)
@@ -1358,6 +1360,10 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     }
     
     override fun onCleared() {
+        // 审核295：空降助手——注销 seek 通道，避免播放器销毁后评论页还能往
+        // 已销毁的实例发跳转请求（虽然 handler 是 lambda 不会泄漏 Activity，
+        // 但会静默失效）。
+        com.example.piliai.playback.VideoSeekBus.unregister()
         ++playbackSpeedGeneration
         clockJob?.cancel()
         playbackSpeedRestoreJob?.cancel()

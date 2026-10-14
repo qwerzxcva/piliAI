@@ -49,6 +49,10 @@ fun CommentScreen(
     bvid: String,
     onBack: () -> Unit = {},
     onGoLogin: () -> Unit = {},
+    // 审核295：空降助手——点评论里的时间戳跳到视频对应进度（毫秒）。
+    // null 表示用默认行为：走 VideoSeekBus（播放器还活着就能跳），
+    // 独立打开的评论页（没有活跃播放器）给提示而不是静默无反应。
+    onSeekTo: ((Long) -> Unit)? = null,
     viewModel: CommentViewModel = viewModel(
         key = bvid,
         factory = object : androidx.lifecycle.ViewModelProvider.Factory {
@@ -59,6 +63,18 @@ fun CommentScreen(
     )
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    // 审核295：空降助手的实际跳转回调。调用方可覆盖；默认走 VideoSeekBus，
+    // 没有活跃播放器时给 toast（Composable 上下文里才能拿 LocalContext）。
+    val commentSeekTo: (Long) -> Unit = onSeekTo ?: run {
+        val ctx = androidx.compose.ui.platform.LocalContext.current
+               { ms: Long ->
+            if (!com.example.piliai.playback.VideoSeekBus.seekTo(ms)) {
+                android.widget.Toast.makeText(
+                    ctx, "当前没有正在播放的视频", android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
     val snackbar = remember { SnackbarHostState() }
     var inputText by remember { mutableStateOf("") }
     var showEmotePanel by remember { mutableStateOf(false) }
@@ -331,7 +347,8 @@ fun CommentScreen(
                                     onLoadMoreReplies = { viewModel.loadMoreReplies(top.rpid) },
                                     onLike = { viewModel.toggleCommentLike(top.rpid) },
                                     onExpand = { viewModel.expandReplies(top.rpid) },
-                                    onCollapse = { viewModel.collapseReplies(top.rpid) }
+                                    onCollapse = { viewModel.collapseReplies(top.rpid) },
+                                    onSeekTo = commentSeekTo
                                 )
                             }
                         }
@@ -345,7 +362,8 @@ fun CommentScreen(
                             onLoadMoreReplies = { viewModel.loadMoreReplies(comment.rpid) },
                             onLike = { viewModel.toggleCommentLike(comment.rpid) },
                             onExpand = { viewModel.expandReplies(comment.rpid) },
-                            onCollapse = { viewModel.collapseReplies(comment.rpid) }
+                            onCollapse = { viewModel.collapseReplies(comment.rpid) },
+                            onSeekTo = commentSeekTo
                         )
                     }
                     if (state.hasMore) {
@@ -371,7 +389,9 @@ private fun CommentRow(
     onLoadMoreReplies: () -> Unit = {},
     onLike: () -> Unit,
     onExpand: () -> Unit,
-    onCollapse: () -> Unit
+    onCollapse: () -> Unit,
+    // 审核295：空降助手跳转（毫秒）。评论页可能没有关联播放器，默认空实现。
+    onSeekTo: (Long) -> Unit = {}
 ) {
     val member = comment.member
     Column(Modifier.fillMaxWidth()) {
@@ -420,8 +440,11 @@ private fun CommentRow(
             }
         }
         Spacer(Modifier.height(6.dp))
-        Text(
-            comment.content?.message ?: "",
+        val commentText = comment.content?.message.orEmpty()
+        // 审核295：空降助手——正文里的时间戳（3:25 / 01:23:45）可点击跳转
+        ClickableCommentText(
+            text = commentText,
+            onSeekTo = onSeekTo,
             style = MaterialTheme.typography.bodyMedium
         )
         // 楼中楼
