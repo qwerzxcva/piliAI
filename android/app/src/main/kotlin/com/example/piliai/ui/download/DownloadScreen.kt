@@ -63,7 +63,7 @@ fun DownloadScreen(
                     Spacer(Modifier.height(12.dp))
                     Text("暂无离线缓存", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(4.dp))
-                    Text("在视频页点击「缓存」即可下载", fontSize = 12.sp,
+                    Text("在视频页点击「缓存」即可下载", style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
@@ -115,15 +115,15 @@ private fun DownloadRow(
             Text(item.title.ifEmpty { item.bvid }, maxLines = 2,
                 style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(2.dp))
-            Text(item.ownerName, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(item.ownerName, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(4.dp))
             when (item.state) {
                 DownloadItemEntity.STATE_DONE -> Text(
                     "已完成 · ${formatSize(item.videoSize + item.audioSize)}",
-                    fontSize = 11.sp, color = MaterialTheme.colorScheme.primary
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary
                 )
                 DownloadItemEntity.STATE_FAILED -> Text(
-                    "失败：${item.error ?: ""}", fontSize = 11.sp,
+                    "失败：${item.error ?: ""}", style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.error, maxLines = 1
                 )
                 DownloadItemEntity.STATE_PAUSED -> {
@@ -132,7 +132,7 @@ private fun DownloadRow(
                         modifier = Modifier.fillMaxWidth().height(4.dp)
                     )
                     Spacer(Modifier.height(2.dp))
-                    Text("已暂停 ${(item.progress * 100).toInt()}%", fontSize = 11.sp,
+                    Text("已暂停 ${(item.progress * 100).toInt()}%", style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 else -> {
@@ -141,7 +141,7 @@ private fun DownloadRow(
                         modifier = Modifier.fillMaxWidth().height(4.dp)
                     )
                     Spacer(Modifier.height(2.dp))
-                    Text("下载中 ${(item.progress * 100).toInt()}%", fontSize = 11.sp,
+                    Text("下载中 ${(item.progress * 100).toInt()}%", style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }

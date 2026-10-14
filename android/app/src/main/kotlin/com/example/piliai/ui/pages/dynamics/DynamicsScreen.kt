@@ -198,7 +198,7 @@ fun DynamicsScreen(
                             Text(
                                 "— 没有更多了 —",
                                 modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                fontSize = 12.sp,
+                                style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
@@ -241,12 +241,12 @@ private fun DynamicCard(
                     Text(
                         author?.name ?: "",
                         fontWeight = FontWeight.SemiBold,
-                        fontSize = 14.sp,
+                        style = MaterialTheme.typography.bodyMedium,
                         maxLines = 1, overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         author?.pub_time ?: "",
-                        fontSize = 11.sp,
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -260,7 +260,7 @@ private fun DynamicCard(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(Icons.Default.PlayArrow, null, Modifier.size(14.dp))
-                            Text("视频", fontSize = 11.sp)
+                            Text("视频", style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 }
@@ -268,7 +268,7 @@ private fun DynamicCard(
 
             if (desc.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
-                Text(desc, fontSize = 14.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text(desc, style = MaterialTheme.typography.bodyMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
 
             // 审核266：图片动态九宫格。数据层的 DynamicMajor.draw 一直有解析，
@@ -309,14 +309,14 @@ private fun DynamicCard(
                         Text(
                             v.title,
                             fontWeight = FontWeight.SemiBold,
-                            fontSize = 14.sp,
+                            style = MaterialTheme.typography.bodyMedium,
                             lineHeight = 18.sp,
                             maxLines = 2, overflow = TextOverflow.Ellipsis
                         )
                         Spacer(Modifier.weight(1f))
                         Text(
                             v.duration_text.ifEmpty { v.desc },
-                            fontSize = 11.sp,
+                            style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -338,7 +338,7 @@ private fun DynamicCard(
                         if (fwdVideo != null && fwdVideo.bvid.isNotEmpty()) {
                             Text(
                                 fwdVideo.title,
-                                fontSize = 13.sp,
+                                style = MaterialTheme.typography.bodyMedium,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -367,7 +367,7 @@ private fun DynamicCard(
                             }
                             Text(
                                 fwdText,
-                                fontSize = 13.sp,
+                                style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 4,
                                 overflow = TextOverflow.Ellipsis
@@ -381,7 +381,7 @@ private fun DynamicCard(
                 Spacer(Modifier.height(8.dp))
                 Text(
                     "${formatCount(stat.forward)}转发 · ${formatCount(stat.comment)}评论 · ${formatCount(stat.like)}点赞",
-                    fontSize = 11.sp,
+                    style = MaterialTheme.typography.labelSmall,
                     // 审核270：跟随主题的次要文字色（暗色/亮色自动切换），
                     // 不用硬编码灰 —— AMOLED 纯黑主题下 0xFF999999 会发雾
                     color = MaterialTheme.colorScheme.onSurfaceVariant

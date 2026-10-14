@@ -166,7 +166,7 @@ fun CommentScreen(
                                     if (u.isUp == 1) {
                                         Spacer(Modifier.width(6.dp))
                                         Text(
-                                            "UP", fontSize = 10.sp,
+                                            "UP", style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.primary
                                         )
                                     }

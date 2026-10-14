@@ -85,7 +85,7 @@ fun SessionListScreen(
                             Text(s.accountInfo?.name ?: "用户${s.talkerId}", fontWeight = FontWeight.Medium)
                         },
                         supportingContent = {
-                            Text(s.lastText(), maxLines = 1, fontSize = 13.sp,
+                            Text(s.lastText(), maxLines = 1, style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         },
                         leadingContent = {
@@ -100,7 +100,7 @@ fun SessionListScreen(
                             Column(horizontalAlignment = Alignment.End) {
                                 Text(
                                     tsFmt.format(Date((s.lastMsg?.timestamp ?: 0) * 1000)),
-                                    fontSize = 11.sp,
+                                    style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 if (s.unreadCount > 0) {
@@ -274,13 +274,13 @@ fun ChatScreen(
                                         modifier = Modifier.padding(10.dp),
                                         color = if (mine) MaterialTheme.colorScheme.onPrimary
                                                 else Color.Unspecified,
-                                        fontSize = 15.sp
+                                        style = MaterialTheme.typography.bodyLarge
                                     )
                                 }
                             }
                             Text(
                                 tsFmt.format(Date(m.timestamp * 1000)),
-                                fontSize = 10.sp,
+                                style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(top = 2.dp, start = 4.dp, end = 4.dp)
                             )

@@ -86,7 +86,7 @@ fun PgcIndexScreen(
                     FilterChip(
                         selected = state.order == key,
                         onClick = { viewModel.setOrder(key) },
-                        label = { Text(label, fontSize = 12.sp) }
+                        label = { Text(label, style = MaterialTheme.typography.labelMedium) }
                     )
                 }
             }
@@ -155,7 +155,7 @@ private fun PgcIndexCard(item: PgcIndexItem, onOpenSeason: (Long) -> Unit) {
                         Text(
                             item.badge,
                             color = MaterialTheme.colorScheme.onPrimary,
-                            fontSize = 10.sp,
+                            style = MaterialTheme.typography.labelSmall,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(4.dp))
                                 .background(MaterialTheme.colorScheme.primary)
@@ -183,13 +183,13 @@ private fun PgcIndexCard(item: PgcIndexItem, onOpenSeason: (Long) -> Unit) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(
                     item.indexShow,
-                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (item.score.isNotEmpty() && item.score != "0") {
                     Text(
                         item.score,
-                        fontSize = 12.sp,
+                        style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
