@@ -529,7 +529,9 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                setError("Failed to load video: ${e.message}")
+                // 审核302：中文提示（原来是 "Failed to load video: ..."，
+                // 用户在中文 App 里看到英文报错）
+                setError("视频加载失败：${e.message ?: "未知错误"}")
             }
         }
     }

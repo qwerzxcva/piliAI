@@ -453,12 +453,27 @@ fun VideoPlayerScreen(
         
         // Error overlay
         state.error?.takeUnless { isInPiP }?.let { error ->
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Error: $error", color = Color.Red)
-                    Spacer(Modifier.height(8.dp))
-                    IconButton(onClick = { viewModel.setError(null) }) {
-                        Icon(Icons.Default.Replay, "Retry", tint = Color.White)
+            // 审核302：原来这里是 Text("Error: $error", color = Color.Red)——
+            // 中文 App 里冒英文前缀、纯红刺眼、无重试语义。改为可读的中文卡片：
+            // 主题 error 色 + 圆角容器 + 「重试」文字按钮。
+            androidx.compose.material3.Surface(
+                color = MaterialTheme.colorScheme.errorContainer,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.align(Alignment.Center).padding(horizontal = 32.dp)
+            ) {
+                Column(
+                    Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        error,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    androidx.compose.material3.TextButton(onClick = { viewModel.setError(null) }) {
+                        Text("重试", color = MaterialTheme.colorScheme.onErrorContainer)
                     }
                 }
             }
