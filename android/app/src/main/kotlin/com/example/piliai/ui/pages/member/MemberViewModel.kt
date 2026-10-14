@@ -83,12 +83,23 @@ class MemberViewModel(private val mid: Long) : ViewModel() {
 
     fun loadInfo() {
         viewModelScope.launch {
+            // 审核292：原来 getSpaceInfo 失败时没有 onFailure 分支，而它内部把
+            // 风控失败转成了 error(...) 抛出——于是用户看到的是默认空态，
+            // 没有任何提示（空间页头部白茫茫一片）。现在补上失败反馈。
             api.getSpaceInfo(mid).onSuccess { resp ->
                 if (resp.code == 0) {
                     _state.value = _state.value.copy(info = resp.data)
                 } else {
-                    _state.value = _state.value.copy(error = resp.message.ifEmpty { "空间信息加载失败" })
+                    _state.value = _state.value.copy(
+                        error = com.example.piliai.data.remote.BiliErrorTranslator
+                            .translate(resp.message) ?: resp.message.ifEmpty { "空间信息加载失败" }
+                    )
                 }
+            }.onFailure { e ->
+                _state.value = _state.value.copy(
+                    error = com.example.piliai.data.remote.BiliErrorTranslator
+                        .translate(e.message) ?: e.message ?: "空间信息加载失败（匿名访问受限）"
+                )
             }
             api.getRelationStat(mid).onSuccess { resp ->
                 if (resp.code == 0) {

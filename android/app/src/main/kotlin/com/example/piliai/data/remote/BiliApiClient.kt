@@ -133,17 +133,17 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
         }
     }
 
-    /** 批次L29：首页顶部大卡推荐（匿名可用） */
+    /**
+     * 批次L29：首页顶部大卡推荐。
+     *
+     * 审核292（实测修正）：原来传 `fresh_type=3&version=1&ps=12`，实测这个组合
+     * 匿名必返回 code=62011（风控），wbi 版也一样——**带 fresh_type 就会被拦**。
+     * 改成不带任何参数：实测 code=0 返回 30 条，其中 goto=="av" 的正是
+     * 大卡轮播需要的视频项。
+     */
     suspend fun getTopRcmd(): Result<TopRcmdResponse> = runCatching {
-        client.get("$API_BASE/x/web-interface/index/top/rcmd") {
-            url {
-                parameters.append("fresh_type", "3")
-                parameters.append("version", "1")
-                parameters.append("ps", "12")
-            }
+        client.getSafe("$API_BASE/x/web-interface/index/top/rcmd") {
             commonHeaders.forEach { (k, v) -> header(k, v) }
-        }.bodyAsText().let { requireJson(it) }.let { text ->
-            BiliHttpClient.json.decodeFromString<TopRcmdResponse>(text)
         }
     }
 
@@ -531,34 +531,36 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
     }
     
     // ========== User Info ==========
-    
+
+    /**
+     * UP 主空间信息（wbi 签名）。
+     *
+     * 审核292：实测匿名两条路径都受限——wbi 版 code=-352、旧版 -799 限频。
+     * 这是 B 站侧限制，不是参数问题。空间页走 [getSpaceInfo]（带 wbi→legacy
+     * 降级与明确报错），这里保留给需要单点查询的调用方。
+     */
     suspend fun getUserInfo(uid: Long): Result<UserInfoResponse> = runCatching {
         client.getSafe("$API_BASE/x/space/wbi/acc/info") {
             url {
                 parameters.append("mid", uid.toString())
             }
-            header("Referer", "https://space.bilibili.com")
+            header("Referer", "https://space.bilibili.com/$uid")
         }
     }
-    
-    suspend fun getUserSpace(uid: Long): Result<UserInfoResponse> = runCatching {
-        client.getSafe("$API_BASE/x/space/acc/info") {
-            url {
-                parameters.append("mid", uid.toString())
-            }
-            header("Referer", "https://space.bilibili.com")
-        }
-    }
-    
+
     // ========== Dynamics ==========
     
     suspend fun getUserDynamics(uid: Long, offset: Long = 0L): Result<DynamicsResponse> = runCatching {
         client.getSafe("$API_BASE/x/polymer/web-dynamic/v1/feed/space") {
             url {
-                parameters.append("host_uid", uid.toString())
+                // 审核292（实测修正）：参数名是 host_mid，不是 host_uid。
+                // 原来传 host_uid 即使登录后也拿不到数据。
+                parameters.append("host_mid", uid.toString())
                 parameters.append("offset", offset.toString())
+                parameters.append("platform", "web")
+                parameters.append("features", "itemOpusStyle")
             }
-            header("Referer", "https://t.bilibili.com")
+            header("Referer", "https://space.bilibili.com/")
         }
     }
     
