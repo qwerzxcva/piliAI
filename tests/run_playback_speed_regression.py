@@ -41,6 +41,20 @@ open class ViewModel {
     protected open fun onCleared() {}
 }
 ''',
+    'VideoSeekBus.kt': '''package com.example.piliai.playback
+
+/**
+ * 审核302：onCleared 会注销空降助手的 seek 通道（审核295 加的）。
+ * 回归脚本只编译抽取出来的方法，不引入整个工程，所以要给这个符号一个
+ * stub——否则 onCleared 编译不过，CI 的 Build Debug APK step 会红。
+ */
+object VideoSeekBus {
+    var unregisterCalls = 0
+    fun unregister() {
+        unregisterCalls += 1
+    }
+}
+''',
     'PlaybackParameters.kt': '''package androidx.media3.common
 class PlaybackParameters(val speed: Float, val pitch: Float = 1.0f)
 ''',
