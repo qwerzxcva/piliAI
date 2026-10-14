@@ -60,9 +60,17 @@ class MainApplication : Application() {
         // 匿名启动即取 buvid3（风控接口强依赖），协程后台执行
         // 审核291：先恢复上次持久化的指纹，取不到才请求 finger/spi。
         // 这样重启 App 后 B 站看到的仍是同一设备，不会每次冷启动都当新设备。
+        // 审核303：登录态也要在启动时恢复。原来 restoreSession() 只在
+        // MineScreen 调用——用户冷启动直接进首页点视频，AccountSession
+        // 还是空的，playurl 走匿名请求：拿不到高画质、容易被风控。
+        // 这就是「首页第一个视频播放不了 / 只有低清晰度」的高概率根因。
         appScope.launch {
             AccountSession.restoreBuvidFromStorage()
             AccountSession.ensureBuvid()
+            runCatching {
+                // LoginRepository 默认参数自己取 AppContext，无需显式传 db
+                com.example.piliai.data.repository.LoginRepository().restoreSession()
+            }
         }
 
         // 批次审核61：Coil 全局 ImageLoader——全 App 共享内存/磁盘缓存，避免各页各建
