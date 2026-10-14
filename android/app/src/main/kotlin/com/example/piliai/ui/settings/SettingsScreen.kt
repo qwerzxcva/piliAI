@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.lazy.LazyListScope
@@ -771,7 +772,17 @@ fun SettingsScreen(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 onSelect = { category = it },
             )
+            // 审核307：分类切换后回到顶部。原来切到「播放」时列表停在
+            // 「全部」的滚动位置（可能已经在很下面），用户看不到播放设置
+            // 的第一项，以为「没跳过去」。
+            val settingsListState = rememberLazyListState()
+            LaunchedEffect(category) {
+                if (settingsListState.firstVisibleItemIndex > 0) {
+                    settingsListState.animateScrollToItem(0)
+                }
+            }
             LazyColumn(
+                state = settingsListState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
