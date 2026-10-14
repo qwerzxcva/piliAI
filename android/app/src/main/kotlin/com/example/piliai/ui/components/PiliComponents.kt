@@ -18,6 +18,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -27,6 +28,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.shadow
@@ -90,6 +93,53 @@ fun SearchPill(
             modifier = Modifier.weight(1f),
         )
         trailing?.invoke()
+    }
+}
+
+/**
+ * 审核282：单条可横滑的分类胶囊（BiliPai 首页顶部分类）。
+ *
+ * 取代原先「两个 SegmentedPillRow 塞进一个 LazyRow」的写法：那会把
+ * 7 个 tab 拆成 4+3 两组并列胶囊，语义混乱、整行只能横滑。
+ *
+ * 规格：一组胶囊共用一个浅底色容器，选中项 primaryContainer 填充 +
+ * primary 文字；间距 2dp（组内）/ 6dp（左右内容边）。
+ */
+@Composable
+fun CategoryPillStrip(
+    labels: List<String>,
+    selectedIndex: Int,
+    modifier: Modifier = Modifier,
+    onSelect: (Int) -> Unit = {},
+) {
+    androidx.compose.foundation.lazy.LazyRow(
+        modifier = modifier,
+        contentPadding = PaddingValues(horizontal = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        itemsIndexed(labels) { i, label ->
+            val selected = i == selectedIndex
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(
+                        if (selected) MaterialTheme.colorScheme.primaryContainer
+                        else Color.Transparent
+                    )
+                    // padding 提到 clickable 之前，保证触达区含内边距
+                    .padding(horizontal = 14.dp, vertical = 8.dp)
+                    .clickable { onSelect(i) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    label,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (selected) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+            }
+        }
     }
 }
 

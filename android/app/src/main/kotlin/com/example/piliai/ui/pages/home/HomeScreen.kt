@@ -176,8 +176,10 @@ fun HomeScreen(
             }
         },
     ) { padding ->
-        // 审核234：浮动胶囊分段分类条（BiliPai HomeTopTabFloatingDock 风格），
-        // 顶栏下沉的入口（今日推荐/排行/热门/分区/番剧/竖屏流）全部收进这里
+        // 审核282：分类条。原来是「两个 SegmentedPillRow 塞进一个横向 LazyRow」——
+        // 7 个 tab 拆成 4+3 两组并列，语义混乱且整行只能横滑，是首页「廉价感」
+        // 的直接来源之一。改为单条可横滑的分段控件：一组胶囊、一个容器、
+        // 选中项 primaryContainer 填充（Kototoro/BiliPai 的做法）。
         var selectedTab by remember { androidx.compose.runtime.mutableIntStateOf(0) }
         val tabs = remember {
             listOf(
@@ -192,26 +194,12 @@ fun HomeScreen(
                 "今日" to onTodayWatchClick,
             )
         }
-        androidx.compose.foundation.lazy.LazyRow(
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            item {
-                com.example.piliai.ui.components.SegmentedPillRow(
-                    labels = tabs.take(4).map { it.first },
-                    selectedIndex = if (selectedTab < 4) selectedTab else -1,
-                    onSelect = { i -> selectedTab = i; tabs[i].second() },
-                )
-            }
-            item {
-                com.example.piliai.ui.components.SegmentedPillRow(
-                    labels = tabs.drop(4).map { it.first },
-                    selectedIndex = if (selectedTab >= 4) selectedTab - 4 else -1,
-                    onSelect = { i -> selectedTab = i + 4; tabs[i + 4].second() },
-                )
-            }
-        }
+        com.example.piliai.ui.components.CategoryPillStrip(
+            labels = tabs.map { it.first },
+            selectedIndex = selectedTab,
+            onSelect = { i -> selectedTab = i; tabs[i].second() },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+        )
         PullToRefreshBox(
             isRefreshing = repoRefreshing,
             onRefresh = { viewModel.refresh() },
