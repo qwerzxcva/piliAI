@@ -129,12 +129,16 @@ class MemberViewModel(private val mid: Long) : ViewModel() {
                 } else {
                     _state.value = _state.value.copy(
                         isLoading = false, isLoadingMore = false,
-                        error = resp.message.ifEmpty { "投稿加载失败" }
+                        // 审核292：过一遍错误码翻译，否则用户看到裸的 "-352"
+                        error = com.example.piliai.data.remote.BiliErrorTranslator
+                            .translate(resp.message) ?: resp.message.ifEmpty { "投稿加载失败" }
                     )
                 }
             }.onFailure { e ->
                 _state.value = _state.value.copy(
-                    isLoading = false, isLoadingMore = false, error = e.message
+                    isLoading = false, isLoadingMore = false,
+                    error = com.example.piliai.data.remote.BiliErrorTranslator
+                        .translate(e.message) ?: e.message ?: "投稿加载失败"
                 )
             }
         }
@@ -170,9 +174,21 @@ class MemberViewModel(private val mid: Long) : ViewModel() {
                             articleHasMore = merged.size < (resp.data?.count ?: 0),
                             articlesLoading = false
                         )
-                    } else _state.value = _state.value.copy(articlesLoading = false)
+                    } else _state.value = _state.value.copy(
+                        articlesLoading = false,
+                        // 审核292：原来失败完全静默，只停掉 loading——用户看到
+                        // 空列表分不清「没有专栏」还是「加载失败」
+                        error = com.example.piliai.data.remote.BiliErrorTranslator
+                            .translate(resp.message) ?: resp.message
+                    )
                 }
-                .onFailure { _state.value = _state.value.copy(articlesLoading = false) }
+                .onFailure { e ->
+                    _state.value = _state.value.copy(
+                        articlesLoading = false,
+                        error = com.example.piliai.data.remote.BiliErrorTranslator
+                            .translate(e.message) ?: e.message ?: "专栏加载失败"
+                    )
+                }
         }
     }
 
@@ -187,9 +203,19 @@ class MemberViewModel(private val mid: Long) : ViewModel() {
                         val all = (resp.data?.itemsLists?.seasonsList.orEmpty() +
                             resp.data?.itemsLists?.seriesList.orEmpty())
                         _state.value = _state.value.copy(seasons = all, seasonsLoading = false)
-                    } else _state.value = _state.value.copy(seasonsLoading = false)
+                    } else _state.value = _state.value.copy(
+                        seasonsLoading = false,
+                        error = com.example.piliai.data.remote.BiliErrorTranslator
+                            .translate(resp.message) ?: resp.message
+                    )
                 }
-                .onFailure { _state.value = _state.value.copy(seasonsLoading = false) }
+                .onFailure { e ->
+                    _state.value = _state.value.copy(
+                        seasonsLoading = false,
+                        error = com.example.piliai.data.remote.BiliErrorTranslator
+                            .translate(e.message) ?: e.message ?: "合集列表加载失败"
+                    )
+                }
         }
     }
 
@@ -255,7 +281,12 @@ class MemberViewModel(private val mid: Long) : ViewModel() {
                 }
             }.onFailure { e ->
                 isLoadingArchives = false
-                _state.value = _state.value.copy(isLoading = false, error = e.message)
+                _state.value = _state.value.copy(
+                    isLoading = false,
+                    // 审核292：过错误码翻译
+                    error = com.example.piliai.data.remote.BiliErrorTranslator
+                        .translate(e.message) ?: e.message ?: "加载失败"
+                )
             }
         }
     }
@@ -275,7 +306,11 @@ class MemberViewModel(private val mid: Long) : ViewModel() {
                     loadInfo()  // 刷新粉丝数
                 }
             }.onFailure { e ->
-                _state.value = _state.value.copy(error = e.message)
+                _state.value = _state.value.copy(
+                    // 审核292：过错误码翻译
+                    error = com.example.piliai.data.remote.BiliErrorTranslator
+                        .translate(e.message) ?: e.message ?: "操作失败"
+                )
             }
         }
     }

@@ -37,7 +37,11 @@ class SessionListViewModel : ViewModel() {
             api.getMySessions().onSuccess { resp ->
                 _state.value = UiState(sessions = resp.data?.sessionList.orEmpty())
             }.onFailure { e ->
-                _state.value = UiState(error = e.message ?: "加载失败")
+                _state.value = UiState(
+                    // 审核292：过错误码翻译
+                    error = com.example.piliai.data.remote.BiliErrorTranslator
+                        .translate(e.message) ?: e.message ?: "加载失败"
+                )
             }
         }
     }
@@ -76,7 +80,12 @@ class ChatViewModel(private val talkerId: Long) : ViewModel() {
                     messages = resp.data?.messages.orEmpty().sortedBy { it.timestamp }
                 )
             }.onFailure { e ->
-                _state.value = _state.value.copy(loading = false, error = e.message ?: "加载失败")
+                _state.value = _state.value.copy(
+                    loading = false,
+                    // 审核292：过错误码翻译
+                    error = com.example.piliai.data.remote.BiliErrorTranslator
+                        .translate(e.message) ?: e.message ?: "加载失败"
+                )
             }
         }
     }
@@ -89,7 +98,12 @@ class ChatViewModel(private val talkerId: Long) : ViewModel() {
                 _state.value = _state.value.copy(sending = false)
                 if (ok) load() else _state.value = _state.value.copy(error = "发送失败")
             }.onFailure { e ->
-                _state.value = _state.value.copy(sending = false, error = e.message ?: "发送失败")
+                _state.value = _state.value.copy(
+                    sending = false,
+                    // 审核292：过错误码翻译
+                    error = com.example.piliai.data.remote.BiliErrorTranslator
+                        .translate(e.message) ?: e.message ?: "发送失败"
+                )
             }
         }
     }
@@ -103,7 +117,12 @@ class ChatViewModel(private val talkerId: Long) : ViewModel() {
                 _state.value = _state.value.copy(sending = false)
                 if (ok) load() else _state.value = _state.value.copy(error = "图片发送失败")
             }.onFailure { e ->
-                _state.value = _state.value.copy(sending = false, error = e.message ?: "图片发送失败")
+                _state.value = _state.value.copy(
+                    sending = false,
+                    // 审核292：过错误码翻译
+                    error = com.example.piliai.data.remote.BiliErrorTranslator
+                        .translate(e.message) ?: e.message ?: "图片发送失败"
+                )
             }
         }
     }

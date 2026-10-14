@@ -48,7 +48,12 @@ class BangumiViewModel(private val seasonId: Long, private val epId: Long) : Vie
                     )
                 }
             }.onFailure { e ->
-                _state.value = _state.value.copy(isLoading = false, error = e.message)
+                _state.value = _state.value.copy(
+                    isLoading = false,
+                    // 审核292：过错误码翻译
+                    error = com.example.piliai.data.remote.BiliErrorTranslator
+                        .translate(e.message) ?: e.message ?: "番剧信息加载失败"
+                )
             }
         }
     }
@@ -74,7 +79,11 @@ class BangumiViewModel(private val seasonId: Long, private val epId: Long) : Vie
                 if (ok) _state.value = _state.value.copy(isFollowed = target)
                 else _state.value = _state.value.copy(error = "操作失败")
             }.onFailure { e ->
-                _state.value = _state.value.copy(error = e.message)
+                _state.value = _state.value.copy(
+                    // 审核292：过错误码翻译
+                    error = com.example.piliai.data.remote.BiliErrorTranslator
+                        .translate(e.message) ?: e.message ?: "操作失败"
+                )
             }
         }
     }

@@ -109,7 +109,12 @@ class LiveRoomViewModel(private val roomIdArg: Long) : ViewModel() {
                     )
                 }
             }.onFailure { e ->
-                _state.value = _state.value.copy(isLoading = false, error = e.message)
+                _state.value = _state.value.copy(
+                    isLoading = false,
+                    // 审核292：过错误码翻译
+                    error = com.example.piliai.data.remote.BiliErrorTranslator
+                        .translate(e.message) ?: e.message ?: "直播间加载失败"
+                )
             }
         }
     }

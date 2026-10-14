@@ -79,7 +79,12 @@ class StoryViewModel(
                     endReached = list.isEmpty() || added.isEmpty()
                 )
             }.onFailure { e ->
-                _state.value = _state.value.copy(loading = false, error = e.message)
+                _state.value = _state.value.copy(
+                    loading = false,
+                    // 审核292：过错误码翻译
+                    error = com.example.piliai.data.remote.BiliErrorTranslator
+                        .translate(e.message) ?: e.message ?: "视频流加载失败"
+                )
             }
         }
     }

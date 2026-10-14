@@ -96,7 +96,10 @@ class CommentViewModel(private val bvid: String) : ViewModel() {
                 }
             }.onFailure { e ->
                 _state.value = _state.value.copy(
-                    isLoading = false, isLoadingMore = false, error = e.message
+                    isLoading = false, isLoadingMore = false,
+                        // 审核292：过错误码翻译，否则用户看到裸的 "-352"/"-403"
+                        error = com.example.piliai.data.remote.BiliErrorTranslator
+                            .translate(e.message) ?: e.message ?: "评论加载失败"
                 )
             }
         }

@@ -78,7 +78,11 @@ class DynamicsViewModel : ViewModel() {
                     }
                 }
                 .onFailure {
-                    _state.value = _state.value.copy(error = it.message ?: "网络错误")
+                    // 审核292：过错误码翻译（原来是裸 it.message / "网络错误"）
+                    _state.value = _state.value.copy(
+                        error = com.example.piliai.data.remote.BiliErrorTranslator
+                            .translate(it.message) ?: it.message ?: "动态加载失败，请检查网络"
+                    )
                 }
             _state.value = _state.value.copy(loading = false)
         }

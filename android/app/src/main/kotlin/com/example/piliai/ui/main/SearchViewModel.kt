@@ -114,7 +114,12 @@ class SearchViewModel(
                     )
                 }
             }.onFailure { e ->
-                _searchState.value = _searchState.value.copy(isSearching = false, error = e.message)
+                _searchState.value = _searchState.value.copy(
+                    isSearching = false,
+                    // 审核292：过错误码翻译
+                    error = com.example.piliai.data.remote.BiliErrorTranslator
+                        .translate(e.message) ?: e.message ?: "搜索失败"
+                )
             }
         }
     }

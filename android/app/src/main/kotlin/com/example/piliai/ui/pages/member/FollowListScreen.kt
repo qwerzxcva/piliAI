@@ -62,7 +62,12 @@ class FollowListViewModel(private val mid: Long, private val followers: Boolean)
                     _state.value = _state.value.copy(isLoading = false, error = resp.message.ifEmpty { "加载失败" })
                 }
             }.onFailure { e ->
-                _state.value = _state.value.copy(isLoading = false, error = e.message)
+                _state.value = _state.value.copy(
+                    isLoading = false,
+                    // 审核292：过错误码翻译
+                    error = com.example.piliai.data.remote.BiliErrorTranslator
+                        .translate(e.message) ?: e.message ?: "关注列表加载失败"
+                )
             }
         }
     }
