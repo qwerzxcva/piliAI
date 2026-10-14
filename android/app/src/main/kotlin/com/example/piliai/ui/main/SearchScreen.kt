@@ -267,10 +267,12 @@ fun SearchScreen(
                                 "$rank",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = when {
-                                    rank == 1 -> Color(0xFFFB7299)
-                                    rank == 2 -> Color(0xFFFF8C42)
-                                    rank == 3 -> Color(0xFFF5C518)
+                                // 审核281：原先是三个硬编码 Hex（0xFFFB7299 等），换主题后
+                                // 与强调色脱节。改用 primary 透明度阶梯，跟随用户选的强调色。
+                                color = when (rank) {
+                                    1 -> MaterialTheme.colorScheme.primary
+                                    2 -> MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                                    3 -> MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
                                     else -> MaterialTheme.colorScheme.onSurfaceVariant
                                 },
                                 modifier = Modifier.width(28.dp)
@@ -325,61 +327,25 @@ private fun SearchResultRow(
             }
         }
 
-        "live" -> Row(
-            Modifier.fillMaxWidth()
-                .clickable(enabled = item.roomid > 0) { onLiveClick(item.roomid) }  // 审核20：直播结果补跳转
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            AsyncImage(
-                model = item.pic.toCoverUrl(),
-                contentDescription = item.title,
-                modifier = Modifier.width(140.dp).height(88.dp).clip(RoundedCornerShape(6.dp)),
-                contentScale = ContentScale.Crop
-            )
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text(item.title, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(4.dp))
-                Text("${item.author} · ${item.online} 在线",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
+        "live" -> com.example.piliai.ui.components.VideoListRow(
+            title = item.title,
+            coverUrl = item.pic.toCoverUrl(),
+            supportingText = "${item.author} · ${item.online} 在线",
+            coverWidth = 140.dp,
+            onClick = { if (item.roomid > 0) onLiveClick(item.roomid) },  // 审核20：直播结果补跳转
+        )
 
         else -> {  // video
-            Row(
-                Modifier.fillMaxWidth()
-                    .clickable { if (item.bvid.isNotEmpty()) onVideoClick(item.bvid) }
-                    .padding(12.dp)
-            ) {
-                AsyncImage(
-                    model = item.pic.toCoverUrl(),
-                    contentDescription = item.title,
-                    modifier = Modifier.width(140.dp).height(88.dp).clip(RoundedCornerShape(6.dp)),
-                    contentScale = ContentScale.Crop
-                )
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        item.title.replace(Regex("<[^>]+>"), ""),  // 去 <em> 高亮标签
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 2, overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "${item.author} · ${item.duration}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        "播放 ${item.play} · 弹幕 ${item.danmaku}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+            // 审核281：改用通用 VideoListRow（Kototoro HomeListRailRow 规格）——
+            // 原先是 140×88 硬尺寸 + 6dp 圆角 + 无描边无阴影，与全站视觉语言脱节。
+            com.example.piliai.ui.components.VideoListRow(
+                title = item.title.replace(Regex("<[^>]+>"), ""),  // 去 <em> 高亮标签
+                coverUrl = item.pic.toCoverUrl(),
+                supportingText = "${item.author} · ${item.duration}",
+                sourceText = "播放 ${item.play} · 弹幕 ${item.danmaku}",
+                coverWidth = 140.dp,
+                onClick = { if (item.bvid.isNotEmpty()) onVideoClick(item.bvid) },
+            )
         }
     }
 }

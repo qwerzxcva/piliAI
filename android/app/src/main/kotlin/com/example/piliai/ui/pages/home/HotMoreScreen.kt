@@ -223,28 +223,19 @@ fun HotMoreScreen(
     }
 }
 
+/**
+ * 审核281：入站必刷/每周必看的列表行。改用通用 VideoListRow
+ * （Kototoro HomeListRailRow 规格）——原先是裸 Row + 裸 AsyncImage，
+ * 封面无描边无阴影、标题无字重，是「廉价感」来源之一。
+ */
 @Composable
 private fun PreciousRow(v: VideoItem, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        AsyncImage(
-            model = v.pic.toCoverUrl(),
-            contentDescription = v.title,
-            modifier = Modifier.width(140.dp).aspectRatio(16f / 9f)
-                .clip(RoundedCornerShape(8.dp)),
-            contentScale = ContentScale.Crop
-        )
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(v.title, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "${v.author} · ${formatCount(v.stat.view)}观看",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
+    com.example.piliai.ui.components.VideoListRow(
+        title = v.title,
+        coverUrl = v.pic.toCoverUrl(),
+        supportingText = "${v.author} · ${formatCount(v.stat.view)}观看",
+        sourceText = v.durationText.ifBlank { null },
+        coverWidth = 140.dp,
+        onClick = onClick,
+    )
 }
