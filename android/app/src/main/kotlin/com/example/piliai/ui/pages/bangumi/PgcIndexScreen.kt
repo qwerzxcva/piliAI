@@ -1,6 +1,7 @@
 package com.example.piliai.ui.pages.bangumi
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -125,6 +127,10 @@ fun PgcIndexScreen(
 
 @Composable
 private fun PgcIndexCard(item: PgcIndexItem, onOpenSeason: (Long) -> Unit) {
+    // 审核284：竖版海报补 rim 描边 + 阴影（番剧海报是 88x118 竖比例，
+    // VideoListRow 的 16:9 横向封面不适用，只统一封面质感规格）。
+    val rimBrush = com.example.piliai.ui.theme.rememberCoverRimBrush()
+    val coverShape = RoundedCornerShape(8.dp)
     Row(
         Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
@@ -137,8 +143,10 @@ private fun PgcIndexCard(item: PgcIndexItem, onOpenSeason: (Long) -> Unit) {
             model = item.cover.toCoverUrl(),
             contentDescription = item.title,
             modifier = Modifier.size(width = 88.dp, height = 118.dp)
-                .clip(RoundedCornerShape(8.dp))
+                .shadow(2.dp, coverShape, clip = false)
+                .clip(coverShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
+                .border(0.5.dp, rimBrush, coverShape)
         )
         Column(Modifier.weight(1f).height(118.dp), verticalArrangement = Arrangement.SpaceBetween) {
             Column {

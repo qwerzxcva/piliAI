@@ -34,13 +34,19 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.piliai.ui.theme.PiliCardShape
+import com.example.piliai.ui.theme.PiliCoverScrimStops
 import com.example.piliai.ui.theme.rememberCoverRimBrush
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.PlayCircleOutline
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -51,7 +57,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -376,6 +381,180 @@ fun SkeletonVideoCard(modifier: Modifier = Modifier) {
             Box(Modifier.size(16.dp).clip(CircleShape).background(shimmer))
             Spacer(Modifier.width(5.dp))
             Box(Modifier.width(56.dp).height(10.dp).clip(RoundedCornerShape(5.dp)).background(shimmer))
+        }
+    }
+}
+
+/**
+ * 审核285：网格视频卡（首页 / 分区页共用）。
+ *
+ * 从 HomeScreen.VideoCardItem 提出为公共组件——分区页 ZoneCard 此前是同一套
+ * 结构的旧版副本（封面在 Card 内、无描边、间距 4dp），提出后两页共用一份实现。
+ *
+ * 视觉规格对齐 Kototoro 源码级：
+ * - 封面：0.5dp rim 渐变描边 + 2dp 阴影 + surfaceVariant 底色
+ *   （rememberCoverRimBorderBrush / TabletPosterCover，SharedContentCardBadges.kt:246）
+ * - 标题压在封面底部 overlay（CompactGridTitleOverlay，SharedPosterCover.kt:63），
+ *   不再放封面外下方：省垂直空间、层级更清晰，是 Kototoro 的标志性观感
+ * - 遮罩用 6 段色标（末端黑 72%），标题带文字阴影保证亮封面可读
+ * - UP 主行留在封面外下方（视频 App 需要作者归属，Kototoro 的副标题同理）
+ */
+@Composable
+fun VideoGridCard(
+    title: String,
+    coverUrl: String,
+    modifier: Modifier = Modifier,
+    durationText: String = "",
+    viewCountText: String = "",
+    danmakuCountText: String = "",
+    authorName: String = "",
+    authorFaceUrl: String = "",
+    onAuthorClick: (() -> Unit)? = null,
+    onClick: () -> Unit = {},
+) {
+    val rimBrush = rememberCoverRimBrush()
+    val coverShape = RoundedCornerShape(12.dp)
+    val titleSize = 13.sp
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f)
+                // 2dp 阴影先于 clip：阴影按封面形状外扩，clip=false 才能透出来
+                .shadow(2.dp, coverShape, clip = false)
+                .clip(coverShape)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .border(0.5.dp, rimBrush, coverShape),
+        ) {
+            AsyncImage(
+                model = coverUrl,
+                contentDescription = title,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+            // 播放量 + 弹幕：左上角一排（Kototoro 徽标同样叠在封面上层）
+            if (viewCountText.isNotBlank() || danmakuCountText.isNotBlank()) {
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(6.dp)
+                        .background(
+                            Color.Black.copy(alpha = 0.45f),
+                            RoundedCornerShape(4.dp)
+                        )
+                        .padding(horizontal = 5.dp, vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (viewCountText.isNotBlank()) {
+                        Icon(
+                            Icons.Filled.PlayCircleOutline,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(13.dp),
+                        )
+                        Spacer(Modifier.width(3.dp))
+                        Text(
+                            text = viewCountText,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White,
+                        )
+                    }
+                    if (danmakuCountText.isNotBlank()) {
+                        if (viewCountText.isNotBlank()) Spacer(Modifier.width(6.dp))
+                        Icon(
+                            Icons.Filled.ChatBubbleOutline,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(13.dp),
+                        )
+                        Spacer(Modifier.width(3.dp))
+                        Text(
+                            text = danmakuCountText,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White,
+                        )
+                    }
+                }
+            }
+            // 时长：右上角
+            if (durationText.isNotBlank()) {
+                Text(
+                    text = durationText,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .background(
+                            Color.Black.copy(alpha = 0.45f),
+                            RoundedCornerShape(4.dp)
+                        )
+                        .padding(horizontal = 5.dp, vertical = 3.dp),
+                )
+            }
+            // 底部遮罩 + overlay 标题（CompactGridTitleOverlay 移植）
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(46.dp)
+                    .background(Brush.verticalGradient(colorStops = PiliCoverScrimStops)),
+            )
+            Text(
+                text = title,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontSize = titleSize,
+                    lineHeight = (titleSize.value + 3.5f).sp,
+                    fontWeight = FontWeight.SemiBold,
+                    shadow = Shadow(
+                        color = Color.Black.copy(alpha = 0.75f),
+                        offset = Offset(0f, 1.5f),
+                        blurRadius = 5f,
+                    ),
+                ),
+                color = Color.White,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        // 封面外仅保留 UP 主行：头像 + 名称（视频内容需要作者归属）
+        if (authorName.isNotBlank()) {
+            Row(
+                modifier = Modifier
+                    .padding(start = 2.dp, top = 6.dp)
+                    .then(
+                        if (onAuthorClick != null) Modifier.clickable { onAuthorClick() }
+                        else Modifier
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (authorFaceUrl.isNotBlank()) {
+                    AsyncImage(
+                        model = authorFaceUrl,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(16.dp)
+                            .clip(CircleShape),
+                        contentScale = ContentScale.Crop,
+                    )
+                    Spacer(Modifier.width(5.dp))
+                }
+                Text(
+                    text = authorName,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }

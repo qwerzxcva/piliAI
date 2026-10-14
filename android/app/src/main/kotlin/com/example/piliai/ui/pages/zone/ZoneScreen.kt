@@ -162,9 +162,11 @@ fun ZoneScreen(
                 else -> LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
                     state = gridState,
-                    contentPadding = PaddingValues(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    // 审核285：间距对齐首页（Kototoro GridSpacing 8dp、页边 12dp）——
+                    // 原先是 4dp/4dp，比首页密一倍，两页观感不一致。
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(items, key = { it.bvid }) { v ->
                         ZoneCard(v, onOpenUser) { onOpenVideo(v.bvid, v.cid) }
@@ -177,48 +179,23 @@ fun ZoneScreen(
 
 @Composable
 private fun ZoneCard(v: NewListArchive, onOpenUser: (Long) -> Unit, onClick: () -> Unit) {
-    Card(Modifier.fillMaxWidth().clickable(onClick = onClick), shape = RoundedCornerShape(10.dp)) {
-        Column {
-            Box {
-                AsyncImage(
-                    model = v.pic.toCoverUrl(),
-                    contentDescription = v.title,
-                    modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp)),
-                    contentScale = ContentScale.Crop
-                )
-                Text(
-                    formatDuration(v.duration),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = androidx.compose.ui.graphics.Color.White,
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(4.dp)
-                )
-            }
-            Column(Modifier.padding(8.dp)) {
-                Text(
-                    v.title,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        v.owner?.name ?: "",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.clickable(enabled = (v.owner?.mid ?: 0L) > 0) { v.owner?.let { onOpenUser(it.mid) } },
-                        maxLines = 1
-                    )
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        "${v.stat?.view ?: 0} 播放",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-    }
+    // 审核285：改用公共 VideoGridCard（与首页同一份实现、同一套 Kototoro 封面
+    // 规格）。原先是 Card 包 Column 的旧结构：封面只有 topStart/topEnd 圆角、
+    // 无描边无阴影、标题在封面外且用 bodySmall、UP 名与播放数挤在一行——
+    // 分区页和首页曾是两套视觉语言，这是「翻两页就觉得廉价」的主因之一。
+    com.example.piliai.ui.components.VideoGridCard(
+        title = v.title,
+        coverUrl = v.pic.toCoverUrl(),
+        durationText = formatDuration(v.duration),
+        viewCountText = "${v.stat?.view ?: 0} 播放",
+        authorName = v.owner?.name ?: "",
+        onAuthorClick = if ((v.owner?.mid ?: 0L) > 0) {
+            { v.owner?.let { onOpenUser(it.mid) } }
+        } else {
+            null
+        },
+        onClick = onClick,
+    )
 }
 
 private fun formatDuration(sec: Long): String {
