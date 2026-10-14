@@ -132,7 +132,16 @@ class LibraryViewModel(
         val kid = "${item.business}:${item.history?.oid ?: item.aid}"
         viewModelScope.launch {
             BiliApiClient().delHistory(kid).onSuccess { ok ->
-                if (ok) _history.value = _history.value.filterNot { it.aid == item.aid }
+                if (ok) {
+                    _history.value = _history.value.filterNot { it.aid == item.aid }
+                } else {
+                    // 审核304：原来失败完全静默（无 else、无 onFailure）——
+                    // 用户长按删了一条，没删掉也看不到任何提示。
+                    // 用 _error 而非 _message：message 只有暴露、没有 UI collect。
+                    _error.value = "删除失败（可能未登录或被风控）"
+                }
+            }.onFailure { e ->
+                _error.value = "删除失败: ${e.message ?: "网络错误"}"
             }
         }
     }
@@ -150,27 +159,27 @@ class LibraryViewModel(
 
     /**
      * 审核268：清空稍后再看（成功后重新拉列表）。
-     * 与 delToView 同一风格：直接调 API，结果经 message 告知 UI。
+     *
+     * 审核304：结果改走 _error 而非 _message。_message 这个 StateFlow 只有
+     * 暴露、没有任何 UI collect 它——原来写 _message 用户根本看不到反馈。
      */
     fun clearToView() {
         viewModelScope.launch {
             BiliApiClient().clearToView()
                 .onSuccess { ok ->
-                    _message.value = if (ok) "已清空稍后再看" else "清空失败"
+                    _error.value = if (ok) "已清空稍后再看" else "清空失败"
                     if (ok) loadToView()
                 }
-                .onFailure { _message.value = "清空失败: ${it.message}" }
+                .onFailure { _error.value = "清空失败: ${it.message}" }
         }
     }
 
-    /** 审核268：一次性提示（清空结果） */
-    private val _message = MutableStateFlow<String?>(null)
-    val message: StateFlow<String?> = _message.asStateFlow()
-
-    fun consumeMessage() {
-        _message.value = null
-    }
-
+    /**
+     * 审核268/304：删除稍后再看单项。
+     *
+     * 结果走 _error（UI 有消费）；原来的 _message StateFlow 已删——
+     * 它只暴露、没有任何 UI collect，写了用户看不见。
+     */
     fun delToView(aid: Long) {
         viewModelScope.launch {
             BiliApiClient().delToView(aid).onSuccess { ok ->
