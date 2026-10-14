@@ -59,8 +59,7 @@ class StorageManager(private val context: Context) {
         
         // Video settings
         private val PLAYBACK_SPEED_KEY = floatPreferencesKey("playbackSpeed")
-        private val SUBTITLE_FONT_SIZE_KEY = intPreferencesKey("subtitleFontSize")
-        
+
         // Danmaku settings
         private val DANMAKU_ENABLED_KEY = booleanPreferencesKey("enableShowDanmaku")
         private val DANMAKU_OPACITY_KEY = floatPreferencesKey("danmakuOpacity")
@@ -779,10 +778,6 @@ class StorageManager(private val context: Context) {
 
     suspend fun setHdrDynamicRangeExpand(value: Float) {
         context.dataStore.edit { preferences -> preferences[HDR_DYNAMIC_RANGE_EXPAND_KEY] = value }
-    }
-
-    suspend fun setSubtitleFontSize(size: Int) {
-        context.dataStore.edit { preferences -> preferences[SUBTITLE_FONT_SIZE_KEY] = size }
     }
 
     suspend fun clearAll() {
