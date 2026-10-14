@@ -106,7 +106,7 @@ fun HomeScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val gridState = rememberLazyGridState()
     // 审核241：下拉刷新指示跟随仓库真实 loading，避免「刷新完圈还在转」
-    val repoRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+    val repoRefreshing by viewModel.refreshing.collectAsStateWithLifecycle()
     val feedSource by viewModel.feedSource.collectAsStateWithLifecycle()
     // 审核241（P0-2）：触底加载必须有 hasMore 兜底。否则失败后 loadingMore 释放、
     // shouldLoadMore 仍为 true，反复触底会连续打请求且用户看不到任何提示。

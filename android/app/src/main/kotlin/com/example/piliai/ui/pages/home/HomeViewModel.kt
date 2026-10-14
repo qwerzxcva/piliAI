@@ -99,31 +99,49 @@ class HomeViewModel(
 
     private var loadingMore = false
 
+    /**
+     * 下拉刷新。
+     *
+     * 审核300（真 bug）：原来刷新时 isLoading 时序不可靠——PullToRefreshBox 的
+     * onRefresh 是 suspend 的，而 refresh() 返回 Unit 且内部自己 launch，
+     * 调用方拿不到完成时机；repo.isLoading 又可能在回调到达前就变 false，
+     * 于是下拉后**没有视觉反馈**，用户以为「刷新没反应」。
+     *
+     * 现在加一个独立的 refreshing 信号：进入即置 true，无论成功失败都置回
+     * false（finally），保证指示器一定转完一圈。
+     */
+    private val _refreshing = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val refreshing: kotlinx.coroutines.flow.StateFlow<Boolean> = _refreshing.asStateFlow()
+
     fun refresh() {
         viewModelScope.launch {
-            // 审核241（P0-3）：只在列表本来就空时才切 Loading。
-            // 否则每次下拉刷新都整屏骨架卡（已看内容全消失、滚动位置丢失）。
-            // 刷新指示由 repoRefreshing（仓库 isLoading）负责，不必再切 Loading 态。
-            if (repo.videos.value.isEmpty()) _state.value = HomeUiState.Loading
-            // 轮播并行拉取（失败静默不阻塞首页）
-            launch {
-                repo.topRcmd()
-                    .onSuccess { resp ->
-                        if (resp.code == 0) _topRcmd.value =
-                            resp.data?.item.orEmpty().filter { it.goto == "av" && it.bvid.isNotEmpty() }
-                    }
-            }
-            repo.refresh()
-                .onSuccess { _state.value = HomeUiState.Success(applyFilter(it)) }
-                .onFailure {
-                    // 审核237：刷新失败时保留旧列表，不清成空屏（此前直接 Error 态白屏）
-                    val current = repo.videos.value
-                    if (current.isNotEmpty()) {
-                        _state.value = HomeUiState.Success(applyFilter(current))
-                    } else {
-                        _state.value = HomeUiState.Error(it.message ?: "网络请求失败")
-                    }
+            _refreshing.value = true
+            try {
+                // 审核241（P0-3）：只在列表本来就空时才切 Loading。
+                // 否则每次下拉刷新都整屏骨架卡（已看内容全消失、滚动位置丢失）。
+                if (repo.videos.value.isEmpty()) _state.value = HomeUiState.Loading
+                // 轮播并行拉取（失败静默不阻塞首页）
+                launch {
+                    repo.topRcmd()
+                        .onSuccess { resp ->
+                            if (resp.code == 0) _topRcmd.value =
+                                resp.data?.item.orEmpty().filter { it.goto == "av" && it.bvid.isNotEmpty() }
+                        }
                 }
+                repo.refresh()
+                    .onSuccess { _state.value = HomeUiState.Success(applyFilter(it)) }
+                    .onFailure {
+                        // 审核237：刷新失败时保留旧列表，不清成空屏（此前直接 Error 态白屏）
+                        val current = repo.videos.value
+                        if (current.isNotEmpty()) {
+                            _state.value = HomeUiState.Success(applyFilter(current))
+                        } else {
+                            _state.value = HomeUiState.Error(it.message ?: "网络请求失败")
+                        }
+                    }
+            } finally {
+                _refreshing.value = false
+            }
         }
     }
 

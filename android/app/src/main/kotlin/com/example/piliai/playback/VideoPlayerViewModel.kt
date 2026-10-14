@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.piliai.utils.toHttpsUrl
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
@@ -1783,6 +1784,12 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
                 setError("该清晰度暂不可用，请换一档")
                 return@launch
             }
+            // 审核300：切清晰度也要带 CDN 候选列表。原来只传 baseUrl 单个地址，
+            // 而普通播放已有审核290 的故障转移——一遇到抖动节点，切清晰度
+            // 必然失败（用户看到「该清晰度暂不可用」但其实是网络问题）。
+            videoUrlCandidates = listOf(videoUrl.toHttpsUrl()) +
+                target.backupUrl.map { it.toHttpsUrl() }
+            audioUrlCandidates = audio?.let { listOf(it) }.orEmpty()
             startPlayback(videoUrl, audio, resumePositionMs = pos, playWhenReady = playing)
         }
     }

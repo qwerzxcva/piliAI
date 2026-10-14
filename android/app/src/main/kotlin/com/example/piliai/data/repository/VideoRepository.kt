@@ -154,6 +154,39 @@ class VideoRepository(private val apiClient: BiliApiClient = BiliApiClient()) {
         }
     }
 
+    /**
+     * 审核300：番剧播放地址（带 CDN 候选列表）。
+     *
+     * 与 [getPgcPlayUrl] 同链路，额外输出 backupUrl 候选，供下载/播放做
+     * 节点故障转移。原来只有普通视频有候选版本，番剧下载/播放撞上抖动节点
+     * 只能整个失败。
+     */
+    suspend fun getPgcPlayUrlWithCandidates(
+        epId: Long,
+        cid: Long,
+        qn: Int = 80
+    ): Result<Pair<PgcPlayUrlResponse, Pair<PlayUrlCandidate?, PlayUrlCandidate?>>> =
+        withContext(Dispatchers.IO) {
+            apiClient.getPgcPlayUrl(epId, cid, qn).mapCatching { resp ->
+                val bodyJson = kotlinx.serialization.json.Json.encodeToString(
+                    PgcPlayUrlResponse.serializer(), resp
+                )
+                val selected = PlayUrlNativeLib.select(bodyJson, qn)
+                if (selected != null) {
+                    val arr = JSONObject(selected)
+                    val video = PlayUrlCandidate.fromJson(arr.optJSONObject("video"))
+                    val audio = PlayUrlCandidate.fromJson(arr.optJSONObject("audio"))
+                    Pair(resp, Pair(video, audio))
+                } else {
+                    val video = resp.result?.dash?.video?.maxByOrNull { it.bandwidth }
+                        ?.let { PlayUrlCandidate(it.baseUrl ?: "", it.backupUrl) }
+                    val audio = resp.result?.dash?.audio?.maxByOrNull { it.bandwidth }
+                        ?.let { PlayUrlCandidate(it.baseUrl ?: "", it.backupUrl) }
+                    Pair(resp, Pair(video, audio))
+                }
+            }
+        }
+
     /** 番剧播放地址（批次D）：wbi 签名 pgc playurl + Rust 选流（result.dash 同构，Rust 已兼容） */
     suspend fun getPgcPlayUrl(
         epId: Long,

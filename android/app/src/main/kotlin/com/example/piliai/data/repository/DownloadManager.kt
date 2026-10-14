@@ -184,10 +184,12 @@ object DownloadManager {
                 ))
                 val qn = com.example.piliai.utils.StorageManager.getInstance(appCtx).videoQualityFlow.first()
                     .let { when (it) { "1080p" -> 80; "720p" -> 64; "480p" -> 32; else -> 64 } }
-                val play = VideoRepository(BiliApiClient()).getPlayUrl(bvid, cid, qn = qn).getOrNull()
+                val play = VideoRepository(BiliApiClient()).getPlayUrlWithCandidates(bvid, cid, qn = qn).getOrNull()
                     ?: throw IllegalStateException("playurl 获取失败")
-                val videoUrl = play.second
-                val audioUrl = play.third
+                val videoCand = play.second.first
+                val audioCand = play.second.second
+                val videoUrl = videoCand?.primary
+                val audioUrl = audioCand?.primary
                 if (videoUrl.isNullOrEmpty()) throw IllegalStateException("未取到视频流")
 
                 val dir = File(File(appCtx.getExternalFilesDir(null), "PiliNara/Downloads"), key)
@@ -273,10 +275,12 @@ object DownloadManager {
                 ))
                 val qn = com.example.piliai.utils.StorageManager.getInstance(appCtx).videoQualityFlow.first()
                     .let { when (it) { "1080p" -> 80; "720p" -> 64; "480p" -> 32; else -> 64 } }
-                val play = VideoRepository(BiliApiClient()).getPgcPlayUrl(epId, cid, qn = qn).getOrNull()
+                val play = VideoRepository(BiliApiClient()).getPgcPlayUrlWithCandidates(epId, cid, qn = qn).getOrNull()
                     ?: throw IllegalStateException("番剧 playurl 获取失败")
-                val videoUrl = play.second
-                val audioUrl = play.third
+                val videoCand = play.second.first
+                val audioCand = play.second.second
+                val videoUrl = videoCand?.primary
+                val audioUrl = audioCand?.primary
                 if (videoUrl.isNullOrEmpty()) throw IllegalStateException("未取到视频流（可能为大会员专享）")
 
                 val dir = File(File(appCtx.getExternalFilesDir(null), "PiliNara/Downloads"), key)
@@ -288,15 +292,21 @@ object DownloadManager {
                 if (freeMb < 200) throw IllegalStateException("存储空间不足（剩余 ${freeMb}MB，需至少 200MB）")
 
                 val videoFile = File(dir, "video.m4s")
-                downloadTo(videoUrl, videoFile) { p ->
-                    dao.upsert(current(dao, key).copy(progress = p * 0.8f))
-                }
+                // 审核300：补 CDN 候选列表——番剧下载此前漏接（普通视频下载已接），
+                // 一遇到抖动节点整个下载失败。
+                downloadTo(
+                    videoUrl, videoFile,
+                    candidates = videoCand?.backups.orEmpty(),
+                    onProgress = { p -> dao.upsert(current(dao, key).copy(progress = p * 0.8f)) }
+                )
                 val audioFile = File(dir, "audio.m4s")
                 var audioSize = 0L
                 if (!audioUrl.isNullOrEmpty()) {
-                    downloadTo(audioUrl, audioFile) { p ->
-                        dao.upsert(current(dao, key).copy(progress = 0.8f + p * 0.2f))
-                    }
+                    downloadTo(
+                        audioUrl, audioFile,
+                        candidates = audioCand?.backups.orEmpty(),
+                        onProgress = { p -> dao.upsert(current(dao, key).copy(progress = 0.8f + p * 0.2f)) }
+                    )
                     audioSize = audioFile.length()
                 }
                 dao.upsert(current(dao, key).copy(
