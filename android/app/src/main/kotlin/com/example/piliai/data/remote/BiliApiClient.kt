@@ -37,9 +37,47 @@ object BiliErrorTranslator {
                 "需要通过验证，请稍后重试或登录"
             text.contains("访问权限不足") -> "需要登录后访问"
             text.contains("风控") -> "触发风控，请稍后重试或登录账号"
+            // 审核289：写操作常见错误码（发评论/投币/收藏/稍再看）——
+            // 原来这些接口只返回 Boolean，失败时统一显示「发送失败」，
+            // 用户完全不知道是评论太频繁、硬币不足还是评论区已关闭。
+            text == "-509" || text.contains("-509") ->
+                "请求过于频繁，请稍后再试"
+            text == "-104" || text.contains("-104") || text.contains("硬币") ->
+                "硬币不足"
+            text == "34002" || text.contains("34002") ->
+                "不能给自己投币"
+            text == "-111" || text.contains("-111") || text.contains("csrf") ->
+                "登录状态已失效，请重新登录"
             else -> null
         }
     }
+}
+
+/**
+ * 审核289：写操作统一结果校验。
+ *
+ * B 站写操作（发评论/点赞/投币/收藏/稍再看…）返回 `{code, message}`，
+ * code=0 才是成功。原来这些接口写死
+ * `requireWriteOk(resp)`，失败时只返回 false，
+ * 上层只能显示「发送失败」这种无信息量的提示。
+ *
+ * 这个 helper 把 code/message 提出来：code=0 返回 true，否则抛出带
+ * 可读 message 的异常（经 BiliErrorTranslator 翻译），让上层能给出
+ * 「请求过于频繁」「硬币不足」这类可行动的反馈。
+ */
+internal fun requireWriteOk(resp: String): Boolean {
+    // 风控页/非 JSON：别让 JSONObject 抛难懂的异常
+    if (resp.trimStart().startsWith("<")) {
+        error("B站返回风控页面（非 JSON），请稍后重试")
+    }
+    val obj = org.json.JSONObject(resp)
+    val code = obj.optInt("code")
+    if (code == 0) return true
+    val raw = obj.optString("message").ifBlank { obj.optString("msg") }
+    val detail = BiliErrorTranslator.translate("$code $raw".trim())
+        ?: BiliErrorTranslator.translate(raw)
+        ?: raw.ifBlank { "操作失败（code=$code）" }
+    error(detail)
 }
 
 /**
@@ -291,7 +329,7 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
             "$API_BASE/x/relation/modify",
             mapOf("fid" to fid.toString(), "act" to act.toString(), "re_src" to "11")
         )
-        org.json.JSONObject(resp).optInt("code") == 0
+        requireWriteOk(resp)
     }
 
     /** 审核轮204：黑名单列表（ps/pn 分页） */
@@ -434,7 +472,7 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
             "action" to if (like) "1" else "0"
         )
         val resp: String = BiliHttpClient.postAuthForm("$API_BASE/x/v2/reply/action", form)
-        org.json.JSONObject(resp).optInt("code") == 0
+        requireWriteOk(resp)
     }
 
     /** 发评论 /x/v2/reply/add（csrf） */
@@ -455,7 +493,7 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
             form["at_name_to_mid"] = org.json.JSONObject().put(atName, atUid).toString()
         }
         val resp: String = BiliHttpClient.postAuthForm("$API_BASE/x/v2/reply/add", form)
-        org.json.JSONObject(resp).optInt("code") == 0
+        requireWriteOk(resp)
     }
 
     /** @用户搜索（登录态，/x/v2/reply/at；oid/root/parent 参数从 Flutter 版对齐） */
@@ -725,7 +763,7 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
         val resp: String = BiliHttpClient.postAuthForm(
             "$API_BASE/x/relation/modify", form
         )
-        org.json.JSONObject(resp).optInt("code") == 0
+        requireWriteOk(resp)
     }
 
     /** 直播列表（分页，按人气） */
@@ -894,7 +932,7 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
         )
         val path = if (follow) "$API_BASE/pgc/app/follow/add" else "$API_BASE/pgc/app/follow/del"
         val resp: String = BiliHttpClient.postAuthForm(path, form)
-        org.json.JSONObject(resp).optInt("code") == 0
+        requireWriteOk(resp)
     }
 
     // ========== 关注/粉丝 + 消息（批次H） ==========
@@ -1004,7 +1042,7 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
             "https://api.live.bilibili.com/xlive/web-room/v1/index/roomEntryAction",
             mapOf("room_id" to roomId.toString())
         )
-        org.json.JSONObject(resp).optInt("code") == 0
+        requireWriteOk(resp)
     }
 
     // ========== 直播弹幕 WebSocket（批次J） ==========
@@ -1044,7 +1082,7 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
                 "csrf_token" to csrf
             )
         )
-        org.json.JSONObject(resp).optInt("code") == 0
+        requireWriteOk(resp)
     }
 
     /** 发送视频弹幕 /x/v2/dm/post（oid=cid，需登录）+ csrf */
@@ -1073,7 +1111,7 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
                 "plat" to "1"
             )
         )
-        org.json.JSONObject(resp).optInt("code") == 0
+        requireWriteOk(resp)
     }
 
     // ========== 播放器字幕（批次K） ==========
@@ -1197,7 +1235,7 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
             "$API_BASE/x/v2/history/toview/add",
             mapOf("aid" to aid.toString())
         )
-        org.json.JSONObject(resp).optInt("code") == 0
+        requireWriteOk(resp)
     }
 
     /** 删除稍后再看（csrf） */
@@ -1206,7 +1244,7 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
             "$API_BASE/x/v2/history/toview/del",
             mapOf("aid" to aid.toString())
         )
-        org.json.JSONObject(resp).optInt("code") == 0
+        requireWriteOk(resp)
     }
 
     /**
@@ -1218,7 +1256,7 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
             "$API_BASE/x/v2/history/toview/clear",
             emptyMap()
         )
-        org.json.JSONObject(resp).optInt("code") == 0
+        requireWriteOk(resp)
     }
 
     /** 审核轮146：一键三连（点赞+投币+收藏，需登录） */
@@ -1227,7 +1265,7 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
             "$API_BASE/x/web-interface/archive/like/triple",
             mapOf("aid" to aid.toString())
         )
-        org.json.JSONObject(resp).optInt("code") == 0
+        requireWriteOk(resp)
     }
 
     /** 删除单条历史（csrf）。kid = business:oid，如 archive:123456 */
@@ -1236,7 +1274,7 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
             "$API_BASE/x/v2/history/delete",
             mapOf("kid" to kid)
         )
-        org.json.JSONObject(resp).optInt("code") == 0
+        requireWriteOk(resp)
     }
     
     // ========== 私聊会话（批次：私聊） ==========
@@ -1294,7 +1332,7 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
                 "mobi_app" to "web"
             )
         )
-        org.json.JSONObject(resp).optInt("code") == 0
+        requireWriteOk(resp)
     }
 
     /** 发送私聊图片消息（msg_type=2，content 为 JSON {"url":...,"width":...,"height":...,"image_type":0}） */
@@ -1321,7 +1359,7 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
                 "mobi_app" to "web"
             )
         )
-        org.json.JSONObject(resp).optInt("code") == 0
+        requireWriteOk(resp)
     }
 
     // ========== 表情包（批次：表情包） ==========

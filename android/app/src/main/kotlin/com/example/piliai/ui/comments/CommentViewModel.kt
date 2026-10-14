@@ -215,7 +215,13 @@ class CommentViewModel(private val bvid: String) : ViewModel() {
                     _state.value = _state.value.copy(error = "发送失败")
                 }
             }.onFailure { e ->
-                _state.value = _state.value.copy(sending = false, error = e.message)
+                // 审核289：带上真实原因（评论太频繁/评论区已关闭/未登录），
+                // 经 BiliErrorTranslator 翻译成可行动描述
+                _state.value = _state.value.copy(
+                    sending = false,
+                    error = com.example.piliai.data.remote.BiliErrorTranslator
+                        .translate(e.message) ?: e.message ?: "发送失败"
+                )
             }
         }
     }

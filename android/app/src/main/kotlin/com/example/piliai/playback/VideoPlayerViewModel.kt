@@ -1831,7 +1831,14 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         playPart(next)
     }
 
-    /** 一键三连（长按点赞）：点赞 + 投币 1 枚 + 收藏，需登录。 */
+    /**
+     * 一键三连（长按点赞）：点赞 + 投币 1 枚 + 收藏，需登录。
+     *
+     * 审核289：原来三个请求发完就立刻 showToast("已一键三连")，但它们都是
+     * 异步的——投币可能因余额不足、收藏可能因未取到默认收藏夹而失败，
+     * 于是用户同时看到「已一键三连」和「投币失败」，自相矛盾。
+     * 改为不预设成功提示，各操作的成败由它们自己的 setError/showToast 反馈。
+     */
     fun likeCoinFav() {
         if (!AccountSession.isLogin) {
             setError("请先登录后再一键三连")
@@ -1841,7 +1848,6 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         if (!_state.value.isLiked) toggleLike()
         coinOnce(1)
         toggleFavorite()
-        showToast("已一键三连")
     }
 
     /** 轻量提示（替代全屏红字错误） */
