@@ -1,8 +1,11 @@
 package com.example.piliai.ui.download
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
@@ -14,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -92,11 +96,18 @@ private fun DownloadRow(
         Modifier.fillMaxWidth().padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // 审核287：封面补 rim 描边 + 阴影 + surfaceVariant 底色，与全站封面规格统一。
+        // 原先是 120x68 + MaterialTheme.shapes.small 圆角 + 无描边无阴影。
+        val rimBrush = com.example.piliai.ui.theme.rememberCoverRimBrush()
+        val coverShape = RoundedCornerShape(10.dp)
         AsyncImage(
             model = item.cover.toHttpsUrl(),
             contentDescription = null,
             modifier = Modifier.size(width = 120.dp, height = 68.dp)
-                .clip(MaterialTheme.shapes.small),
+                .shadow(2.dp, coverShape, clip = false)
+                .clip(coverShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .border(0.5.dp, rimBrush, coverShape),
             contentScale = ContentScale.Crop
         )
         Spacer(Modifier.width(12.dp))

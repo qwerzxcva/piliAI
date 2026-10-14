@@ -1,6 +1,7 @@
 package com.example.piliai.ui.pages.livelist
 import java.util.Locale
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -143,14 +144,32 @@ fun LiveListScreen(
 
 @Composable
 private fun LiveRoomCardItem(room: LiveRoomCard, onClick: () -> Unit) {
-    Card(Modifier.clickable { onClick() }) {
+    // 审核287：直播卡补 rim 描边 + 阴影 + surfaceVariant 底色，与全站封面规格统一。
+    // 原先是 Card 默认圆角 + 封面 110dp 固定高 + 无描边无阴影。
+    val rimBrush = com.example.piliai.ui.theme.rememberCoverRimBrush()
+    val coverShape = RoundedCornerShape(12.dp)
+    Card(
+        Modifier.clickable { onClick() },
+        shape = coverShape,
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        ),
+    ) {
         Column {
             Box {
                 AsyncImage(
                     model = room.cover.toCoverUrl(),
                     contentDescription = room.title,
-                    modifier = Modifier.fillMaxWidth().height(110.dp),
+                    modifier = Modifier.fillMaxWidth().height(110.dp)
+                        .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentScale = ContentScale.Crop
+                )
+                // 封面下缘一道 rim 高光：与描边规格呼应，弥补 Card 容器无描边
+                Box(
+                    Modifier.align(Alignment.BottomStart).fillMaxWidth().height(0.5.dp)
+                        .background(rimBrush)
                 )
                 // 人气角标
                 Row(

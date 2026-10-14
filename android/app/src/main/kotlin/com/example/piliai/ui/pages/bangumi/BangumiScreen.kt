@@ -2,6 +2,7 @@ package com.example.piliai.ui.pages.bangumi
 import java.util.Locale
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -92,12 +94,19 @@ fun BangumiScreen(
                 LazyColumn(Modifier.padding(padding).fillMaxSize()) {
                     // 头部：封面 + 信息
                     item {
+                        // 审核287：番剧详情大封面补 rim 描边 + 阴影 + surfaceVariant 底色
+                        // （与全站封面规格统一）。原先是 120x160 竖版 + 8dp 圆角裸封面。
+                        val rimBrush = com.example.piliai.ui.theme.rememberCoverRimBrush()
+                        val coverShape = RoundedCornerShape(10.dp)
                         Row(Modifier.fillMaxWidth().padding(16.dp)) {
                             AsyncImage(
                                 model = season.cover.toCoverUrl(),
                                 contentDescription = season.title,
                                 modifier = Modifier.width(120.dp).height(160.dp)
-                                    .clip(RoundedCornerShape(8.dp)),
+                                    .shadow(3.dp, coverShape, clip = false)
+                                    .clip(coverShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .border(0.5.dp, rimBrush, coverShape),
                                 contentScale = ContentScale.Crop
                             )
                             Spacer(Modifier.width(14.dp))
