@@ -399,6 +399,26 @@ object SubscribeParser {
 
     /** 自定义 JSON 源：兼容 {items:[...]} / [ ... ] 两种形态 */
     private fun parseJson(text: String): ParsedSource {
+        // 审核298（真 bug）：先识别 animeko 媒体源配置。原来直接按
+        // items/list/data 数组解析，用户粘一段 animeko 的
+        // exportedMediaSourceDataList 配置进来只会得到
+        // 「JSON 源缺少 items/list/data 数组」——animeko 源因此形同虚设。
+        // AnimekoScraper 一直实现了配置解析与网页刮削，但订阅列表刷新
+        // 这条路从来没接过它。
+        if (text.contains("exportedMediaSourceDataList") ||
+            text.contains("factoryId")
+        ) {
+            val cfgs = AnimekoScraper.parseConfig(text)
+            if (cfgs.isNotEmpty()) {
+                // animeko 是「搜索型」源：没有固定的条目列表，用源名占位，
+                // 实际条目由订阅页内的搜索弹窗（SearchInSourceDialog）产生。
+                return ParsedSource(
+                    name = cfgs.first().name,
+                    cover = cfgs.first().iconUrl,
+                    items = emptyList()
+                )
+            }
+        }
         val root = json.parseToJsonElement(text).let {
             when (it) {
                 is JsonObject -> it

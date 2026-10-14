@@ -1019,6 +1019,104 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
         }
     }
 
+    /**
+     * 审核299：换区播放地址（BiliRoamingX 机制移植）——尝试解锁更高清晰度。
+     *
+     * 背景：B 站各区会员体系独立，同一 access_key 在某些区能取到更高画质。
+     * 官方客户端只问自己所属区，所以看不到。
+     *
+     * 与 BiliRoamingX 的差异（源码核实结论）：
+     * - 它的 app 端签名（Utils.signQuery/getAppKey）实现体为空，注释
+     *   `codes will filled by patcher`——运行时从官方 App 提取；BiliRoaming
+     *   同样反射官方 App 的签名方法。两者都依赖「寄生官方 App」。
+     * - piliai 是独立客户端，无此上下文，故这里用**自有 wbi 签名**（匿名实测
+     *   可用，审核290）+ 换区 host。不伪造签名、不破解。
+     *
+     * @param allowAreaFallback 是否允许依次尝试港/台/泰（大陆失败时）
+     * @return 成功响应 + 实际生效的区
+     */
+    suspend fun getPgcPlayUrlCrossRegion(
+        epId: Long,
+        cid: Long,
+        qn: Int = 80,
+        allowAreaFallback: Boolean = true
+    ): Result<Pair<PgcPlayUrlResponse, BiliArea>> = runCatching {
+        val areas = if (allowAreaFallback) BiliAreaServers.fallbackOrder()
+        else listOf(BiliArea.China)
+        val errors = LinkedHashMap<String, String>()
+        for (area in areas) {
+            val host = BiliAreaServers.hostOf(area)
+            val attempt = runCatching {
+                val signed = WbiSigner.sign(
+                    mapOf(
+                        "ep_id" to epId.toString(),
+                        "cid" to cid.toString(),
+                        "qn" to qn.toString(),
+                        "fnval" to "4048",
+                        "fnver" to "0",
+                        "fourk" to "1"
+                    )
+                )
+                client.getSafe<PgcPlayUrlResponse>("https://$host/pgc/player/web/playurl") {
+                    url { signed.forEach { (k, v) -> parameters.append(k, v) } }
+                    header("Referer", "https://www.bilibili.com/bangumi/")
+                }
+            }
+            attempt.onSuccess { resp ->
+                if (resp.code == 0) {
+                    return@runCatching Pair(resp, area)
+                }
+                errors[area.label] = resp.message ?: "code=${resp.code}"
+            }.onFailure { e ->
+                errors[area.label] = e.message ?: "请求失败"
+            }
+        }
+        error("各区服务器均不可用：${errors.entries.joinToString("; ") { "${it.key}=${it.value}" }}")
+    }
+
+    /**
+     * 审核299：普通视频换区 playurl（同理，BiliRoamingX 机制移植）。
+     */
+    suspend fun getPlayUrlCrossRegion(
+        bvid: String,
+        cid: Long,
+        qn: Int = 80,
+        allowAreaFallback: Boolean = true
+    ): Result<Pair<PlayUrlResponse, BiliArea>> = runCatching {
+        val areas = if (allowAreaFallback) BiliAreaServers.fallbackOrder()
+        else listOf(BiliArea.China)
+        val errors = LinkedHashMap<String, String>()
+        for (area in areas) {
+            val host = BiliAreaServers.hostOf(area)
+            val attempt = runCatching {
+                val signed = WbiSigner.sign(
+                    mapOf(
+                        "bvid" to bvid,
+                        "cid" to cid.toString(),
+                        "qn" to qn.toString(),
+                        "fnval" to "4048",
+                        "fnver" to "0",
+                        "fourk" to "1",
+                        "try_look" to "1"
+                    )
+                )
+                client.getSafe<PlayUrlResponse>("https://$host/x/player/wbi/playurl") {
+                    url { signed.forEach { (k, v) -> parameters.append(k, v) } }
+                    header("Referer", "https://www.bilibili.com")
+                }
+            }
+            attempt.onSuccess { resp ->
+                if (resp.code == 0) {
+                    return@runCatching Pair(resp, area)
+                }
+                errors[area.label] = resp.message ?: "code=${resp.code}"
+            }.onFailure { e ->
+                errors[area.label] = e.message ?: "请求失败"
+            }
+        }
+        error("各区服务器均不可用：${errors.entries.joinToString("; ") { "${it.key}=${it.value}" }}")
+    }
+
     /** 追番/取消追番（csrf）。season_id 或 ep_id 二选一 */
     suspend fun followBangumi(seasonId: Long = 0L, epId: Long = 0L, follow: Boolean): Result<Boolean> = runCatching {
         val form = linkedMapOf(

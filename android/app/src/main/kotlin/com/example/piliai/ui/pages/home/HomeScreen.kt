@@ -5,6 +5,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
@@ -62,6 +63,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
@@ -137,6 +140,10 @@ fun HomeScreen(
     }
 
     Scaffold(
+        // 审核298：contentWindowInsets 只保 bottom。top 由顶栏自己的
+        // statusBarsPadding() 消费——否则 body 也会拿到 top inset，
+        // 顶栏下方多出一截空白（双倍留白）。
+        contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
         topBar = {
             // 审核234：BiliPai 式顶栏——搜索胶囊为主视觉 + 右侧仅消息/我的；
             // 排行/分区/番剧/竖屏流等入口全部下沉到分类条（不再 9 图标铺满）
@@ -144,9 +151,13 @@ fun HomeScreen(
                 Modifier
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.surface)
-                    // 审核241（P2-1）：删掉这里的 statusBarsPadding()。
-                    // MainActivity 已 enableEdgeToEdge()，Scaffold 的 contentWindowInsets
-                    // 默认含 systemBars，body 又消费一次 padding → 顶部双倍状态栏留白。
+                    // 审核298（真 bug）：这里必须有 statusBarsPadding()。
+                    // 审核241 删掉它的理由（「Scaffold contentWindowInsets 默认含
+                    // systemBars，body 会消费」）是错的——**自定义 Column 作为
+                    // topBar 时 Scaffold 不会自动加 insets**，只有 MD3 TopAppBar
+                    // 内部才处理。删掉后顶栏直接画到状态栏底下，用户看到的就是
+                    // 「大黑边挡住状态栏」。
+                    .statusBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
                 com.example.piliai.ui.components.SearchPill(
@@ -449,10 +460,19 @@ private fun HeroCarousel(
                 ) {
                     Text(
                         text = item.title,
-                        style = MaterialTheme.typography.titleSmall,
                         color = Color.White,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
+                        // 审核298：补文字阴影。Hero 标题压在渐变遮罩上，
+                        // 亮封面时白字会糊成一片（与 VideoGridCard 的 overlay
+                        // 标题保持同一规格）。
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            shadow = Shadow(
+                                color = Color.Black.copy(alpha = 0.75f),
+                                offset = Offset(0f, 1.5f),
+                                blurRadius = 5f,
+                            )
+                        ),
                     )
                     val upName = item.owner?.name ?: item.name
                     if (upName.isNotBlank()) {

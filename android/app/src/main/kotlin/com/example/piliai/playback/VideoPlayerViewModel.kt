@@ -255,6 +255,14 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
                 _state.value = _state.value.copy(danmakuMassiveMode = on)
             }
         }
+        // 审核298：监听超分设置变化，播放中改动立即生效（原来只有
+        // onVideoSizeChanged 一条路径，改设置后不重播就不生效）。
+        viewModelScope.launch {
+            storage.superResolutionFlow.collect { mode ->
+                com.example.piliai.utils.RendererPrefs.updateSuperResolution(mode)
+                applySuperResolutionEffect()
+            }
+        }
         // 审核235：字幕细节
         viewModelScope.launch {
             kotlinx.coroutines.flow.combine(
@@ -1045,6 +1053,23 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
             isPlaying = playWhenReady, isBuffering = true,
             error = null, duration = 0L
         )
+        // 审核298：起播后主动应用一次超分 effect。原来只在 onVideoSizeChanged
+        // 里应用——那个回调只在**尺寸变化**时触发，如果用户在设置里开了超分
+        // 再进播放器、或播放中改设置不重播，就永远不生效（用户看到「按钮等于
+        // 摆设」）。这里是兜底；尺寸真正就绪后 onVideoSizeChanged 还会再应用
+        // 一次（那时才有真实分辨率，算出的目标更准）。
+        applySuperResolutionEffect()
+    }
+
+    /** 审核298：按当前超分设置应用 GL effect（Media3 内核） */
+    private fun applySuperResolutionEffect() {
+        val media3 = backend as? com.example.piliai.playback.backend.Media3Backend
+            ?: return
+        val size = media3.nativePlayer()?.videoSize
+        if (size == null || size.width <= 0 || size.height <= 0) return
+        val effects = com.example.piliai.piliplus.Media3SuperResolutionApplier
+            .resolve(size.width, size.height).orEmpty()
+        media3.setVideoEffects(effects)
     }
 
     /** 审核216：pauseOnMinimize——Screen 的 ON_PAUSE/ON_RESUME 回调 */

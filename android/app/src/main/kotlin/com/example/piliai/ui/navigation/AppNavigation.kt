@@ -165,11 +165,24 @@ fun AppNavigation() {
             MainTab.MINE -> Screen.Profile.route
         }
     }
-    val showBottomBar = MainTab.entries.any { tabRouteOf(it) == currentRoute }
+    // 审核298（真 bug）：原来只判断「当前路由是三个 tab 之一」，导致进了二级页
+    // （个人中心/收藏/历史/…）后 dock 消失，用户再也回不到主 tab——
+    // 「点首页没反应、回不去了」。改为：只有明确的「全屏页」才隐藏 dock。
+    val fullScreenRoutes = setOf(
+        Screen.VideoPlayer.route,
+        Screen.Login.route,
+        Screen.Story.route,
+        Screen.LiveRoom.route,
+        Screen.Search.route,
+    )
+    val isFullScreen = currentRoute != null && fullScreenRoutes.any {
+        currentRoute == it || currentRoute.startsWith(it.substringBefore('{'))
+    }
+    val showDock = !isFullScreen
 
     Scaffold(
         bottomBar = {
-            if (showBottomBar) {
+            if (showDock) {
                 // 审核234：BiliPai 悬浮胶囊 dock——水平 16dp/底部 12dp 悬空、全圆角容器、
                 // 选中项 primaryContainer 胶囊指示（替代 MD3 NavigationBar 通栏）
                 Box(Modifier.fillMaxWidth().padding(horizontal = 48.dp, vertical = 12.dp)) {
@@ -303,6 +316,10 @@ fun AppNavigation() {
                 onBangumiClick = { navController.navigate(Screen.Bangumi.createRoute()) },
                 onFavoritesClick = { mid ->
                     navController.navigate(Screen.Favorites.createRoute(mid))
+                },
+                // 审核297：我的关注入口（此前只能从 UP 主空间绕进去）
+                onFollowsClick = { mid ->
+                    navController.navigate(Screen.FollowList.createRoute(mid, false))
                 },
                 onDownloadsClick = { navController.navigate(Screen.Downloads.route) },
                 onSubscribeClick = { navController.navigate(Screen.Subscribe.route) }

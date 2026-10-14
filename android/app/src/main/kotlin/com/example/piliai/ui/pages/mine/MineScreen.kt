@@ -69,6 +69,9 @@ fun MineScreen(
     onBangumiClick: () -> Unit = {},
     onDownloadsClick: () -> Unit = {},
     onSubscribeClick: () -> Unit = {},
+    // 审核297：我的关注入口。此前只有从 UP 主空间才能进关注列表，
+    // 用户想看自己关注了谁没有直接入口。
+    onFollowsClick: (Long) -> Unit = {},
     viewModel: MineViewModel = viewModel()
 ) {
     val nav by viewModel.nav.collectAsStateWithLifecycle()
@@ -116,6 +119,8 @@ fun MineScreen(
                     onDownloadsClick = onDownloadsClick,
                     onSettingsClick = onSettingsClick,
                     onSubscribeClick = onSubscribeClick,
+                    // 审核297：透传「我的关注」
+                    onFollowsClick = onFollowsClick,
                     onLogout = { viewModel.logout() }
                 )
             }
@@ -193,6 +198,8 @@ fun UserContent(
     onDownloadsClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onSubscribeClick: () -> Unit = {},
+    // 审核297：我的关注入口（此前只能从 UP 主空间绕进去）
+    onFollowsClick: (Long) -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
     LazyColumn(
@@ -216,6 +223,10 @@ fun UserContent(
                     MenuItemRow(MenuItemData("历史观看", Icons.Default.History, onHistoryClick))
                     MenuItemRow(MenuItemData("稍后再看", Icons.Default.PlayArrow, onToViewClick))
                     MenuItemRow(MenuItemData("我的收藏", Icons.Default.Favorite, onFavoritesClick))
+                    // 审核297：我的关注（此前无入口，只能从 UP 主空间绕进去）
+                    MenuItemRow(MenuItemData("我的关注", Icons.Default.People, {
+                        nav?.mid?.let { onFollowsClick(it) }
+                    }))
                     MenuItemRow(MenuItemData("追番中心", Icons.Default.PlayCircle, onBangumiClick))
                     MenuItemRow(MenuItemData("我的订阅", Icons.Default.Subscriptions, onSubscribeClick))
                 }

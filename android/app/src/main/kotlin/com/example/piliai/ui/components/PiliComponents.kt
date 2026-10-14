@@ -16,6 +16,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -319,11 +321,15 @@ fun SegmentedPillRow(
     modifier: Modifier = Modifier,
     onSelect: (Int) -> Unit = {},
 ) {
+    // 审核298（真 bug）：这里必须 horizontalScroll。原来是无滚动的 Row，
+    // 标签多了（设置页 5 个分类）超出屏幕的部分既不可见也不可点——
+    // 用户看到「播放」被裁掉、点了没反应，就是「设置页分类不跳转」。
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(50))
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
-            .padding(4.dp),
+            .padding(4.dp)
+            .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         labels.forEachIndexed { i, label ->
