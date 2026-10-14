@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -60,6 +61,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
@@ -396,6 +398,10 @@ private fun HeroCarousel(
     onItemClick: (com.example.piliai.data.model.TopRcmdItem) -> Unit,
 ) {
     val pagerState = rememberPagerState(pageCount = { items.size })
+    // 审核297：Hero 封面补 rim 描边 + 阴影——全站封面规格统一后，Hero 作为
+    // 最大的封面元素反而漏了，在暗色主题下边缘发糊、观感与下面的网格卡割裂。
+    val rimBrush = com.example.piliai.ui.theme.rememberCoverRimBrush()
+    val coverShape = RoundedCornerShape(20.dp)
     Column(modifier = modifier.fillMaxWidth()) {
         HorizontalPager(
             state = pagerState,
@@ -407,7 +413,10 @@ private fun HeroCarousel(
                 Modifier
                     .fillMaxSize()
                     .padding(horizontal = 12.dp)
-                    .clip(RoundedCornerShape(20.dp))
+                    .shadow(2.dp, coverShape, clip = false)
+                    .clip(coverShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .border(0.5.dp, rimBrush, coverShape)
                     .clickable { onItemClick(item) }
             ) {
                 AsyncImage(

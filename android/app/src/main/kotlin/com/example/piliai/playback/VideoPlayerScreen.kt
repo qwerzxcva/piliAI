@@ -391,7 +391,15 @@ fun VideoPlayerScreen(
                 if (e.mode == 5 && !viewModel.cachedDmShowTop) continue
                 val key = e.id.ifEmpty { "${e.timestamp}_${e.content}" }
                 if (dispatchedIds.add(key)) {
-                    v.add(e.content, e.color, e.fontSize)
+                    // 审核297：用用户设置的字号作基准。原来直接传弹幕自带的
+                    // fontSize（B 站协议固定 25），设置页「弹幕字号」滑块
+                    // 因此完全无效——这是审核244 漏修的一项。
+                    v.add(
+                        text = e.content,
+                        color = e.color,
+                        fontSizeSp = if (state.danmakuFontSize > 0) state.danmakuFontSize
+                        else e.fontSize
+                    )
                 }
             }
         }
