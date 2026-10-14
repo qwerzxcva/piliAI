@@ -113,6 +113,8 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         val danmakuStrokeWidth: Float = 1.5f,
         val danmakuMerge: Boolean = false,
         val danmakuMassiveMode: Boolean = false,
+        // 审核295：大会员弹幕过滤（mode=8）。关闭时不渲染大会员专属弹幕。
+        val showVipDanmaku: Boolean = true,
         // 审核235：字幕细节
         val subtitleScale: Float = 1f,
         val subtitlePaddingH: Float = 10f,
@@ -265,6 +267,14 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
                         subtitleStroke = sp.stroke,
                     )
                 }
+        }
+        // 审核295：大会员弹幕过滤。showVipDanmakuFlow 此前有完整数据链路
+        // （state/collect/setter/键）但既无 UI 开关也无消费方——纯半成品。
+        // 接入：关闭时过滤掉 mode=8 的大会员弹幕。
+        viewModelScope.launch {
+            storage.showVipDanmakuFlow.collect { on ->
+                _state.value = _state.value.copy(showVipDanmaku = on)
+            }
         }
         viewModelScope.launch {
             storage.subtitleBoldFlow.collect { _state.value = _state.value.copy(subtitleBold = it) }
@@ -597,11 +607,14 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
             val api = BiliApiClient()
             // 审核293：getDanmaku 现在直接返回弹幕列表（内部已解压 XML）
             val raw = api.getDanmaku(cid).getOrNull() ?: return@withContext null
+            // 审核295：大会员弹幕过滤（mode=8）。设置关闭时直接不进入渲染管线。
+            val filtered = if (_state.value.showVipDanmaku) raw
+            else raw.filter { it.toParsed().mode != 8 }
             val mergedEvents = runCatching {
                 val lib = com.example.piliai.danmaku.DanmakuNativeLib()
                 val ptr = lib.create(com.example.piliai.danmaku.DanmakuNativeLib.DanmakuConfig())
                 try {
-                    val sources = listOf(raw.map { d ->
+                    val sources = listOf(filtered.map { d ->
                         val p = d.toParsed()
                         mapOf(
                             "id" to 0L, "mode" to p.mode, "fontsize" to p.fontSize,
@@ -626,7 +639,7 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
             val list = mergedEvents?.map { (ts, content, color) ->
                 DanmakuEvent(id = "", timestamp = ts, content = content,
                     color = color, fontSize = 25)
-            } ?: raw.map { d ->
+            } ?: filtered.map { d ->
                 val p = d.toParsed()
                 DanmakuEvent(
                     id = "",
@@ -638,7 +651,7 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
                     mode = p.mode
                 )
             }
-            val uidByTs = raw.map { d -> d.toParsed() }.associate { (it.timestamp * 1000).toLong() to it.uid }
+            val uidByTs = filtered.map { d -> d.toParsed() }.associate { (it.timestamp * 1000).toLong() to it.uid }
             if (mergedEvents != null) list.map { e -> e.copy(uid = uidByTs[e.timestamp] ?: 0L) } else list
         }
         withUid?.let { addDanmakuEvents(it) }
@@ -1585,20 +1598,30 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         }
     }
 
-    /** 批次L20：收藏到指定收藏夹（含默认夹取消收藏） */
+    /**
+     * 批次L20：收藏到指定收藏夹。
+     *
+     * 审核295（真 bug）：原来 deal 用全局 isFavorited 判断——视频只要在**任意**
+     * 收藏夹里，isFavorited 就是 true，于是用户选另一个收藏夹添加时会走
+     * deal=2（取消收藏），结果什么都加不进去。
+     *
+     * 收藏夹选择器的语义是「添加到所选收藏夹」，固定 deal=1；取消收藏请用
+     * toggleFavorite（默认收藏夹）。要支持「从指定收藏夹移除」需要先查该视频
+     * 在各收藏夹的存在状态，B 站没有便捷接口，暂不实现。
+     */
     fun favoriteTo(mediaId: Long) {
         viewModelScope.launch {
             if (!AccountSession.isLogin) { setError("请先登录后再收藏"); return@launch }
             ensureAid()
             if (aid == 0L) { setError("无法获取视频 aid"); return@launch }
-            val fav = _state.value.isFavorited
-            repo.favoriteVideo(aid, mediaId, if (fav) 2 else 1)
+            repo.favoriteVideo(aid, mediaId, 1)
                 .onSuccess { ok ->
-                    if (ok) _state.value = _state.value.copy(
-                        isFavorited = !fav,
-                        favCount = _state.value.favCount + if (fav) -1 else 1
-                    )
-                    else setError("收藏操作失败")
+                    if (ok) {
+                        _state.value = _state.value.copy(isFavorited = true)
+                        showToast("已收藏到所选收藏夹")
+                    } else {
+                        setError("收藏失败（可能已在该收藏夹中）")
+                    }
                 }
                 .onFailure { setError("收藏失败: ${it.message}") }
         }

@@ -760,13 +760,31 @@ fun VideoPlayerScreen(
                         icon = Icons.Default.Share,
                         label = "分享",
                         onClick = {
+                            // 审核295：原来只复制链接到剪贴板——用户想分享到微信/QQ
+                            // 还得自己切 App 粘贴。改成弹系统分享面板（ACTION_SEND），
+                            // 剪贴板降级为分享失败时的兜底。播放器 state 不持有
+                            // 视频标题（只存播放相关状态），故只分享链接。
                             val link = if (bvid.startsWith("ep"))
                                 "https://www.bilibili.com/bangumi/play/$bvid"
                             else "https://www.bilibili.com/video/$bvid"
-                            val cm = context.getSystemService(Context.CLIPBOARD_SERVICE)
-                                as android.content.ClipboardManager
-                            cm.setPrimaryClip(android.content.ClipData.newPlainText("link", link))
-                            viewModel.notifyShared(link)
+                            val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(android.content.Intent.EXTRA_TEXT, link)
+                            }
+                            val shared = runCatching {
+                                context.startActivity(
+                                    android.content.Intent.createChooser(send, "分享到")
+                                )
+                            }.isSuccess
+                            if (!shared) {
+                                // 没有可处理分享的组件（极端情况）：退回复制链接
+                                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE)
+                                    as android.content.ClipboardManager
+                                cm.setPrimaryClip(
+                                    android.content.ClipData.newPlainText("link", link)
+                                )
+                                viewModel.notifyShared(link)
+                            }
                         },
                         tintColor = Color.White
                     )

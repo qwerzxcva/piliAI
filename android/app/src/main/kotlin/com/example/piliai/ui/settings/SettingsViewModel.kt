@@ -34,7 +34,6 @@ class SettingsViewModel(context: Context) : ViewModel() {
         val lowLatencyAudio: Boolean = false,  // Kazumi：低延迟音频
         val renderer: Int = 0,                 // Kazumi：渲染器 0=SurfaceView 1=TextureView
         val videoQuality: String = "auto",   // auto/1080p/720p/480p
-        val playbackSpeed: Float = 1.0f,
         val bufferDurationMs: Int = 16_000,  // VOD 缓冲时长（LoadControl，移植自 piliplus）
         val hardwareDecodeMode: String = "auto",  // bv P2：硬件解码 auto/hardware/software
         val superResolutionMode: String = "disable",  // 审核轮210：超分辨率（disable/efficiency/quality）

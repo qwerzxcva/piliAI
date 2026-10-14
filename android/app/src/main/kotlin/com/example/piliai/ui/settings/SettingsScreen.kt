@@ -592,6 +592,17 @@ fun SettingsScreen(
                 )
             }
             item {
+                // 审核295：showVipDanmaku 此前有完整数据链路但既无 UI 也无消费方
+                // （纯半成品）。这里补上开关，播放层按 mode=8 过滤。
+                SettingSwitch(
+                    title = "显示大会员弹幕",
+                    subtitle = "关闭后不渲染大会员专属弹幕",
+                    icon = Icons.Default.WorkspacePremium,
+                    checked = state.showVipDanmaku,
+                    onChange = { viewModel.setShowVipDanmaku(it) }
+                )
+            }
+            item {
                 SettingSwitch(
                     title = "点击弹幕交互",
                     subtitle = "点击弹幕可暂停/查看详情",
