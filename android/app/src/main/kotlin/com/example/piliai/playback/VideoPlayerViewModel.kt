@@ -595,8 +595,8 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         // 挪到 Default；只有最终 addDanmakuEvents（写 UI 状态）需要回主线程。
         val withUid = withContext(Dispatchers.Default) {
             val api = BiliApiClient()
-            val resp = api.getDanmaku(cid).getOrNull() ?: return@withContext null
-            val raw = resp.data.orEmpty()
+            // 审核293：getDanmaku 现在直接返回弹幕列表（内部已解压 XML）
+            val raw = api.getDanmaku(cid).getOrNull() ?: return@withContext null
             val mergedEvents = runCatching {
                 val lib = com.example.piliai.danmaku.DanmakuNativeLib()
                 val ptr = lib.create(com.example.piliai.danmaku.DanmakuNativeLib.DanmakuConfig())

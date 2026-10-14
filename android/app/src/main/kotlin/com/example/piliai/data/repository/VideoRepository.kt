@@ -183,14 +183,8 @@ class VideoRepository(private val apiClient: BiliApiClient = BiliApiClient()) {
 
     /** 获取弹幕 */
     suspend fun getDanmaku(cid: Long, oid: Long = 0L): Result<List<ParsedDanmaku>> = withContext(Dispatchers.IO) {
-        runCatching {
-            val resp = apiClient.getDanmaku(cid, oid).getOrNull()
-            if (resp != null && resp.code == 0) {
-                resp.data.orEmpty().map { it.toParsed() }
-            } else {
-                emptyList()
-            }
-        }
+        // 审核293：getDanmaku 现在直接返回解析好的弹幕列表（内部已解压 XML）
+        apiClient.getDanmaku(cid, oid).map { list -> list.map { it.toParsed() } }
     }
 
     /** 点赞（like=1 点赞 / 2 取消）—— 需登录（SESSDATA + csrf） */

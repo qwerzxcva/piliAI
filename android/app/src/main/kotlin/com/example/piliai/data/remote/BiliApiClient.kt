@@ -6,6 +6,8 @@ import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 
 /**
@@ -78,6 +80,76 @@ internal fun requireWriteOk(resp: String): Boolean {
         ?: BiliErrorTranslator.translate(raw)
         ?: raw.ifBlank { "操作失败（code=$code）" }
     error(detail)
+}
+
+/**
+ * 审核293：把弹幕响应体解成 XML 文本。
+ *
+ * 实测 `x/v1/dm/list.so` 返回 `Content-Encoding: deflate`，但数据流**缺少
+ * zlib 头**（前两字节不是 0x78 0x9c 之类），OkHttp 的自动解压处理不了会
+ * 原样返回，所以要在应用层解。已解压的 XML（以 `<?xml` 开头）直接返回。
+ *
+ * 必须用 `Inflater(nowrap = true)`——跳过 zlib 头/校验，按 raw deflate 解。
+ */
+internal fun inflateIfNeeded(raw: ByteArray): String {
+    val head = String(raw, 0, minOf(raw.size, 16), Charsets.UTF_8)
+    if (head.trimStart().startsWith("<?xml") || head.trimStart().startsWith("<i>")) {
+        return String(raw, Charsets.UTF_8)
+    }
+    val inflater = java.util.zip.Inflater(true)
+    return try {
+        inflater.setInput(raw)
+        val out = java.io.ByteArrayOutputStream(maxOf(1024, raw.size * 4))
+        val buf = ByteArray(16 * 1024)
+        while (!inflater.finished()) {
+            val n = inflater.inflate(buf)
+            if (n == 0) {
+                // 既没产出也没结束：数据不完整或格式不对
+                if (inflater.needsInput() || inflater.needsDictionary()) break
+            }
+            out.write(buf, 0, n)
+        }
+        out.toString("UTF-8")
+    } catch (e: Exception) {
+        error("弹幕数据解压失败：${e.message}")
+    } finally {
+        inflater.end()
+    }
+}
+
+/**
+ * 审核293：解析 B 站弹幕 XML。
+ *
+ * 结构：`<i><chatserver>...</chatserver>...<d p="a,b,c,...">文本</d>...</i>`
+ * `p` 是逗号分隔的 8 个字段（实测前 8 位）：
+ *   0 出现时间(秒) 1 模式 2 字号 3 颜色 4 发送时间戳 5 弹幕池 6 用户hash 7 数据库rowid
+ * 用 XmlPullParser 而非正则：文本内容可能含转义实体（&amp; / &lt;），
+ * 手解容易漏。
+ */
+internal fun parseDanmakuXml(xml: String): List<com.example.piliai.data.model.DanmakuElement> {
+    val result = ArrayList<com.example.piliai.data.model.DanmakuElement>(1024)
+    val parser = android.util.Xml.newPullParser()
+    parser.setInput(xml.byteInputStream(Charsets.UTF_8), "UTF-8")
+    var event = parser.eventType
+    while (event != org.xmlpull.v1.XmlPullParser.END_DOCUMENT) {
+        if (event == org.xmlpull.v1.XmlPullParser.START_TAG && parser.name == "d") {
+            // XML 的 p 属性是逗号分隔，而 toParsed() 按分号拆——这里转换，
+            // 不改 toParsed 的既有约定（下载链路等调用方都依赖分号形式）。
+            val p = parser.getAttributeValue(null, "p").orEmpty().replace(',', ';')
+            val text = parser.nextText().orEmpty()
+            if (text.isNotEmpty()) {
+                result.add(
+                    com.example.piliai.data.model.DanmakuElement(
+                        p = "",
+                        m = text,
+                        c = p
+                    )
+                )
+            }
+        }
+        event = parser.next()
+    }
+    return result
 }
 
 /**
@@ -518,18 +590,39 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
     }
     
     // ========== Danmaku ==========
-    
-    suspend fun getDanmaku(cid: Long, oid: Long = 0L): Result<DanmakuResponse> = runCatching {
-        client.getSafe("$API_BASE/x/v1/dm/list.so") {
-            url {
-                parameters.append("oid", oid.toString())
-                parameters.append("pid", cid.toString())
-                parameters.append("type", "1")
+
+    /**
+     * 审核292（真 bug 修复）：弹幕接口返回的是 **deflate 压缩的 XML**，不是 JSON。
+     *
+     * 实测 `x/v1/dm/list.so`：HTTP 200、`Content-Encoding: deflate`，
+     * raw-inflate（`Inflater(nowrap=true)`）后得到标准 XML，1200 条 `<d p="">`。
+     * 原来这里用 `client.getSafe`（走 JSON 反序列化），XML 必然解析失败 ——
+     * 于是 `getOrNull()` 返回 null、上层拿到空列表，**弹幕功能实际是坏的**。
+     *
+     * seg.so（x/v2/dm/web/seg.so）返回的是 protobuf，同样不是 JSON，
+     * 需要 protobuf 解析（本次未实现，走 list.so 主链路）。
+     */
+    suspend fun getDanmaku(cid: Long, oid: Long = 0L): Result<List<DanmakuElement>> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val resp = BiliHttpClient.client.get("$API_BASE/x/v1/dm/list.so") {
+                    url {
+                        // 实测参数名：oid = 弹幕所属 id（即 cid）；pid 同 cid 也能用
+                        parameters.append("oid", cid.toString())
+                        parameters.append("pid", cid.toString())
+                        parameters.append("type", "1")
+                    }
+                    header("Referer", "https://www.bilibili.com")
+                }
+                // Ktor 默认会按 Content-Encoding 自动解压——但 B 站这个接口的
+                // deflate 流缺少 zlib 头，OkHttp 的自动解压处理不了，会原样返回。
+                // 两种形态都要兼容：已解压的 XML，或待 raw-inflate 的 deflate 流。
+                val raw: ByteArray = resp.readBytes()
+                val xml = inflateIfNeeded(raw)
+                parseDanmakuXml(xml)
             }
-            header("Referer", "https://www.bilibili.com")
         }
-    }
-    
+
     // ========== User Info ==========
 
     /**

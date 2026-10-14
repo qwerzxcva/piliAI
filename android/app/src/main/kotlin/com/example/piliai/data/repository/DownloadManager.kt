@@ -220,8 +220,8 @@ object DownloadManager {
                 runCatching {
                     val cid0 = dao.getByBvid(key)?.cid ?: 0L
                     if (cid0 > 0L) {
-                        val resp = BiliApiClient().getDanmaku(cid0).getOrNull()
-                        val list = resp?.data.orEmpty().map { d ->
+                        // 审核293：getDanmaku 现在直接返回弹幕列表（内部已解压 XML）
+                        val list = BiliApiClient().getDanmaku(cid0).getOrNull().orEmpty().map { d ->
                             val pp = d.toParsed()
                             mapOf("t" to (pp.timestamp * 1000).toLong(), "c" to pp.content,
                                 "col" to (pp.color or 0xFF000000.toInt()), "fs" to pp.fontSize)
@@ -306,8 +306,8 @@ object DownloadManager {
                     state = DownloadItemEntity.STATE_DONE, progress = 1f, error = null
                 ))
                 runCatching {
-                    val resp = BiliApiClient().getDanmaku(cid).getOrNull()
-                    val list = resp?.data.orEmpty().map { d ->
+                    // 审核293：getDanmaku 现在直接返回弹幕列表（内部已解压 XML）
+                    val list = BiliApiClient().getDanmaku(cid).getOrNull().orEmpty().map { d ->
                         val pp = d.toParsed()
                         mapOf("t" to (pp.timestamp * 1000).toLong(), "c" to pp.content,
                             "col" to (pp.color or 0xFF000000.toInt()), "fs" to pp.fontSize)
