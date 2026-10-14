@@ -57,30 +57,13 @@ fun TodayWatchSection(
     onDislike: (video: RcmdCandidate) -> Unit = {},
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
-        // 标题行
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "今日推荐",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Spacer(Modifier.weight(1f))
-            Text(
-                text = if (plan.mode == TodayWatchMode.RELAX) "轻松看" else "深度学习",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = "查看全部",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.clickable(onClick = onSeeAll),
-            )
-        }
+        // 标题行（审核280：改用通用 SectionHeader，规格对齐 Kototoro HomeSectionHeader）
+        com.example.piliai.ui.components.SectionHeader(
+            title = "今日推荐",
+            actionText = "查看全部",
+            onClick = onSeeAll,
+            modifier = Modifier.fillMaxWidth(),
+        )
 
         // UP 主榜（横向）
         if (plan.upRanks.isNotEmpty()) {

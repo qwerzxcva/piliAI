@@ -79,6 +79,10 @@ class HomeViewModel(
     /** 审核237：是否还有更多 */
     val hasMore: StateFlow<Boolean> = repo.hasMore
 
+    /** 审核280：当前生效数据源的偏好值（供首页 Section 标题展示） */
+    val preferredSource: String
+        get() = repo.preferredSource
+
     /** 审核237：刷新/加载中（下拉刷新指示器用） */
     val isRefreshing: StateFlow<Boolean> = repo.isLoading
 

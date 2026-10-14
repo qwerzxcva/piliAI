@@ -267,11 +267,18 @@ fun HomeScreen(
                         // 100dp 渐变遮罩、胶囊指示器）
                         if (topRcmd.isNotEmpty()) {
                             item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
-                                HeroCarousel(
-                                    items = topRcmd,
-                                    onItemClick = { onVideoClick(it.bvid, it.cid) },
-                                    modifier = Modifier.padding(vertical = 4.dp),
-                                )
+                                Column {
+                                    com.example.piliai.ui.components.SectionHeader(
+                                        title = "为你推荐",
+                                        count = topRcmd.size,
+                                        modifier = Modifier.padding(top = 4.dp),
+                                    )
+                                    HeroCarousel(
+                                        items = topRcmd,
+                                        onItemClick = { onVideoClick(it.bvid, it.cid) },
+                                        modifier = Modifier.padding(vertical = 2.dp),
+                                    )
+                                }
                             }
                         }
                         // 今日推荐 Section（全宽，成功才显示）
@@ -286,6 +293,15 @@ fun HomeScreen(
                                     modifier = Modifier.padding(vertical = 4.dp),
                                 )
                             }
+                        }
+                        // 审核280：视频流加 Section 标题——此前 Hero 和网格直接裸奔，
+                        // 没有区块层级，是「廉价感」的来源之一。
+                        item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                            com.example.piliai.ui.components.SectionHeader(
+                                title = com.example.piliai.data.repository.HomeRepository
+                                    .prefLabel(viewModel.preferredSource),
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
                         }
                         items(s.items, key = { it.bvid }) { card ->
                             VideoCardItem(card, onClick = { onVideoClick(card.bvid, card.cid) })
@@ -355,8 +371,12 @@ private fun HeroCarousel(
                         .fillMaxWidth()
                         .height(100.dp)
                         .background(
+                            // 审核280：改用 Kototoro HomeHeroArtworkScrim 规格
+                            // （HomeUi.kt:199）——20%→56% 双段，比原来单段到 78%
+                            // 更自然：顶部不完全透明，压住亮封面的杂色。
                             Brush.verticalGradient(
-                                listOf(Color.Transparent, Color.Black.copy(alpha = 0.78f))
+                                0f to Color.Black.copy(alpha = 0.20f),
+                                1f to Color.Black.copy(alpha = 0.56f)
                             )
                         )
                 )
