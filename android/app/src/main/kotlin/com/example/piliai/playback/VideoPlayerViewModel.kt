@@ -1613,8 +1613,16 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
             ensureAid()
             if (aid == 0L) { setError("无法获取视频 aid"); return@launch }
             val fav = _state.value.isFavorited
-            val mediaId = defaultFavFolderId
-            if (mediaId == 0L && !fav) { setError("未获取到默认收藏夹"); return@launch }
+            var mediaId = defaultFavFolderId
+            // 审核294：原来 mediaId 还是 0 就直接报「未获取到默认收藏夹」——但
+            // loadEngagement 里取收藏夹是异步的，用户进播放器立刻点收藏就会撞上
+            // 这个竞态。这里补一次主动拉取（已缓存则秒回），拉不到才报错。
+            if (mediaId == 0L && !fav) {
+                mediaId = BiliApiClient().getMyFavFolders().getOrNull()
+                    ?.firstOrNull()?.id ?: 0L
+                defaultFavFolderId = mediaId
+            }
+            if (mediaId == 0L && !fav) { setError("未获取到默认收藏夹，请到收藏页创建"); return@launch }
             repo.favoriteVideo(aid, mediaId, if (fav) 2 else 1)
                 .onSuccess { ok ->
                     if (ok) _state.value = _state.value.copy(

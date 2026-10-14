@@ -301,6 +301,30 @@ fun HomeScreen(
                                 modifier = Modifier.padding(top = 8.dp),
                             )
                         }
+                        // 审核294：空态——推荐过滤把所有视频筛掉时，原来用户看到
+                        // 只有 SectionHeader + 一片空白，分不清「没加载出来」还是
+                        // 「被过滤了」。给明确说明 + 去调整过滤的入口。
+                        if (s.items.isEmpty()) {
+                            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                                Column(
+                                    Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 48.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                ) {
+                                    Text(
+                                        "没有符合条件的视频",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                    Spacer(Modifier.height(6.dp))
+                                    Text(
+                                        "推荐过滤条件可能过于严格\n可在 设置 → 推荐过滤 中放宽",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                    )
+                                }
+                            }
+                        }
                         items(s.items, key = { it.bvid }) { card ->
                             com.example.piliai.ui.components.VideoGridCard(
                                 title = card.title,
