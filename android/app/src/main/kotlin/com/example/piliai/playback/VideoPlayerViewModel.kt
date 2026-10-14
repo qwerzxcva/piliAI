@@ -166,6 +166,29 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     private var relatedBanWords: String = ""
 
     init {
+        // 审核301：播放内核切换热生效。ensureBackend 有
+        // `if (backend != null) return`——用户先以 Media3 进播放器、再去设置切
+        // GPU-next 时 backend 已存在，直接复用，切换**完全不生效**
+        // （用户反馈「GPU-next 没做出来」的根因）。这里监听设置变化：
+        // 内核确实换了就重建 backend 并用当前流重新起播。
+        viewModelScope.launch {
+            val storage = com.example.piliai.utils.StorageManager.getInstance(appContext)
+            var lastBackend = com.example.piliai.utils.RendererPrefs.playbackBackend
+            storage.playbackBackendFlow.collect { id ->
+                if (id == lastBackend) return@collect
+                lastBackend = id
+                com.example.piliai.utils.RendererPrefs.updatePlaybackBackend(id)
+                val current = backend ?: return@collect
+                val pos = current.positionMs()
+                val playing = _state.value.isPlaying
+                val video = currentUri
+                if (video.isBlank()) return@collect
+                runCatching { current.release() }
+                backend = null
+                ensureBackend()
+                startPlayback(video, cachedAudioUrl, resumePositionMs = pos, playWhenReady = playing)
+            }
+        }
         // 审核295：空降助手——注册 seek 通道，让评论页点时间戳能跳到这里
         com.example.piliai.playback.VideoSeekBus.register { ms -> seekTo(ms) }
         startPositionClock()
