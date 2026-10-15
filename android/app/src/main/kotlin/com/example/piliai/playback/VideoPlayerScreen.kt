@@ -60,6 +60,8 @@ fun VideoPlayerScreen(
     title: String = "",
     onBack: () -> Unit = {},
     onOpenComments: (bvid: String) -> Unit = {},
+    // 审核319：打开视频笔记编辑器（bvid + cid + 当前播放毫秒）
+    onOpenNote: (bvid: String, cid: Long, positionMs: Long) -> Unit = { _, _, _ -> },
     onSearchTag: (String) -> Unit = {},
     sourceRequest: SourcePlaybackRequest? = null,
     // 自动 PiP 资格必须区分“仍停留在本播放页”与“已导航到其他页面”。
@@ -732,6 +734,14 @@ fun VideoPlayerScreen(
                     EngagementButton(
                         icon = Icons.AutoMirrored.Filled.Comment,
                         label = "评论", onClick = { onOpenComments(bvid) },
+                        tintColor = Color.White
+                    )
+                    // 审核319：笔记入口。传当前播放进度，编辑器打开时
+                    // 「插入时间点」按这个秒数打戳。
+                    EngagementButton(
+                        icon = Icons.Default.EditNote,
+                        label = "笔记",
+                        onClick = { onOpenNote(bvid, cid, viewModel.getCurrentTime()) },
                         tintColor = Color.White
                     )
                     EngagementButton(

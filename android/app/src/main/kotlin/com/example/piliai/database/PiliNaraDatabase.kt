@@ -22,9 +22,10 @@ import androidx.room.TypeConverters
         DownloadItemEntity::class,
         SubscribeSourceEntity::class,
         SubscribeItemEntity::class,
-        SubscribeTitleEntity::class
+        SubscribeTitleEntity::class,
+        VideoNoteEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -41,6 +42,7 @@ abstract class PiliNaraDatabase : RoomDatabase() {
     abstract fun subscribeSourceDao(): SubscribeSourceDao
     abstract fun subscribeItemDao(): SubscribeItemDao
     abstract fun subscribeTitleDao(): SubscribeTitleDao
+    abstract fun videoNoteDao(): VideoNoteDao
     
     companion object {
         @Volatile
@@ -55,7 +57,7 @@ abstract class PiliNaraDatabase : RoomDatabase() {
                 )
                     // 审核：v2→v3 必须走显式 Migration，否则 destructive 会清空
                     // 用户的下载记录与登录态。此处为增量建表，数据零丢失。
-                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .build()
                 INSTANCE = instance
                 instance
@@ -181,6 +183,41 @@ abstract class PiliNaraDatabase : RoomDatabase() {
                 db.execSQL("UPDATE `subscribe_title` SET `collectionType` = -3 WHERE `collectionType` = 3")
                 db.execSQL("UPDATE `subscribe_title` SET `collectionType` = 3 WHERE `collectionType` = 2")
                 db.execSQL("UPDATE `subscribe_title` SET `collectionType` = 2 WHERE `collectionType` = -3")
+            }
+        }
+
+        /**
+         * v5 → v6：新增视频笔记表 `video_note`（审核319）。
+         *
+         * 同样只 CREATE TABLE + 建索引，不触碰既有表。
+         * 复合主键 (bvid, cid)：一个视频的多个分P 各自一份笔记。
+         */
+        private val MIGRATION_5_6 = object : androidx.room.migration.Migration(5, 6) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `video_note` (
+                        `bvid` TEXT NOT NULL,
+                        `cid` INTEGER NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `content` TEXT NOT NULL,
+                        `summary` TEXT NOT NULL,
+                        `tags` TEXT NOT NULL,
+                        `contentLength` INTEGER NOT NULL,
+                        `videoTitle` TEXT NOT NULL,
+                        `cover` TEXT NOT NULL,
+                        `updatedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`bvid`, `cid`)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_video_note_bvid` ON `video_note` (`bvid`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_video_note_updatedAt` " +
+                        "ON `video_note` (`updatedAt`)"
+                )
             }
         }
     }

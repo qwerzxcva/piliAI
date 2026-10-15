@@ -85,6 +85,12 @@ sealed class Screen(val route: String) {
     object ListenVideo : Screen("listen_video?mid={mid}") {
         fun createRoute(mid: Long) = "listen_video?mid=$mid"
     }
+    // 审核319：视频笔记编辑器（私有）。positionMs 仅作初始时间点基准，
+    // 编辑器打开后视频仍在后台播放，用户可随时回来。
+    object VideoNote : Screen("note?bvid={bvid}&cid={cid}&pos={pos}") {
+        fun createRoute(bvid: String, cid: Long, posMs: Long) =
+            "note?bvid=$bvid&cid=$cid&pos=$posMs"
+    }
     object TodayWatch : Screen("today_watch")  // 今日推荐独立页（today-watch 移植）
     object Settings : Screen("settings")
     object VideoPlayer : Screen("video/{bvid}?cid={cid}&local={local}") {
@@ -434,6 +440,33 @@ fun AppNavigation() {
                 onBack = { navController.popBackStack() },
             )
         }
+        // 审核319：视频笔记编辑器
+        composable(
+            route = Screen.VideoNote.route,
+            arguments = listOf(
+                navArgument("bvid") { type = NavType.StringType },
+                navArgument("cid") { type = NavType.LongType; defaultValue = 0L },
+                navArgument("pos") { type = NavType.LongType; defaultValue = 0L },
+            ),
+        ) { backStackEntry ->
+            val noteBvid = backStackEntry.arguments?.getString("bvid").orEmpty()
+            val noteCid = backStackEntry.arguments?.getLong("cid") ?: 0L
+            val notePos = backStackEntry.arguments?.getLong("pos") ?: 0L
+            com.example.piliai.ui.note.VideoNoteEditorScreen(
+                bvid = noteBvid,
+                cid = noteCid,
+                videoTitle = "",
+                cover = "",
+                currentPositionMs = notePos,
+                onSeekTo = { positionMs ->
+                    // 编辑器打开时播放器仍在后台播放，seek 通过 VideoSeekBus
+                    // 转交，避免编辑器直接持有播放器 VM 的引用。
+                    // 没有活跃播放器时静默（用户刚从播放器进来，正常能接到）。
+                    com.example.piliai.playback.VideoSeekBus.seekTo(positionMs)
+                },
+                onBack = { navController.popBackStack() },
+            )
+        }
         composable(Screen.TodayWatch.route) {
             com.example.piliai.todaywatch.TodayWatchScreen(
                 onBack = { navController.popBackStack() },
@@ -471,6 +504,11 @@ fun AppNavigation() {
                 local = local,
                 onBack = { navController.popBackStack() },
                 onOpenComments = { bv -> navController.navigate(Screen.Comment.createRoute(bv)) },
+                // 审核319：笔记编辑器。把当前播放进度一起带上，
+                // 编辑器里「插入时间点」以此为基准。
+                onOpenNote = { bv, cid, posMs ->
+                    navController.navigate(Screen.VideoNote.createRoute(bv, cid, posMs))
+                },
                 onSearchTag = { tag -> navController.navigate(Screen.Search.createRoute(tag)) },
                 isCurrentDestination = {
                     navController.currentBackStackEntry === backStackEntry
