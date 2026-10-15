@@ -70,9 +70,15 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     
     private val _state = MutableStateFlow(PlayerState())
     val state: StateFlow<PlayerState> = _state.asStateFlow()
-    
-    // 审核13：弹幕队列被 WS 线程/主线程/渲染帧并发读写 → 线程安全容器
-    private val _danmakuQueue = java.util.concurrent.CopyOnWriteArrayList<DanmakuEvent>()
+
+    /**
+     * 审核311：弹幕控制（从本类提取）。队列维护、屏蔽过滤、热力曲线、
+     * 时间窗查询都归它，本类只通过它读写弹幕。
+     */
+    private val danmakuCtrl = DanmakuController()
+
+    /** 弹幕热力曲线（高能进度条），透传 DanmakuController */
+    val heatCurve: StateFlow<List<Float>> = danmakuCtrl.heatCurve
     
     data class PlayerState(
         val isPlaying: Boolean = false,
@@ -139,17 +145,6 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         val renderer: Int = 0,
         // 弹幕源：是否启用 DanDan（弹弹play）弹幕作为补充源
         val danmakuDandanEnabled: Boolean = false
-    )
-    
-    data class DanmakuEvent(
-        val id: String,
-        val timestamp: Long,
-        val content: String,
-        val color: Int,
-        val fontSize: Int,
-        val uid: Long = 0L,   // 批次audit25：携带发送者 uid 供 UID 屏蔽规则使用
-        /** 弹幕类型：1=滚动 4=底部 5=顶部（用于按类型开关过滤） */
-        val mode: Int = 1
     )
     
     /** 审核235：字幕偏好打包（combine 上限5个 Flow） */
@@ -528,7 +523,7 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
                         cachedAudioUrl = null
                         dashVideos = emptyList()
                         availableQualities = emptyList()
-                        _danmakuQueue.clear()
+                        danmakuCtrl.clear()
                         _state.value = _state.value.copy(dmTotalCount = 0)
                     }
                     _state.value = _state.value.copy(
@@ -768,106 +763,37 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
 
     // ==================== 字幕（批次K） ====================
 
-    private var subtitleListJob: Job? = null
-    private var subtitleBodyJob: Job? = null
-    private var subtitleCues: List<com.example.piliai.data.model.SubtitleCue> = emptyList()
-    // 可选字幕列表（批次L9：字幕选择 UI）——(id, 语言名, url)
-    private val _subtitleTracks = MutableStateFlow<List<Triple<Long, String, String>>>(emptyList())
-    val subtitleTracks: StateFlow<List<Triple<Long, String, String>>> = _subtitleTracks.asStateFlow()
-    // 批次L41：视频章节
-    private val _viewPoints = MutableStateFlow<List<com.example.piliai.data.model.ViewPoint>>(emptyList())
-    val viewPoints: StateFlow<List<com.example.piliai.data.model.ViewPoint>> = _viewPoints.asStateFlow()
-    // 批次L42：弹幕密度热力曲线（Rust 计算，归一化 0..1）
-    private val _heatCurve = MutableStateFlow<List<Float>>(emptyList())
-    val heatCurve: StateFlow<List<Float>> = _heatCurve.asStateFlow()
 
-    private val _currentSubtitle = MutableStateFlow("")
-    val currentSubtitle: StateFlow<String> = _currentSubtitle.asStateFlow()
+    /**
+     * 审核311：字幕控制（从本类提取）。CC 字幕轨道/正文/看点/当前文本
+     * 都归它，本类只透出 Flow 与操作入口。
+     */
+    private val subtitle = SubtitleController(scope = viewModelScope)
 
-    // 当前选中的字幕 id（批次L9）
-    private val _selectedSubtitleId = MutableStateFlow(-1L)
-    val selectedSubtitleId: StateFlow<Long> = _selectedSubtitleId.asStateFlow()
+    /** 当前加载代次，供字幕控制器丢弃过期响应 */
+    val subtitleGeneration: Long get() = loadGeneration
+
+    val subtitleTracks: StateFlow<List<Triple<Long, String, String>>> = subtitle.tracks
+    val viewPoints: StateFlow<List<com.example.piliai.data.model.ViewPoint>> = subtitle.viewPoints
+    val currentSubtitle: StateFlow<String> = subtitle.current
+    val selectedSubtitleId: StateFlow<Long> = subtitle.selectedId
 
     private fun resetSubtitleState() {
-        subtitleListJob?.cancel()
-        subtitleBodyJob?.cancel()
-        subtitleCues = emptyList()
-        _subtitleTracks.value = emptyList()
-        _selectedSubtitleId.value = -1L
-        _currentSubtitle.value = ""
-        _viewPoints.value = emptyList()
-        _heatCurve.value = emptyList()
+        subtitle.generation = loadGeneration
+        subtitle.reset()
+        // 审核311：热力曲线归 DanmakuController 清空
+        danmakuCtrl.clear()
     }
 
     private fun loadSubtitles(bvid: String, cid: Long) {
-        subtitleListJob?.cancel()
-        // 审核244（P1-8）：去掉 bvid.startsWith("ep") 短路。
-        // 该短路本意是防 getPlayerV2 收到 "ep123" 报错，但番剧通常有 CC 字幕，
-        // 结果是番剧播放永不加载字幕。改为反查该集真实 bvid 再请求。
-        if (bvid.isEmpty() || cid <= 0L) return
-        val generation = loadGeneration
-        subtitleListJob = viewModelScope.launch {
-            try {
-                // 番剧的 bvid 形如 "ep123"，getPlayerV2 需要真实 bvid，
-                // 传 "ep..." 会 400。用 getPgcSeason(epId) 反查该集 bvid
-                // （复用已有接口，不新增网络层）。
-                val effectiveBvid = if (bvid.startsWith("ep")) {
-                    val epIdNum = bvid.removePrefix("ep").toLongOrNull() ?: 0L
-                    runCatching {
-                        com.example.piliai.data.remote.BiliApiClient()
-                            .getPgcSeason(epId = epIdNum)
-                            .getOrNull()?.result?.episodes
-                            ?.firstOrNull { it.id == epIdNum }?.bvid
-                    }.getOrNull().orEmpty()
-                } else {
-                    bvid
-                }
-                if (effectiveBvid.isEmpty()) return@launch
-                val resp = BiliApiClient().getPlayerV2(effectiveBvid, cid).getOrNull()?.data
-                ensureCurrent(generation)
-                val subs = resp?.subtitle?.subtitles.orEmpty()
-                _subtitleTracks.value = subs.map { Triple(it.id, it.langDoc, it.subtitleUrl) }
-                _viewPoints.value = resp?.viewPoints.orEmpty()
-                val pick = subs.firstOrNull { !it.isLock } ?: return@launch
-                selectSubtitle(pick.id)
-            } catch (error: CancellationException) {
-                throw error
-            } catch (_: Exception) {
-                // Optional subtitles must not interrupt video playback.
-            }
-        }
+        subtitle.generation = loadGeneration
+        subtitle.load(bvid, cid)
     }
 
-    fun selectSubtitle(id: Long) {
-        val url = if (id < 0L) null else
-            _subtitleTracks.value.firstOrNull { it.first == id }?.third ?: return
-        subtitleBodyJob?.cancel()
-        _selectedSubtitleId.value = id
-        subtitleCues = emptyList()
-        _currentSubtitle.value = ""
-        if (url == null) return
-        val generation = loadGeneration
-        subtitleBodyJob = viewModelScope.launch {
-            try {
-                val body = BiliApiClient().fetchSubtitleBody(url).getOrNull()
-                ensureCurrent(generation)
-                if (_selectedSubtitleId.value != id || body == null) return@launch
-                subtitleCues = body.body.sortedBy { it.from }
-            } catch (error: CancellationException) {
-                throw error
-            } catch (_: Exception) {
-                // Keep failed subtitle requests out of the active timeline.
-            }
-        }
-    }
+    fun selectSubtitle(id: Long) = subtitle.select(id)
 
     /** 播放器每帧/每秒调：更新当前字幕文本 */
-    fun updateSubtitleAt(currentTimeMs: Long) {
-        val sec = currentTimeMs / 1000f
-        val cue = subtitleCues.firstOrNull { sec >= it.from && sec <= it.to }
-        val text = cue?.content.orEmpty().replace("<br/>", "\n")
-        if (text != _currentSubtitle.value) _currentSubtitle.value = text
-    }
+    fun updateSubtitleAt(currentTimeMs: Long) = subtitle.updateAt(currentTimeMs)
 
     /**
      * 真实播放链路：
@@ -1293,51 +1219,13 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     }
 
     fun addDanmakuEvents(events: List<DanmakuEvent>, replace: Boolean = true) {
-        // 批次audit25：屏蔽规则批量过滤优先走 Rust（万条×多规则 CPU 密集下沉），失败回退 Kotlin 逐条
-        val filtered = runCatching {
-            val lib = com.example.piliai.danmaku.DanmakuNativeLib()
-            val entries = events.map { mapOf("content" to it.content, "uid" to it.uid) }
-            val rules = mapOf(
-                "keywords" to com.example.piliai.ui.settings.DanmakuBlockViewModel.cachedKeywords,
-                "regexes" to com.example.piliai.ui.settings.DanmakuBlockViewModel.cachedRegexStrings,
-                "uids" to com.example.piliai.ui.settings.DanmakuBlockViewModel.cachedUids.toList()
-            )
-            val out = lib.filterBlock(GSON.toJson(entries), GSON.toJson(rules)) ?: return@runCatching null
-            val obj = org.json.JSONObject(out)
-            val kept = obj.getJSONArray("kept_indices")
-            (0 until kept.length()).map { i -> events[kept.getInt(i)] }
-        }.getOrNull()
-            ?: events.filterNot { com.example.piliai.ui.settings.DanmakuBlockViewModel.shouldBlock(it.content, it.uid) }
-        if (replace) {
-            _danmakuQueue.clear()
-        }
-        _danmakuQueue.addAll(filtered)
-        // 总数跟队列走，不能在清空后又按入参累加（DanDan 补充源会覆盖主弹幕）
-        _state.value = _state.value.copy(dmTotalCount = _danmakuQueue.size)
-        // 批次L42：计算弹幕密度热力曲线（下沉 Rust，失败保留旧曲线）
-        computeHeatCurve(_danmakuQueue.toList())
+        // 审核311：实现移到 DanmakuController，这里只同步 UI 侧总数
+        danmakuCtrl.addEvents(events, replace)
+        _state.value = _state.value.copy(dmTotalCount = danmakuCtrl.totalCount)
     }
 
-    /** 批次L42：调用 Rust 计算高能进度条曲线 */
-    private fun computeHeatCurve(events: List<DanmakuEvent>) {
-        if (events.isEmpty()) { _heatCurve.value = emptyList(); return }
-        runCatching {
-            val lib = com.example.piliai.danmaku.DanmakuNativeLib()
-            val pts = events.map { mapOf("t" to it.timestamp.toDouble(), "w" to 1.0) }
-            // 审核36：弹幕加载早于播放器就绪时 duration 为 0 → 用弹幕最大时间兜底（Rust 侧已处理）
-            val dur = duration().toDouble()
-            val out = lib.heatMap(GSON.toJson(pts), dur, 120) ?: return@runCatching
-            val arr = org.json.JSONObject(out).getJSONArray("buckets")
-            _heatCurve.value = (0 until arr.length()).map { arr.getDouble(it).toFloat() }
-        }
-    }
-    
-    fun getDanmakuAtTime(currentTimeMs: Long): List<DanmakuEvent> {
-        return _danmakuQueue.filter { event ->
-            event.timestamp <= currentTimeMs && 
-            event.timestamp > currentTimeMs - 3000L
-        }
-    }
+    fun getDanmakuAtTime(currentTimeMs: Long): List<DanmakuEvent> =
+        danmakuCtrl.eventsAt(currentTimeMs)
     
     // 审核轮210：超分辨率真接入（Media3 1.3.1 已有 setVideoEffects，javap 验证；
     // ==================== PlaybackEventListener 实现 ====================
@@ -1460,8 +1348,8 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         playbackSpeedRestoreJob?.cancel()
         completionJob?.cancel()
         loadJob?.cancel()
-        subtitleListJob?.cancel()
-        subtitleBodyJob?.cancel()
+        // 审核311：字幕与弹幕的协程改由各自 Controller 的 scope 托管，
+        // 不再需要在 onCleared 逐个 cancel
         try {
             backend?.release()
         } finally {
@@ -1610,8 +1498,8 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
                             fontSize = 25,
                             mode = mode
                         )
-                        _danmakuQueue.add(danmaku)
-                        _danmakuQueue.sortBy { it.timestamp }
+                        // 审核311：本地插入走 DanmakuController
+                        danmakuCtrl.addLocal(danmaku)
                         // 审核304（真 bug）：原来是 setError("弹幕发送成功")——
                         // setError 会触发全屏红色错误覆盖层并隐藏播放控制条，
                         // 用户发一条弹幕就像播放器崩了。与审核262 修
@@ -2115,3 +2003,12 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
 
     private fun duration(): Long = backend?.durationMs() ?: _state.value.duration
 }
+
+/**
+ * 审核311：弹幕事件类型别名。
+ *
+ * 实现已移到 [DanmakuController.Event]（从本类提取，见 DanmakuController.kt）。
+ * 保留别名是为了不改动 20 余处引用点；放在顶层而非类内——类内 typealias
+ * 会让 Room 的 KSP 崩溃（IllegalStateException，无错误信息）。
+ */
+typealias DanmakuEvent = DanmakuController.Event
