@@ -43,6 +43,47 @@ object SubscribeParser {
      */
     private const val MAX_ITEMS_PER_SOURCE = 500
 
+    /**
+     * 审核313：内联订阅源的 scheme 前缀。用户直接粘贴 JSON 内容（如 animeko
+     * 的 exportedMediaSourceDataList）时，内容存到本地缓存，url 记为
+     * `inline:<sha1>`，避免把一大段 JSON 当成 URL 去请求。
+     */
+    const val INLINE_SCHEME = "inline:"
+
+    /** 内联内容缓存目录名 */
+    private const val INLINE_DIR = "subscribe_inline"
+
+    /**
+     * 审核313：把用户粘贴的内容保存为内联源，返回 `inline:<hash>` 形式的 url。
+     * 原样内容直接走 normalizeUrl 会被强加 https:// 前缀 → 报「链接无效」，
+     * 这是「animeko 订阅源加不进来」的第二层原因（第一层是 parseJson
+     * 不识别 animeko 格式，审核298 已修）。
+     */
+    fun saveInlineSource(content: String): String {
+        val hash = java.security.MessageDigest.getInstance("SHA-1")
+            .digest(content.toByteArray())
+            .joinToString("") { "%02x".format(it) }
+            .take(16)
+        val dir = java.io.File(com.example.piliai.AppContext.get().filesDir, INLINE_DIR)
+        if (!dir.exists()) dir.mkdirs()
+        java.io.File(dir, "$hash.json").writeText(content)
+        return INLINE_SCHEME + hash
+    }
+
+    /** 审核313：读源内容——`inline:` 走本地缓存，其余走网络 */
+    internal suspend fun readSourceText(url: String): String {
+        if (url.startsWith(INLINE_SCHEME)) {
+            val hash = url.removePrefix(INLINE_SCHEME)
+            val f = java.io.File(
+                java.io.File(com.example.piliai.AppContext.get().filesDir, INLINE_DIR),
+                "$hash.json"
+            )
+            if (!f.exists()) error("内联订阅源内容已丢失，请重新添加")
+            return f.readText()
+        }
+        return SourceHttpClient.client.get(url).bodyAsText()
+    }
+
     /** 解析出的条目（未落库） */
     data class ParsedItem(
         val title: String,
@@ -101,7 +142,7 @@ object SubscribeParser {
         hintType: Int = SubscribeSourceEntity.TYPE_BANGUMI
     ): Result<ParsedSource> = withContext(Dispatchers.IO) {
         runCatching {
-            val text = SourceHttpClient.client.get(url).bodyAsText()
+            val text = SubscribeParser.readSourceText(url)
             if (text.isBlank()) error("订阅源返回为空")
 
             // Animeko 媒体源配置：优先识别。
@@ -806,13 +847,19 @@ class SubscribeRepository(
     suspend fun addSource(url: String, name: String = "", type: Int): Result<Long> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val normalized = normalizeUrl(url)
+                // 审核313：用户粘贴的是 JSON 内容（不是 URL）时转成内联源。
+                // 否则 normalizeUrl 会给它强加 https:// 前缀 → 报「链接无效」。
+                val raw = url.trim()
+                val isInlineContent = raw.startsWith("{") || raw.startsWith("[")
+                val normalized = if (isInlineContent) SubscribeParser.saveInlineSource(raw)
+                else normalizeUrl(raw)
                 val existing = dao.getByUrl(normalized)
                 val entity = SubscribeSourceEntity(
                     id = existing?.id ?: 0L,
-                    name = name.ifBlank { existing?.name ?: hostOf(normalized) },
+                    name = name.ifBlank { existing?.name
+                        ?: if (isInlineContent) "内联 JSON 源" else hostOf(normalized) },
                     url = normalized,
-                    type = type,
+                    type = if (isInlineContent) SubscribeSourceEntity.TYPE_JSON else type,
                     cover = existing?.cover ?: "",
                     enabled = true,
                     createdAt = existing?.createdAt ?: System.currentTimeMillis()
@@ -980,7 +1027,7 @@ class SubscribeRepository(
             if (now - ts < configCacheTtlMs) return cfgs
         }
         return withContext(Dispatchers.IO) {
-            val text = SourceHttpClient.client.get(sourceUrl).bodyAsText()
+            val text = SubscribeParser.readSourceText(sourceUrl)
             val cfgs = AnimekoScraper.parseConfig(text)
             if (cfgs.isNotEmpty()) configCache[sourceUrl] = now to cfgs
             cfgs

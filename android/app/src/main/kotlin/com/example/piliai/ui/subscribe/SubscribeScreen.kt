@@ -962,6 +962,24 @@ private fun AddSourceDialog(
                         label = { Text("JSON") }
                     )
                 }
+                Spacer(Modifier.height(8.dp))
+                // 审核313：类型说明。原来只有一个「订阅源链接」输入框，
+                // 用户不知道该粘什么格式（尤其 animeko 的 JSON 配置是一大段
+                // exportedMediaSourceDataList，不是 URL），加完必然解析失败。
+                Text(
+                    text = when (type) {
+                        SubscribeSourceEntity.TYPE_BANGUMI ->
+                            "Bangumi 用户 ID（如 123456），同步追番进度"
+                        SubscribeSourceEntity.TYPE_RSS ->
+                            "RSS 订阅地址（http/https 链接）"
+                        SubscribeSourceEntity.TYPE_JSON ->
+                            "JSON 配置内容或链接。支持 animeko 媒体源导出格式\n" +
+                                "（exportedMediaSourceDataList），直接粘贴整段 JSON 即可"
+                        else -> ""
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         },
         confirmButton = {
