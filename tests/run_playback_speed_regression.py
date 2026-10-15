@@ -55,6 +55,19 @@ object VideoSeekBus {
     }
 }
 ''',
+    'PlaybackRegistry.kt': '''package com.example.piliai.playback
+
+/**
+ * 审核318：onCleared 会反注册后台播放的 MediaSession 通道（本审核加的）。
+ * 与 VideoSeekBus 同理，回归脚本只编译抽取出来的方法，需要 stub。
+ */
+object PlaybackRegistry {
+    var unregisterCalls = 0
+    fun unregister() {
+        unregisterCalls += 1
+    }
+}
+''',
     'PlaybackParameters.kt': '''package androidx.media3.common
 class PlaybackParameters(val speed: Float, val pitch: Float = 1.0f)
 ''',
