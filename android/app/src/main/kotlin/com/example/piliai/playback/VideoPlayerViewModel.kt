@@ -991,11 +991,13 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
             if (referer != null) put("Origin", "https://www.bilibili.com")
             if (cookie.isNotEmpty()) put("Cookie", cookie)
         }
+        // 审核315：记住请求头与 UA，供取帧复用
+        currentHeaders = headers
+        val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+            "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        currentUserAgent = userAgent
         val dataSourceFactory = androidx.media3.datasource.DefaultHttpDataSource.Factory()
-            .setUserAgent(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-                    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-            )
+            .setUserAgent(userAgent)
             .setAllowCrossProtocolRedirects(true)
             .setDefaultRequestProperties(headers)
 
@@ -1408,7 +1410,13 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     /** 发起离线下载（下载按钮 → DownloadManager 队列） */
     fun downloadCurrent(appContext: android.content.Context) {
         val bv = currentBvid
-        if (bv.isEmpty() || bv.startsWith("ep")) return
+        if (bv.isEmpty()) return
+        // 审核315：番剧原来直接 return 无提示——用户点下载没反应，
+        // 以为是按钮坏了。给明确说明（番剧缓存走分P面板的逐项下载）。
+        if (bv.startsWith("ep")) {
+            showToast("番剧请从分P面板选择要缓存的集数")
+            return
+        }
         com.example.piliai.data.repository.DownloadManager.download(
             appContext, bv,
             title = videoTitle, cover = videoCover, ownerName = videoOwner
@@ -1657,6 +1665,19 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     private var audioUrlCandidates: List<String> = emptyList()
     /** 审核267：当前播放地址（取帧用）；本地文件为 file:// Uri */
     private var currentUri: String = ""
+
+    /**
+     * 审核315：当前播放的请求头与 UA，供取帧（VideoFrameCapture）复用。
+     * 在线 DASH 取帧要走同一条 CDN，缺 Referer/Cookie 会 403。
+     */
+    private var currentHeaders: Map<String, String> = emptyMap()
+    private var currentUserAgent: String = ""
+
+    /** 审核315：取帧用——当前播放的请求头 */
+    fun currentPlaybackHeaders(): Map<String, String> = currentHeaders
+
+    /** 审核315：取帧用——当前播放的 UA */
+    fun currentPlaybackUserAgent(): String = currentUserAgent
 
     /** 加载相关视频列表 */
     private fun loadRelated(bvid: String) {

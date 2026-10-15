@@ -762,9 +762,9 @@ fun VideoPlayerScreen(
                         },
                         tintColor = Color.White
                     )
-                    // 分享（复制链接到剪贴板）
-                    // 审核267：取帧（截图当前画面）。仅本地播放可用 ——
-                    // 在线流需要 transformer 1.4+ 才能注入请求头（见 VideoFrameCapture 文档）。
+                    // 审核267：取帧（截图当前画面）。
+                    // 审核315：在线视频也可用了——请求头经
+                    // ExoPlayerAssetLoader.Factory 注入（见 VideoFrameCapture）。
                     EngagementButton(
                         icon = Icons.Default.PhotoCamera,
                         label = "取帧",
@@ -778,11 +778,13 @@ fun VideoPlayerScreen(
                                         .captureFromPlayback(
                                             context = context.applicationContext,
                                             uri = uri,
-                                            positionMs = state.currentTime
+                                            positionMs = state.currentTime,
+                                            headers = viewModel.currentPlaybackHeaders(),
+                                            userAgent = viewModel.currentPlaybackUserAgent(),
                                         )
                                     viewModel.showToast(
                                         if (file != null) "已保存到 ${file.absolutePath}"
-                                        else "取帧失败（在线视频暂不支持）"
+                                        else "取帧失败，请稍后重试"
                                     )
                                 }
                             }
@@ -1156,7 +1158,14 @@ fun VideoPlayerScreen(
                             Text(
                                 "%02d:%02d  %s".format(ts / 60, ts % 60, title),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary
+                                color = MaterialTheme.colorScheme.primary,
+                                // 审核315：大纲条目改为可点击跳转（空降助手）。
+                                // 原先是 primary 色纯文本——看着可点但点了没反应，
+                                // 用户会以为是 bug。时间戳单位是秒。
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { viewModel.seekTo(ts * 1000L) }
+                                    .padding(vertical = 2.dp),
                             )
                         }
                     } else {
