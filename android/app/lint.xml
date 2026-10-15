@@ -53,4 +53,11 @@
       更符合调用习惯，故降级为 info 不阻塞构建。
     -->
     <issue id="ModifierParameter" severity="info" />
+
+    <!--
+      审核318：本地化红线。MissingTranslation 默认已是 error，这里显式固化，
+      配合 tests/check_lint_report.py 按 severity 判定：任何新增未翻译字符串
+      都会让 CI 红，从源头止住 values-en 与 values 悄悄漂移。
+    -->
+    <issue id="MissingTranslation" severity="fatal" />
 </lint>

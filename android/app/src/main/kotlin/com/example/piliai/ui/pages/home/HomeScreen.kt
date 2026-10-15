@@ -77,6 +77,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import androidx.compose.ui.res.stringResource
+import com.example.piliai.R
 import com.example.piliai.data.model.VideoItem
 import com.example.piliai.ui.theme.PiliMotion
 import com.example.piliai.utils.toHttpsUrl
@@ -169,18 +171,20 @@ fun HomeScreen(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
                 com.example.piliai.ui.components.SearchPill(
-                    hint = "搜索视频、UP主",
+                    hint = stringResource(R.string.home_search_hint),
                     onClick = onSearchClick,
                     trailing = {
                         // 审核241（P1-5）：触达区域从 32dp 提到 40dp（48dp 建议值内的
                         // 折中：SearchPill 高 40dp，再大就要加高整条顶栏）
                         IconButton(onClick = onMessageClick, modifier = Modifier.size(40.dp)) {
-                            Icon(Icons.Filled.Notifications, contentDescription = "消息",
+                            Icon(Icons.Filled.Notifications,
+                                contentDescription = stringResource(R.string.home_message),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(20.dp))
                         }
                         IconButton(onClick = onMineClick, modifier = Modifier.size(40.dp)) {
-                            Icon(Icons.Filled.Person, contentDescription = "我的",
+                            Icon(Icons.Filled.Person,
+                                contentDescription = stringResource(R.string.tab_mine),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(20.dp))
                         }
@@ -194,17 +198,28 @@ fun HomeScreen(
         // 的直接来源之一。改为单条可横滑的分段控件：一组胶囊、一个容器、
         // 选中项 primaryContainer 填充（Kototoro/BiliPai 的做法）。
         var selectedTab by remember { androidx.compose.runtime.mutableIntStateOf(0) }
-        val tabs = remember {
+        // 审核318：标签先在 Composable 上下文解析成普通字符串，再进 remember——
+        // stringResource 是 @Composable，不能在 remember { } 里调用。
+        val tabLabels = listOf(
+            stringResource(R.string.home_tab_recommend),
+            stringResource(R.string.home_tab_hot),
+            stringResource(R.string.home_tab_rank),
+            stringResource(R.string.home_tab_bangumi),
+            stringResource(R.string.home_tab_zone),
+            stringResource(R.string.home_tab_story),
+            stringResource(R.string.home_tab_today),
+        )
+        val tabs = remember(tabLabels) {
             listOf(
                 // 审核241（P1-4）：「推荐」原来是空实现，点一下只高亮不做事，
                 // 用户以为页面坏了。改为回到顶部并刷新当前流，与其他胶囊语义一致。
-                "推荐" to ({ viewModel.refresh() } as () -> Unit),
-                "热门" to onHotMoreClick,
-                "排行" to onRankClick,
-                "番剧" to onBangumiClick,
-                "分区" to onZoneClick,
-                "竖屏流" to onStoryClick,
-                "今日" to onTodayWatchClick,
+                tabLabels[0] to ({ viewModel.refresh() } as () -> Unit),
+                tabLabels[1] to onHotMoreClick,
+                tabLabels[2] to onRankClick,
+                tabLabels[3] to onBangumiClick,
+                tabLabels[4] to onZoneClick,
+                tabLabels[5] to onStoryClick,
+                tabLabels[6] to onTodayWatchClick,
             )
         }
         com.example.piliai.ui.components.CategoryPillStrip(
@@ -238,11 +253,11 @@ fun HomeScreen(
             ) {
                 val label = when (feedSource) {
                     com.example.piliai.data.repository.HomeRepository.FeedSource.POPULAR ->
-                        "全站热门"
+                        stringResource(R.string.home_feed_popular)
                     com.example.piliai.data.repository.HomeRepository.FeedSource.PRECIOUS ->
-                        "入站必刷"
+                        stringResource(R.string.home_feed_precious)
                     com.example.piliai.data.repository.HomeRepository.FeedSource.WEEKLY ->
-                        "每周必看"
+                        stringResource(R.string.home_feed_weekly)
                     else -> ""
                 }
                 androidx.compose.material3.Surface(
@@ -251,7 +266,7 @@ fun HomeScreen(
                     shape = RoundedCornerShape(10.dp),
                 ) {
                     Text(
-                        "当前：$label（设置 → 首页数据源 可切换）",
+                        stringResource(R.string.home_feed_current_hint, label),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -309,7 +324,7 @@ fun HomeScreen(
                             item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
                                 Column {
                                     com.example.piliai.ui.components.SectionHeader(
-                                        title = "为你推荐",
+                                        title = stringResource(R.string.home_hero_for_you),
                                         count = topRcmd.size,
                                         modifier = Modifier.padding(top = 4.dp),
                                     )
@@ -353,13 +368,13 @@ fun HomeScreen(
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                 ) {
                                     Text(
-                                        "没有符合条件的视频",
+                                        stringResource(R.string.home_empty_filtered_title),
                                         style = MaterialTheme.typography.titleSmall,
                                         color = MaterialTheme.colorScheme.onSurface,
                                     )
                                     Spacer(Modifier.height(6.dp))
                                     Text(
-                                        "推荐过滤条件可能过于严格\n可在 设置 → 推荐过滤 中放宽",
+                                        stringResource(R.string.home_empty_filtered_hint),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -401,13 +416,13 @@ fun HomeScreen(
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                "加载失败：${s.message}",
+                                stringResource(R.string.home_load_failed, s.message.orEmpty()),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.error,
                             )
                             Spacer(Modifier.height(12.dp))
                             androidx.compose.material3.Button(onClick = { viewModel.refresh() }) {
-                                androidx.compose.material3.Text("重试")
+                                androidx.compose.material3.Text(stringResource(R.string.action_retry))
                             }
                         }
                     }

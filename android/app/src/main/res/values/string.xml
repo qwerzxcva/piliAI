@@ -4,4 +4,24 @@
     <string name="tab_dynamics">动态</string>
     <string name="tab_live">直播</string>
     <string name="tab_mine">我的</string>
+
+    <!-- 审核318：首页文案抽取（原为 Kotlin 硬编码，英文缺失） -->
+    <string name="home_search_hint">搜索视频、UP主</string>
+    <string name="home_message">消息</string>
+    <string name="home_tab_recommend">推荐</string>
+    <string name="home_tab_hot">热门</string>
+    <string name="home_tab_rank">排行</string>
+    <string name="home_tab_bangumi">番剧</string>
+    <string name="home_tab_zone">分区</string>
+    <string name="home_tab_story">竖屏流</string>
+    <string name="home_tab_today">今日</string>
+    <string name="home_feed_popular">全站热门</string>
+    <string name="home_feed_precious">入站必刷</string>
+    <string name="home_feed_weekly">每周必看</string>
+    <string name="home_feed_current_hint">当前：%1$s（设置 → 首页数据源 可切换）</string>
+    <string name="home_hero_for_you">为你推荐</string>
+    <string name="home_empty_filtered_title">没有符合条件的视频</string>
+    <string name="home_empty_filtered_hint">推荐过滤条件可能过于严格\n可在 设置 → 推荐过滤 中放宽</string>
+    <string name="home_load_failed">加载失败：%1$s</string>
+    <string name="action_retry">重试</string>
 </resources>

@@ -5,6 +5,26 @@
     <string name="tab_dynamics">Feed</string>
     <string name="tab_live">Live</string>
     <string name="tab_mine">Profile</string>
+
+    <!-- 审核318：首页文案英文（与 values/string.xml 同 key 对齐） -->
+    <string name="home_search_hint">Search videos, creators</string>
+    <string name="home_message">Messages</string>
+    <string name="home_tab_recommend">For you</string>
+    <string name="home_tab_hot">Trending</string>
+    <string name="home_tab_rank">Ranking</string>
+    <string name="home_tab_bangumi">Anime</string>
+    <string name="home_tab_zone">Zones</string>
+    <string name="home_tab_story">Stories</string>
+    <string name="home_tab_today">Today</string>
+    <string name="home_feed_popular">Popular</string>
+    <string name="home_feed_precious">Must-watch</string>
+    <string name="home_feed_weekly">Weekly picks</string>
+    <string name="home_feed_current_hint">Current: %1$s (change in Settings → Home feed source)</string>
+    <string name="home_hero_for_you">Recommended for you</string>
+    <string name="home_empty_filtered_title">No videos match your filters</string>
+    <string name="home_empty_filtered_hint">Your recommendation filters may be too strict.\nLoosen them in Settings → Recommendation filters</string>
+    <string name="home_load_failed">Failed to load: %1$s</string>
+    <string name="action_retry">Retry</string>
     <string name="bangumi_subject_details">Bangumi subject details</string>
     <string name="bangumi_load_failed">Could not load Bangumi information. Check your connection and retry.</string>
     <string name="bangumi_retry">Retry</string>
