@@ -608,6 +608,10 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
 
         this.epId = epId
         this.currentBvid = "ep$epId"
+        // 审核309：互动状态（点赞/投币/收藏 + 真实计数 + 默认收藏夹）。
+        // 番剧链路原来漏了 loadEngagement——播放页的点赞收藏状态与计数
+        // 全是初始值，用户点了也不更新。episode.bvid 是真实 bvid。
+        if (aid > 0L) loadEngagement(aid, episode?.bvid.orEmpty())
         // 番剧弹幕需要 cid
         loadDanmakuFor(cid)
         // 弹弹play 弹幕补充源（启用时按番剧标题拉取，静默降级）
@@ -642,6 +646,11 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         availableQualities = accepted.zip(acceptQn).map { (desc, q) -> QualityOption(q, desc) }
         currentQn = qnOf(resp)
         startPlayback(primaryVideo, cachedAudioUrl)
+        // 审核309：补齐番剧链路缺失的能力加载。原来这里只有
+        // loadDanmakuFor，普通视频路径有的字幕/缩略图/在线人数/互动状态
+        // 全都没有——番剧播放时没字幕、进度条没预览图、点赞收藏状态不同步。
+        loadSubtitles(currentBvid, cid)
+        loadVideoShot(currentBvid, cid)
     }
 
     private fun qnOf(resp: com.example.piliai.data.model.PgcPlayUrlResponse): Int =
