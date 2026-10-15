@@ -619,17 +619,29 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
             if (enabled) loadDandanDanmaku(danmakuTitle)
         }
 
-        val (resp, video, audio) = repo.getPgcPlayUrl(epId, cid, qn = currentQn)
+        val playResult = repo.getPgcPlayUrlWithCandidates(epId, cid, qn = currentQn)
             .getOrElse { setError("番剧 playurl 失败: ${it.message}"); return }
+        val resp = playResult.first
+        val videoCand = playResult.second.first
+        val audioCand = playResult.second.second
         ensureCurrent(generation)
-        if (video.isNullOrEmpty()) {
+        if (videoCand?.primary.isNullOrEmpty()) {
             setError("未解析到番剧流地址（可能为大会员专享）")
             return
         }
-        cachedAudioUrl = audio
+        val primaryVideo = videoCand!!.primary
+        cachedAudioUrl = audioCand?.primary
+        // 审核308：番剧也要带 CDN 候选列表（普通播放已有，番剧漏了）
+        videoUrlCandidates = videoCand.all
+        audioUrlCandidates = audioCand?.all.orEmpty()
         dashVideos = resp.result?.dash?.video.orEmpty()
+        // 审核308（真 bug）：原来这里没有填 availableQualities——只有普通视频
+        // 路径填了。结果番剧播放时清晰度菜单是空的，用户根本切不了画质。
+        val accepted = resp.result?.acceptDescription.orEmpty()
+        val acceptQn = resp.result?.acceptQuality.orEmpty()
+        availableQualities = accepted.zip(acceptQn).map { (desc, q) -> QualityOption(q, desc) }
         currentQn = qnOf(resp)
-        startPlayback(video, audio)
+        startPlayback(primaryVideo, cachedAudioUrl)
     }
 
     private fun qnOf(resp: com.example.piliai.data.model.PgcPlayUrlResponse): Int =
