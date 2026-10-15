@@ -295,6 +295,12 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
                     )
                 }
         }
+        // 审核313：倍速档位列表（设置页可编辑，播放器倍速菜单用它）
+        viewModelScope.launch {
+            storage.playbackSpeedListFlow.collect { list ->
+                _speedList.value = list
+            }
+        }
         // 审核295：大会员弹幕过滤。showVipDanmakuFlow 此前有完整数据链路
         // （state/collect/setter/键）但既无 UI 开关也无消费方——纯半成品。
         // 接入：关闭时过滤掉 mode=8 的大会员弹幕。
@@ -1446,6 +1452,25 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
      * 登录态下加载互动状态：已赞/已投/已藏（archive/relation）+ 默认收藏夹 id + stat 计数。
      * 失败静默（未登录时 relation 会 -101，直接跳过）。
      */
+
+    /**
+     * 审核313：倍速档位列表（设置页可编辑）。
+     * 原来是播放器里硬编码 listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)。
+     */
+    private val _speedList = MutableStateFlow(
+        com.example.piliai.utils.StorageManager.DEFAULT_SPEED_LIST
+    )
+    val speedList: StateFlow<List<Float>> = _speedList.asStateFlow()
+
+    /** 审核313：保存倍速档位（设置页调用） */
+    fun setSpeedList(speeds: List<Float>) {
+        val normalized = com.example.piliai.utils.StorageManager.normalizeSpeedList(speeds)
+        _speedList.value = normalized
+        viewModelScope.launch {
+            com.example.piliai.utils.StorageManager
+                .getInstance(appContext).setPlaybackSpeedList(normalized)
+        }
+    }
 
     /**
      * 审核312：互动控制（从本类提取）。点赞/投币/收藏/稍后再看/历史上报

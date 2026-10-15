@@ -59,6 +59,10 @@ class StorageManager(private val context: Context) {
         
         // Video settings
         private val PLAYBACK_SPEED_KEY = floatPreferencesKey("playbackSpeed")
+        // 审核313：倍速档位列表（逗号分隔的浮点数字符串）。原来是播放器里
+        // 硬编码 listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)，用户想加
+        // 3.0x 或去掉不用的档位只能改代码。
+        private val PLAYBACK_SPEED_LIST_KEY = stringPreferencesKey("playbackSpeedList")
 
         // Danmaku settings
         private val DANMAKU_ENABLED_KEY = booleanPreferencesKey("enableShowDanmaku")
@@ -136,6 +140,33 @@ class StorageManager(private val context: Context) {
             instance ?: synchronized(this) {
                 instance ?: StorageManager(context.applicationContext).also { instance = it }
             }
+
+        /** 审核313：默认倍速档位 */
+        val DEFAULT_SPEED_LIST = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+
+        /** 审核313：解析存储的档位串；非法/为空回退默认 */
+        fun parseSpeedList(raw: String?): List<Float> {
+            if (raw.isNullOrBlank()) return DEFAULT_SPEED_LIST
+            val parsed = raw.split(',').mapNotNull { it.trim().toFloatOrNull() }
+                .filter { it in SPEED_MIN..SPEED_MAX }
+            return if (parsed.isEmpty()) DEFAULT_SPEED_LIST else normalizeSpeedList(parsed)
+        }
+
+        /** 审核313：排序去重，并保证含 1.0x（正常速） */
+        fun normalizeSpeedList(speeds: List<Float>): List<Float> {
+            val valid = speeds.filter { it in SPEED_MIN..SPEED_MAX }
+            return (valid + 1.0f).distinct().sorted()
+        }
+
+        /** 审核313：档位取值边界（mpv/ExoPlayer 安全范围） */
+        const val SPEED_MIN = 0.25f
+        const val SPEED_MAX = 5.0f
+
+        /** 审核313：序列化单个档位（去掉多余的 0，避免 1.0000001 之类） */
+        fun formatSpeed(v: Float): String {
+            val r = Math.round(v * 100f) / 100f
+            return if (r % 1.0f == 0.0f) r.toInt().toString() else r.toString()
+        }
     }
 
         // Account settings
@@ -213,6 +244,20 @@ class StorageManager(private val context: Context) {
     // Video playback
     val playbackSpeedFlow: Flow<Float> = context.dataStore.data
         .map { preferences -> preferences[PLAYBACK_SPEED_KEY] ?: 1.0f }
+
+    /**
+     * 审核313：倍速档位列表（升序去重）。空串/非法值回退默认档位。
+     */
+    val playbackSpeedListFlow: Flow<List<Float>> = context.dataStore.data
+        .map { prefs -> parseSpeedList(prefs[PLAYBACK_SPEED_LIST_KEY]) }
+
+    /** 审核313：设置倍速档位（会排序去重，并保证含 1.0x） */
+    suspend fun setPlaybackSpeedList(speeds: List<Float>) {
+        val normalized = normalizeSpeedList(speeds)
+        context.dataStore.edit { prefs ->
+            prefs[PLAYBACK_SPEED_LIST_KEY] = normalized.joinToString(",") { formatSpeed(it) }
+        }
+    }
     
     // Danmaku
     val danmakuEnabledFlow: Flow<Boolean> = context.dataStore.data

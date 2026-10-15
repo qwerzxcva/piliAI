@@ -79,6 +79,8 @@ fun VideoPlayerScreen(
     val likeCount by viewModel.likeCount.collectAsStateWithLifecycle()
     val coinCountTotal by viewModel.coinCountTotal.collectAsStateWithLifecycle()
     val favCount by viewModel.favCount.collectAsStateWithLifecycle()
+    // 审核313：倍速档位（设置页可编辑）
+    val speedList by viewModel.speedList.collectAsStateWithLifecycle()
     // 审核267：取帧按钮的协程作用域
     val captureScope = rememberCoroutineScope()
     LaunchedEffect(viewModel) {
@@ -825,11 +827,13 @@ fun VideoPlayerScreen(
         
         // Speed menu
         DropdownMenu(expanded = showSpeedMenu, onDismissRequest = { showSpeedMenu = false }) {
-            listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f).forEach { speed ->
+            // 审核313：档位改从设置读取（原来是硬编码 listOf）；
+            // 同时把英文 "Normal" 改成中文「正常」
+            speedList.forEach { speed ->
                 DropdownMenuItem(
                     text = { 
                         Text(
-                            if (speed == 1.0f) "Normal" else "${speed}x",
+                            if (speed == 1.0f) "正常" else "${formatSpeed(speed)}",
                             color = if (state.playbackSpeed == speed) MaterialTheme.colorScheme.primary else Color.Black
                         ) 
                     },
@@ -1377,6 +1381,13 @@ private fun EngagementButton(
         Text(label, color = Color.White.copy(alpha = 0.8f), 
             style = MaterialTheme.typography.labelSmall)
     }
+}
+
+/** 审核313：倍速档位显示（1 →「正常」由调用方处理；0.75 →「0.75x」） */
+private fun formatSpeed(speed: Float): String {
+    val r = Math.round(speed * 100f) / 100f
+    val s = if (r % 1.0f == 0.0f) r.toInt().toString() else r.toString()
+    return "${s}x"
 }
 
 private fun formatTime(ms: Long): String {

@@ -68,6 +68,8 @@ fun SettingsScreen(
     var showAboutDialog by remember { mutableStateOf(false) }
     var showRendererDialog by remember { mutableStateOf(false) }
     var showBackendDialog by remember { mutableStateOf(false) }
+    // 审核313：倍速档位编辑弹窗
+    var showSpeedListDialog by remember { mutableStateOf(false) }
     // 审核279：首页数据源选择弹窗
     var showFeedSourceDialog by remember { mutableStateOf(false) }
     var showCompletionDialog by remember { mutableStateOf(false) }
@@ -374,6 +376,17 @@ fun SettingsScreen(
                     steps = 6,
                     displayValue = String.format(java.util.Locale.ROOT, "%.1fx", state.longPressSpeedDefault),
                     onValueChange = { viewModel.setLongPressSpeedDefault(it) }
+                )
+            }
+            item {
+                // 审核313：倍速档位列表（原来播放器硬编码 6 档，用户想加 3.0x
+                // 或去掉不用的档位只能改代码）。这里开放编辑。
+                SettingRow(
+                    title = "倍速档位",
+                    subtitle = state.playbackSpeedList
+                        .joinToString(" / ") { "${formatSpeedLabel(it)}x" },
+                    icon = Icons.Default.Speed,
+                    onClick = { showSpeedListDialog = true }
                 )
             }
             // ===== 审核233：推荐过滤（PiliPlus recommend_filter 对齐）=====
@@ -1166,6 +1179,90 @@ fun SettingsScreen(
         )
     }
 
+    // 审核313：倍速档位编辑（勾选式，含自定义输入）
+    if (showSpeedListDialog) {
+        val current = state.playbackSpeedList
+        // 常用档位池：用户勾选 + 自定义输入
+        val pool = remember {
+            listOf(0.5f, 0.75f, 0.9f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 2.5f, 3.0f, 4.0f, 5.0f)
+        }
+        val checked = remember { mutableStateOf(current.toSet()) }
+        var customInput by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showSpeedListDialog = false },
+            title = { Text("倍速档位") },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    Text(
+                        "勾选要出现在播放器倍速菜单里的档位（1.0x 始终保留）",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    // 档位池：固定 3 行×4 列排布（不用实验性 FlowRow）
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        pool.chunked(4).forEach { rowItems ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                rowItems.forEach { v ->
+                                    val on = v in checked.value
+                                    androidx.compose.material3.FilterChip(
+                                        selected = on,
+                                        onClick = {
+                                            checked.value = if (on) checked.value - v
+                                            else checked.value + v
+                                        },
+                                        label = { Text("${formatSpeedLabel(v)}x") },
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                }
+                                // 补齐不足 4 的空位，保持对齐
+                                repeat(4 - rowItems.size) {
+                                    Spacer(Modifier.weight(1f))
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    // 自定义输入
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(
+                            value = customInput,
+                            onValueChange = { customInput = it },
+                            label = { Text("自定义（如 1.35）") },
+                            singleLine = true,
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                            ),
+                            modifier = Modifier.weight(1f),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        TextButton(
+                            onClick = {
+                                customInput.toFloatOrNull()?.let { v ->
+                                    if (v in com.example.piliai.utils.StorageManager.SPEED_MIN..
+                                        com.example.piliai.utils.StorageManager.SPEED_MAX
+                                    ) {
+                                        checked.value = checked.value + v
+                                        customInput = ""
+                                    }
+                                }
+                            }
+                        ) { Text("添加") }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.setPlaybackSpeedList(checked.value.toList())
+                    showSpeedListDialog = false
+                }) { Text("确定") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSpeedListDialog = false }) { Text("取消") }
+            },
+        )
+    }
+
     if (showBackendDialog) {
         val gpuNextReady = com.example.piliai.playback.backend.GpuNextBackend.isAvailable()
         AlertDialog(
@@ -1425,6 +1522,12 @@ fun SettingsScreen(
 
 private fun bufferLabel(ms: Int) = when (ms) {
     8_000 -> "8 秒"; 32_000 -> "32 秒"; else -> "16 秒（默认）"
+}
+
+/** 审核313：倍速档位标签（1 →「1」，0.75 →「0.75」；调用方补 x） */
+private fun formatSpeedLabel(v: Float): String {
+    val r = Math.round(v * 100f) / 100f
+    return if (r % 1.0f == 0.0f) r.toInt().toString() else r.toString()
 }
 
 private fun qualityLabel(v: String) = when (v) {

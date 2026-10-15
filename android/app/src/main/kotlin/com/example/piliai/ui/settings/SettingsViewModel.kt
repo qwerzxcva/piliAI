@@ -82,6 +82,8 @@ class SettingsViewModel(context: Context) : ViewModel() {
         val directExitOnBack: Boolean = false,
         val enableAutoLongPressSpeed: Boolean = false,
         val longPressSpeedDefault: Float = 3.0f,
+        // 审核313：倍速档位列表（播放器倍速菜单用）
+        val playbackSpeedList: List<Float> = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f),
         // 审核233：推荐过滤
         val minDurationForRcmd: Int = 0,
         val minPlayForRcmd: Int = 0,
@@ -244,6 +246,8 @@ class SettingsViewModel(context: Context) : ViewModel() {
         }
         viewModelScope.launch {
             storage.longPressSpeedDefaultFlow.collect { _state.value = _state.value.copy(longPressSpeedDefault = it) }
+            // 审核313：倍速档位列表
+            storage.playbackSpeedListFlow.collect { _state.value = _state.value.copy(playbackSpeedList = it) }
         }
         viewModelScope.launch {
             storage.minDurationForRcmdFlow.collect { _state.value = _state.value.copy(minDurationForRcmd = it) }
@@ -318,6 +322,11 @@ class SettingsViewModel(context: Context) : ViewModel() {
             com.example.piliai.utils.RendererPrefs.longPressSpeedEnabled, v
         )
         storage.setLongPressSpeedDefault(v)
+    }
+
+    /** 审核313：设置倍速档位列表 */
+    fun setPlaybackSpeedList(speeds: List<Float>) = viewModelScope.launch {
+        storage.setPlaybackSpeedList(speeds)
     }
     fun setMinDurationForRcmd(v: Int) = viewModelScope.launch { storage.setMinDurationForRcmd(v) }
     fun setMinPlayForRcmd(v: Int) = viewModelScope.launch { storage.setMinPlayForRcmd(v) }
