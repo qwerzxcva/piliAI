@@ -407,7 +407,11 @@ fun AppNavigation() {
                 onBack = { navController.popBackStack() },
                 onVideoClick = { bvid, cid ->
                     navController.navigate(Screen.VideoPlayer.createRoute(bvid, cid))
-                }
+                },
+                // 审核318：竖屏流点头像跳 UP 主空间（重写后新增）
+                onUserClick = { mid ->
+                    navController.navigate(Screen.Member.createRoute(mid))
+                },
             )
         }
         composable(Screen.TodayWatch.route) {
