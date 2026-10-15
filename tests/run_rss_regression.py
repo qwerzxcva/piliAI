@@ -6,7 +6,10 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-source = (ROOT / 'android/app/src/main/kotlin/com/example/piliai/data/repository/SubscribeRepository.kt').read_text()
+# 审核314：parseRss/readText/parseDate/guessEpisode 已随 SubscribeParser
+# 拆到独立文件（原在 SubscribeRepository.kt 里，拆后此脚本按字符串
+# 找不到函数，报 ValueError: substring not found）。
+source = (ROOT / 'android/app/src/main/kotlin/com/example/piliai/data/repository/SubscribeParser.kt').read_text()
 
 def function(name):
     start = source.index('    private fun ' + name + '(')
