@@ -55,28 +55,11 @@ fun SettingsScreen(
     })
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    // 弹窗选择器状态
-    var showQualityDialog by remember { mutableStateOf(false) }
-    var showAudioQaDialog by remember { mutableStateOf(false) }
-    var showCodecDialog by remember { mutableStateOf(false) }
-    var showCellularQaDialog by remember { mutableStateOf(false) }
-    var showCellularAudioDialog by remember { mutableStateOf(false) }
-    var showCellularCodecDialog by remember { mutableStateOf(false) }
-    var showThemeDialog by remember { mutableStateOf(false) }
-    var showAccentDialog by remember { mutableStateOf(false) }
-    var showPicQualityDialog by remember { mutableStateOf(false) }  // 审核235
-    var showAboutDialog by remember { mutableStateOf(false) }
-    var showRendererDialog by remember { mutableStateOf(false) }
-    var showBackendDialog by remember { mutableStateOf(false) }
-    // 审核313：倍速档位编辑弹窗
-    var showSpeedListDialog by remember { mutableStateOf(false) }
-    // 审核279：首页数据源选择弹窗
-    var showFeedSourceDialog by remember { mutableStateOf(false) }
-    var showCompletionDialog by remember { mutableStateOf(false) }
-    var showBufferDialog by remember { mutableStateOf(false) }
-    var showHwDecodeDialog by remember { mutableStateOf(false) }
-    var showSkipDialog by remember { mutableStateOf(false) }
+    // 审核314：弹窗可见性收拢成一个状态对象（便于拆到独立文件）
+    val dialogs = remember { SettingsDialogState() }
 
+
+    
     Scaffold(
         topBar = {
             TopAppBar(
@@ -131,7 +114,7 @@ fun SettingsScreen(
                     title = "视频渲染器",
                     subtitle = if (state.renderer == 1) "TextureView（可合成动画）" else "SurfaceView（性能最佳）",
                     icon = Icons.AutoMirrored.Filled.ViewQuilt,
-                    onClick = { showRendererDialog = true }
+                    onClick = { dialogs.showRendererDialog = true }
                 )
             }
             item {
@@ -145,7 +128,7 @@ fun SettingsScreen(
                         } else R.string.playback_backend_media3
                     ),
                     icon = Icons.Default.Speed,
-                    onClick = { showBackendDialog = true }
+                    onClick = { dialogs.showBackendDialog = true }
                 )
             }
             item {
@@ -156,7 +139,7 @@ fun SettingsScreen(
                     subtitle = com.example.piliai.data.repository.HomeRepository
                         .prefLabel(state.homeFeedSource),
                     icon = Icons.Default.Home,
-                    onClick = { showFeedSourceDialog = true }
+                    onClick = { dialogs.showFeedSourceDialog = true }
                 )
             }
             item {
@@ -170,7 +153,7 @@ fun SettingsScreen(
                         }
                     ),
                     icon = Icons.Default.SkipNext,
-                    onClick = { showCompletionDialog = true }
+                    onClick = { dialogs.showCompletionDialog = true }
                 )
             }
             item {
@@ -178,7 +161,7 @@ fun SettingsScreen(
                     title = "缓冲时长",
                     subtitle = bufferLabel(state.bufferDurationMs),
                     icon = Icons.Default.Storage,
-                    onClick = { showBufferDialog = true }
+                    onClick = { dialogs.showBufferDialog = true }
                 )
             }
             item {
@@ -193,7 +176,7 @@ fun SettingsScreen(
                         }
                     ),
                     icon = Icons.Default.Memory,
-                    onClick = { showHwDecodeDialog = true }
+                    onClick = { dialogs.showHwDecodeDialog = true }
                 )
             }
             item {
@@ -201,7 +184,7 @@ fun SettingsScreen(
                     title = "跳过片头片尾",
                     subtitle = "片头 ${state.skipIntroSec} 秒 · 片尾 ${state.skipOutroSec} 秒",
                     icon = Icons.Default.SkipNext,
-                    onClick = { showSkipDialog = true }
+                    onClick = { dialogs.showSkipDialog = true }
                 )
             }
             item {
@@ -230,7 +213,7 @@ fun SettingsScreen(
                     title = "默认清晰度",
                     subtitle = qualityLabel(state.videoQuality),
                     icon = Icons.Default.HighQuality,
-                    onClick = { showQualityDialog = true }
+                    onClick = { dialogs.showQualityDialog = true }
                 )
             }
             item {
@@ -245,7 +228,7 @@ fun SettingsScreen(
                         else -> "自动（最高可用）"
                     },
                     icon = Icons.Default.MusicNote,
-                    onClick = { showAudioQaDialog = true }
+                    onClick = { dialogs.showAudioQaDialog = true }
                 )
             }
             item {
@@ -258,7 +241,7 @@ fun SettingsScreen(
                         else -> "AVC/H.264（省电，兼容性最佳）"
                     },
                     icon = Icons.Default.Memory,
-                    onClick = { showCodecDialog = true }
+                    onClick = { dialogs.showCodecDialog = true }
                 )
             }
             // ===== 审核221：蜂窝网络覆盖（PiliPlus *Cellular 键对齐）=====
@@ -274,7 +257,7 @@ fun SettingsScreen(
                         }
                     ),
                     icon = Icons.Default.SignalCellular4Bar,
-                    onClick = { showCellularQaDialog = true }
+                    onClick = { dialogs.showCellularQaDialog = true }
                 )
             }
             item {
@@ -286,7 +269,7 @@ fun SettingsScreen(
                         else -> state.audioQaCellular
                     },
                     icon = Icons.Default.MusicOff,
-                    onClick = { showCellularAudioDialog = true }
+                    onClick = { dialogs.showCellularAudioDialog = true }
                 )
             }
             item {
@@ -297,7 +280,7 @@ fun SettingsScreen(
                         "hevc" -> "HEVC/H.265"; "av1" -> "AV1"; else -> "AVC/H.264"
                     },
                     icon = Icons.Default.SimCardAlert,
-                    onClick = { showCellularCodecDialog = true }
+                    onClick = { dialogs.showCellularCodecDialog = true }
                 )
             }
             item {
@@ -386,7 +369,7 @@ fun SettingsScreen(
                     subtitle = state.playbackSpeedList
                         .joinToString(" / ") { "${formatSpeedLabel(it)}x" },
                     icon = Icons.Default.Speed,
-                    onClick = { showSpeedListDialog = true }
+                    onClick = { dialogs.showSpeedListDialog = true }
                 )
             }
             // ===== 审核233：推荐过滤（PiliPlus recommend_filter 对齐）=====
@@ -445,20 +428,18 @@ fun SettingsScreen(
                 )
             }
             item {
-                // 屏蔽词（正则）输入
-                var showBanDialog by remember { mutableStateOf(false) }
                 SettingRow(
                     title = "标题屏蔽词",
                     subtitle = if (state.banWordForRecommend.isBlank()) "未设置（支持正则，大小写不敏感）"
                         else state.banWordForRecommend.take(24),
                     icon = Icons.Default.TextFields,
-                    onClick = { showBanDialog = true }
+                    onClick = { dialogs.showBanDialog = true }
                 )
-                if (showBanDialog) {
+                if (dialogs.showBanDialog) {
                     BanWordDialog(
                         initial = state.banWordForRecommend,
                         onSave = { viewModel.setBanWordForRecommend(it) },
-                        onDismiss = { showBanDialog = false }
+                        onDismiss = { dialogs.showBanDialog = false }
                     )
                 }
             }
@@ -665,7 +646,7 @@ fun SettingsScreen(
                     title = "主题模式",
                     subtitle = themeLabel(state.themeMode),
                     icon = if (state.themeMode == "dark") Icons.Default.DarkMode else Icons.Default.LightMode,
-                    onClick = { showThemeDialog = true }
+                    onClick = { dialogs.showThemeDialog = true }
                 )
             }
             item {
@@ -673,7 +654,7 @@ fun SettingsScreen(
                     title = "主题颜色",
                     subtitle = accentFromHex(state.accentColor).label,
                     icon = Icons.Default.Palette,
-                    onClick = { showAccentDialog = true }
+                    onClick = { dialogs.showAccentDialog = true }
                 )
             }
             item {
@@ -695,7 +676,7 @@ fun SettingsScreen(
                         else -> "${state.picQuality}% 压缩"
                     },
                     icon = Icons.Default.Image,
-                    onClick = { showPicQualityDialog = true }
+                    onClick = { dialogs.showPicQualityDialog = true }
                 )
             }
         }
@@ -771,7 +752,7 @@ fun SettingsScreen(
                     title = "关于 PiliNara",
                     subtitle = "Kotlin+Rust 版 v1.0 · Flutter 版功能移植中",
                     icon = Icons.Default.Info,
-                    onClick = { showAboutDialog = true }
+                    onClick = { dialogs.showAboutDialog = true }
                 )
             }
             item { Spacer(Modifier.height(24.dp)) }
@@ -816,724 +797,24 @@ fun SettingsScreen(
         }
     }
 
-    // 清晰度选择弹窗
-    if (showQualityDialog) {
-        val options = listOf("auto" to "自动", "1080p" to "1080P 高清", "720p" to "720P 高清", "480p" to "480P 清晰")
-        AlertDialog(
-            onDismissRequest = { showQualityDialog = false },
-            title = { Text("默认清晰度") },
-            text = {
-                Column {
-                    options.forEach { (value, label) ->
-                        Row(
-                            Modifier.fillMaxWidth()
-                                .clickable {
-                                    viewModel.setVideoQuality(value)
-                                    showQualityDialog = false
-                                }
-                                .padding(vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = state.videoQuality == value,
-                                onClick = {
-                                    viewModel.setVideoQuality(value)
-                                    showQualityDialog = false
-                                }
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(label)
-                        }
-                    }
-                }
-            },
-            confirmButton = {}
-        )
-    }
-
-    // 审核219：音质选择弹窗
-    if (showAudioQaDialog) {
-        val options = listOf("0" to "自动（最高可用）", "30251" to "Hi-Res 无损", "30280" to "192K 高码率", "30232" to "132K 中码率", "30216" to "64K 省流")
-        AlertDialog(
-            onDismissRequest = { showAudioQaDialog = false },
-            title = { Text("默认音质") },
-            text = {
-                Column {
-                    options.forEach { (value, label) ->
-                        Row(
-                            Modifier.fillMaxWidth()
-                                .clickable {
-                                    viewModel.setAudioQa(value)
-                                    showAudioQaDialog = false
-                                }
-                                .padding(vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = state.audioQa == value,
-                                onClick = {
-                                    viewModel.setAudioQa(value)
-                                    showAudioQaDialog = false
-                                }
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(label)
-                        }
-                    }
-                }
-            },
-            confirmButton = {}
-        )
-    }
-
-    // 审核220：解码器偏好弹窗
-    if (showCodecDialog) {
-        val options = listOf("avc" to "AVC/H.264（省电，兼容性最佳）", "hevc" to "HEVC/H.265（高压缩）", "av1" to "AV1（最新一代）")
-        AlertDialog(
-            onDismissRequest = { showCodecDialog = false },
-            title = { Text("解码器偏好") },
-            text = {
-                Column {
-                    options.forEach { (value, label) ->
-                        Row(
-                            Modifier.fillMaxWidth()
-                                .clickable {
-                                    viewModel.setPreferCodec(value)
-                                    showCodecDialog = false
-                                }
-                                .padding(vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = state.preferCodec == value,
-                                onClick = {
-                                    viewModel.setPreferCodec(value)
-                                    showCodecDialog = false
-                                }
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(label)
-                        }
-                    }
-                }
-            },
-            confirmButton = {}
-        )
-    }
-
-    // 审核221：蜂窝画质弹窗
-    if (showCellularQaDialog) {
-        val options = listOf("" to "跟随默认画质", "116" to "1080P 高清", "80" to "1080P", "64" to "720P 高清", "32" to "480P 清晰", "16" to "360P 流畅")
-        AlertDialog(
-            onDismissRequest = { showCellularQaDialog = false },
-            title = { Text("蜂窝画质上限") },
-            text = { Column {
-                options.forEach { (value, label) ->
-                    Row(Modifier.fillMaxWidth().clickable {
-                        viewModel.setVideoQaCellular(value); showCellularQaDialog = false
-                    }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = state.videoQaCellular == value, onClick = {
-                            viewModel.setVideoQaCellular(value); showCellularQaDialog = false
-                        })
-                        Spacer(Modifier.width(8.dp)); Text(label)
-                    }
-                }
-            } },
-            confirmButton = {}
-        )
-    }
-    // 审核221：蜂窝音质弹窗
-    if (showCellularAudioDialog) {
-        val options = listOf("" to "跟随默认音质", "30280" to "192K 高码率", "30232" to "132K 中码率", "30216" to "64K 省流")
-        AlertDialog(
-            onDismissRequest = { showCellularAudioDialog = false },
-            title = { Text("蜂窝音质上限") },
-            text = { Column {
-                options.forEach { (value, label) ->
-                    Row(Modifier.fillMaxWidth().clickable {
-                        viewModel.setAudioQaCellular(value); showCellularAudioDialog = false
-                    }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = state.audioQaCellular == value, onClick = {
-                            viewModel.setAudioQaCellular(value); showCellularAudioDialog = false
-                        })
-                        Spacer(Modifier.width(8.dp)); Text(label)
-                    }
-                }
-            } },
-            confirmButton = {}
-        )
-    }
-    // 审核221：蜂窝解码偏好弹窗
-    if (showCellularCodecDialog) {
-        val options = listOf("" to "跟随默认解码器", "avc" to "AVC/H.264（省电）", "hevc" to "HEVC/H.265（高压缩）", "av1" to "AV1（最新一代）")
-        AlertDialog(
-            onDismissRequest = { showCellularCodecDialog = false },
-            title = { Text("蜂窝解码偏好") },
-            text = { Column {
-                options.forEach { (value, label) ->
-                    Row(Modifier.fillMaxWidth().clickable {
-                        viewModel.setPreferCodecCellular(value); showCellularCodecDialog = false
-                    }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = state.preferCodecCellular == value, onClick = {
-                            viewModel.setPreferCodecCellular(value); showCellularCodecDialog = false
-                        })
-                        Spacer(Modifier.width(8.dp)); Text(label)
-                    }
-                }
-            } },
-            confirmButton = {}
-        )
-    }
-
-    // 主题选择弹窗
-    if (showThemeDialog) {
-        val options = listOf("system" to "跟随系统", "light" to "浅色", "dark" to "深色")
-        AlertDialog(
-            onDismissRequest = { showThemeDialog = false },
-            title = { Text("主题模式") },
-            text = {
-                Column {
-                    options.forEach { (value, label) ->
-                        Row(
-                            Modifier.fillMaxWidth()
-                                .clickable {
-                                    viewModel.setThemeMode(value)
-                                    showThemeDialog = false
-                                }
-                                .padding(vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = state.themeMode == value,
-                                onClick = {
-                                    viewModel.setThemeMode(value)
-                                    showThemeDialog = false
-                                }
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(label)
-                        }
-                    }
-                }
-            },
-            confirmButton = {}
-        )
-    }
-
-    // 主题颜色弹窗
-    if (showAccentDialog) {
-        AccentColorDialog(
-            current = state.accentColor,
-            onPick = { viewModel.setAccentColor(it) },
-            onDismiss = { showAccentDialog = false }
-        )
-    }
-
-    // 关于弹窗
-    // 审核235：图片质量选择
-    if (showPicQualityDialog) {
-        val options = listOf(100 to "原图（最快加载）", 80 to "80% 高清", 50 to "50% 均衡", 25 to "25% 省流")
-        AlertDialog(
-            onDismissRequest = { showPicQualityDialog = false },
-            title = { Text("图片质量") },
-            text = {
-                Column {
-                    options.forEach { (v, label) ->
-                        Row(
-                            Modifier.fillMaxWidth()
-                                .clickable {
-                                    viewModel.setPicQuality(v)
-                                    showPicQualityDialog = false
-                                }
-                                .padding(vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(selected = state.picQuality == v, onClick = {
-                                viewModel.setPicQuality(v); showPicQualityDialog = false
-                            })
-                            Spacer(Modifier.width(8.dp))
-                            Text(label)
-                        }
-                    }
-                }
-            },
-            confirmButton = {}
-        )
-    }
-
-    if (showAboutDialog) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { showAboutDialog = false },
-            confirmButton = {
-                androidx.compose.material3.TextButton(onClick = { showAboutDialog = false }) {
-                    androidx.compose.material3.Text("知道了")
-                }
-            },
-            title = { androidx.compose.material3.Text("关于 PiliNara") },
-            text = {
-                Column(Modifier.verticalScroll(rememberScrollState())) {
-                    androidx.compose.material3.Text(
-                        "PiliNara —— B站第三方客户端\n\n" +
-                            "架构：Kotlin + Jetpack Compose + Rust native (ARM64)\n" +
-                            "网络：Ktor + Wbi 签名\n" +
-                            "存储：Room + DataStore\n" +
-                            "播放：Media3 ExoPlayer\n\n" +
-                            "本项目为 Flutter 原版的功能移植实现。"
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    // 审核296：真实版本号 + 检查更新（GitHub Releases）
-                    val context = androidx.compose.ui.platform.LocalContext.current
-                    val pkgVersion = remember(context) {
-                        runCatching {
-                            context.packageManager
-                                .getPackageInfo(context.packageName, 0).versionName
-                        }.getOrNull() ?: "unknown"
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            "当前版本 v$pkgVersion",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        androidx.compose.material3.TextButton(
-                            onClick = { viewModel.checkUpdate() },
-                            enabled = !state.checkingUpdate
-                        ) {
-                            Text(if (state.checkingUpdate) "检查中…" else "检查更新")
-                        }
-                    }
-                    state.updateCheckResult?.let { msg ->
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            msg,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-        )
-    }
-
-    // Kazumi：渲染器选择弹窗
-    if (showRendererDialog) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { showRendererDialog = false },
-            title = { Text("视频渲染器") },
-            text = {
-                Column {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                viewModel.setRenderer(0)
-                                showRendererDialog = false
-                            }
-                            .padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        androidx.compose.material3.RadioButton(
-                            selected = state.renderer == 0,
-                            onClick = { viewModel.setRenderer(0); showRendererDialog = false }
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Column {
-                            Text("SurfaceView", style = MaterialTheme.typography.bodyMedium)
-                            Text(
-                                "性能最佳、功耗最低（默认）",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                viewModel.setRenderer(1)
-                                showRendererDialog = false
-                            }
-                            .padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        androidx.compose.material3.RadioButton(
-                            selected = state.renderer == 1,
-                            onClick = { viewModel.setRenderer(1); showRendererDialog = false }
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Column {
-                            Text("TextureView", style = MaterialTheme.typography.bodyMedium)
-                            Text(
-                                "支持圆角/动画合成，性能略低",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showRendererDialog = false }) { Text("取消") }
-            }
-        )
-    }
-
-    // 审核313：倍速档位编辑（勾选式，含自定义输入）
-    if (showSpeedListDialog) {
-        val current = state.playbackSpeedList
-        // 常用档位池：用户勾选 + 自定义输入
-        val pool = remember {
-            listOf(0.5f, 0.75f, 0.9f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 2.5f, 3.0f, 4.0f, 5.0f)
-        }
-        val checked = remember { mutableStateOf(current.toSet()) }
-        var customInput by remember { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { showSpeedListDialog = false },
-            title = { Text("倍速档位") },
-            text = {
-                Column(Modifier.verticalScroll(rememberScrollState())) {
-                    Text(
-                        "勾选要出现在播放器倍速菜单里的档位（1.0x 始终保留）",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    // 档位池：固定 3 行×4 列排布（不用实验性 FlowRow）
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        pool.chunked(4).forEach { rowItems ->
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                rowItems.forEach { v ->
-                                    val on = v in checked.value
-                                    androidx.compose.material3.FilterChip(
-                                        selected = on,
-                                        onClick = {
-                                            checked.value = if (on) checked.value - v
-                                            else checked.value + v
-                                        },
-                                        label = { Text("${formatSpeedLabel(v)}x") },
-                                        modifier = Modifier.weight(1f),
-                                    )
-                                }
-                                // 补齐不足 4 的空位，保持对齐
-                                repeat(4 - rowItems.size) {
-                                    Spacer(Modifier.weight(1f))
-                                }
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    // 自定义输入
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedTextField(
-                            value = customInput,
-                            onValueChange = { customInput = it },
-                            label = { Text("自定义（如 1.35）") },
-                            singleLine = true,
-                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
-                            ),
-                            modifier = Modifier.weight(1f),
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        TextButton(
-                            onClick = {
-                                customInput.toFloatOrNull()?.let { v ->
-                                    if (v in com.example.piliai.utils.StorageManager.SPEED_MIN..
-                                        com.example.piliai.utils.StorageManager.SPEED_MAX
-                                    ) {
-                                        checked.value = checked.value + v
-                                        customInput = ""
-                                    }
-                                }
-                            }
-                        ) { Text("添加") }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.setPlaybackSpeedList(checked.value.toList())
-                    showSpeedListDialog = false
-                }) { Text("确定") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showSpeedListDialog = false }) { Text("取消") }
-            },
-        )
-    }
-
-    if (showBackendDialog) {
-        val gpuNextReady = com.example.piliai.playback.backend.GpuNextBackend.isAvailable()
-        AlertDialog(
-            onDismissRequest = { showBackendDialog = false },
-            title = { Text(stringResource(R.string.playback_backend_title)) },
-            text = {
-                Column {
-                    listOf(
-                        "media3" to R.string.playback_backend_media3,
-                        "gpu-next" to if (gpuNextReady)
-                            R.string.playback_backend_gpu_next_ready
-                        else R.string.playback_backend_gpu_next_unavailable
-                    ).forEach { (id, label) ->
-                        val enabled = id == "media3" || gpuNextReady
-                        Row(
-                            Modifier.fillMaxWidth().clickable(enabled = enabled) {
-                                viewModel.setPlaybackBackend(id)
-                                showBackendDialog = false
-                            }.padding(vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = com.example.piliai.playback.backend.PlaybackBackends
-                                    .resolve(state.playbackBackend) == id,
-                                enabled = enabled,
-                                onClick = {
-                                    viewModel.setPlaybackBackend(id)
-                                    showBackendDialog = false
-                                }
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(label), style = MaterialTheme.typography.bodyMedium)
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showBackendDialog = false }) {
-                    Text(stringResource(R.string.playback_settings_cancel))
-                }
-            }
-        )
-    }
-
-    // 审核279：首页数据源选择（自动/推荐流/热门/入站必刷/每周必看）
-    if (showFeedSourceDialog) {
-        AlertDialog(
-            onDismissRequest = { showFeedSourceDialog = false },
-            title = { Text("首页数据源") },
-            text = {
-                Column {
-                    com.example.piliai.data.repository.HomeRepository.PREF_VALUES
-                        .forEach { pref ->
-                            Row(
-                                Modifier.fillMaxWidth().clickable {
-                                    viewModel.setHomeFeedSource(pref)
-                                    showFeedSourceDialog = false
-                                }.padding(vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                RadioButton(
-                                    selected = state.homeFeedSource == pref,
-                                    onClick = {
-                                        viewModel.setHomeFeedSource(pref)
-                                        showFeedSourceDialog = false
-                                    }
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Column {
-                                    Text(
-                                        com.example.piliai.data.repository.HomeRepository
-                                            .prefLabel(pref),
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                    if (pref != com.example.piliai.data.repository
-                                            .HomeRepository.PREF_AUTO
-                                    ) {
-                                        Text(
-                                            "失败时不自动切换",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showFeedSourceDialog = false }) {
-                    Text(stringResource(R.string.playback_settings_cancel))
-                }
-            }
-        )
-    }
-
-    if (showCompletionDialog) {
-        AlertDialog(
-            onDismissRequest = { showCompletionDialog = false },
-            title = { Text(stringResource(R.string.playback_completion_title)) },
-            text = {
-                Column {
-                    listOf(
-                        "next" to R.string.playback_completion_next,
-                        "repeat" to R.string.playback_completion_repeat,
-                        "stop" to R.string.playback_completion_stop
-                    ).forEach { (id, label) ->
-                        Row(
-                            Modifier.fillMaxWidth().clickable {
-                                viewModel.setCompletionAction(id)
-                                showCompletionDialog = false
-                            }.padding(vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = state.completionAction == id,
-                                onClick = {
-                                    viewModel.setCompletionAction(id)
-                                    showCompletionDialog = false
-                                }
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(label), style = MaterialTheme.typography.bodyMedium)
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showCompletionDialog = false }) {
-                    Text(stringResource(R.string.playback_settings_cancel))
-                }
-            }
-        )
-    }
-
-    // 缓冲时长选择弹窗（移植自 piliplus 缓冲策略）
-    if (showBufferDialog) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { showBufferDialog = false },
-            title = { Text("缓冲时长") },
-            text = {
-                Column {
-                    listOf(8_000 to "8 秒（省流量，弱网易卡）",
-                           16_000 to "16 秒（推荐，默认）",
-                           32_000 to "32 秒（强网更流畅）").forEach { (ms, label) ->
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    viewModel.setBufferDuration(ms)
-                                    showBufferDialog = false
-                                }
-                                .padding(vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            androidx.compose.material3.RadioButton(
-                                selected = state.bufferDurationMs == ms,
-                                onClick = { viewModel.setBufferDuration(ms); showBufferDialog = false }
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(label, style = MaterialTheme.typography.bodyMedium)
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showBufferDialog = false }) { Text("取消") }
-            }
-        )
-    }
-
-    if (showHwDecodeDialog) {
-        AlertDialog(
-            onDismissRequest = { showHwDecodeDialog = false },
-            title = { Text(stringResource(R.string.playback_decoder_title)) },
-            text = {
-                Column {
-                    listOf(
-                        "auto" to R.string.playback_decoder_auto,
-                        "hardware" to R.string.playback_decoder_prefer_hardware,
-                        "software" to R.string.playback_decoder_prefer_software
-                    ).forEach { (mode, label) ->
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    viewModel.setHardwareDecodeMode(mode)
-                                    showHwDecodeDialog = false
-                                }
-                                .padding(vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            androidx.compose.material3.RadioButton(
-                                selected = state.hardwareDecodeMode == mode,
-                                onClick = { viewModel.setHardwareDecodeMode(mode); showHwDecodeDialog = false }
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(label), style = MaterialTheme.typography.bodyMedium)
-                        }
-                    }
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        stringResource(R.string.playback_decoder_restart_hint),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showHwDecodeDialog = false }) { Text("取消") }
-            }
-        )
-    }
-
-    if (showSkipDialog) {
-        var intro by remember(state.skipIntroSec) { mutableIntStateOf(state.skipIntroSec) }
-        var outro by remember(state.skipOutroSec) { mutableIntStateOf(state.skipOutroSec) }
-        AlertDialog(
-            onDismissRequest = { showSkipDialog = false },
-            title = { Text("跳过片头片尾") },
-            text = {
-                Column {
-                    Text("片头 ${intro} 秒", style = MaterialTheme.typography.bodyMedium)
-                    androidx.compose.material3.Slider(
-                        value = intro.toFloat(),
-                        onValueChange = { intro = it.toInt() },
-                        valueRange = 0f..90f,
-                        steps = 17
-                    )
-                    Text("片尾 ${outro} 秒", style = MaterialTheme.typography.bodyMedium)
-                    androidx.compose.material3.Slider(
-                        value = outro.toFloat(),
-                        onValueChange = { outro = it.toInt() },
-                        valueRange = 0f..90f,
-                        steps = 17
-                    )
-                    Text(
-                        "0 秒表示不跳。只在每集开头和结尾各跳一次，拖回去不会反复跳。",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.setSkipIntroSec(intro)
-                    viewModel.setSkipOutroSec(outro)
-                    showSkipDialog = false
-                }) { Text("保存") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showSkipDialog = false }) { Text("取消") }
-            }
-        )
-    }
+    // 审核314：弹窗统一在 SettingsDialogs.kt（本文件只保留分区与 Scaffold）
+    SettingsDialogs(state = state, viewModel = viewModel, dialogs = dialogs)
 }
 
-private fun bufferLabel(ms: Int) = when (ms) {
+internal fun bufferLabel(ms: Int) = when (ms) {
     8_000 -> "8 秒"; 32_000 -> "32 秒"; else -> "16 秒（默认）"
 }
 
 /** 审核313：倍速档位标签（1 →「1」，0.75 →「0.75」；调用方补 x） */
-private fun formatSpeedLabel(v: Float): String {
+internal fun formatSpeedLabel(v: Float): String {
     val r = Math.round(v * 100f) / 100f
     return if (r % 1.0f == 0.0f) r.toInt().toString() else r.toString()
 }
 
-private fun qualityLabel(v: String) = when (v) {
+internal fun qualityLabel(v: String) = when (v) {
     "1080p" -> "1080P 高清"; "720p" -> "720P 高清"; "480p" -> "480P 清晰"; else -> "自动"
 }
 
-private fun themeLabel(v: String) = when (v) {
+internal fun themeLabel(v: String) = when (v) {
     "light" -> "浅色"; "dark" -> "深色"; else -> "跟随系统"
 }
