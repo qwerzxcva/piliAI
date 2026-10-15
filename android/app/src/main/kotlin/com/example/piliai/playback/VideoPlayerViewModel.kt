@@ -90,12 +90,10 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         val isBuffering: Boolean = false,
         val error: String? = null,
         val position: Int = 0,
-        val isLiked: Boolean = false,
-        val isFavorited: Boolean = false,
-        val coinCount: Int = 0,
-        val likeCount: Long = 0L,
-        val coinCountTotal: Long = 0L,
-        val favCount: Long = 0L,
+        // 审核312：isLiked/isFavorited/coinCount/likeCount/coinCountTotal/favCount
+        // 已移到 EngagementController（本类顶部同名 StateFlow）。
+        // 原来是死字段——互动逻辑搬走后没人给它们赋值，UI 读到的永远是
+        // 初始值（点赞后计数不动）。删掉避免双状态源。
         // 批次A：播放器补全
         val currentPart: Int = 1,
         val currentPartTitle: String = "",
@@ -1383,9 +1381,6 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     var videoTags: List<String> = emptyList()
     var videoPubdate: Long = 0L
         private set
-    // 批次L20：收藏夹选择
-    var favFolders: List<Triple<Long, String, Int>> = emptyList()
-        private set
     // 批次L22：AI 总结
     var aiSummary: String = ""
         private set
@@ -1451,32 +1446,28 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
      * 登录态下加载互动状态：已赞/已投/已藏（archive/relation）+ 默认收藏夹 id + stat 计数。
      * 失败静默（未登录时 relation 会 -101，直接跳过）。
      */
-    private fun loadEngagement(aid: Long, bvid: String) {
-        viewModelScope.launch {
-            if (!AccountSession.isLogin) return@launch
-            // 1) 交互状态
-            BiliApiClient().getVideoRelation(aid).onSuccess { (liked, coined, fav) ->
-                _state.value = _state.value.copy(
-                    isLiked = liked,
-                    coinCount = if (coined) 1 else 0,
-                    isFavorited = fav
-                )
-            }
-            // 2) 默认收藏夹（第一个）
-            runCatching {
-                defaultFavFolderId = BiliApiClient().getMyFavFolders().getOrNull()
-                    ?.firstOrNull()?.id ?: 0L
-            }
-            // 3) 真实计数（点赞/投币/收藏数）
-            runCatching {
-                repo.getVideoDetail(bvid).getOrNull()?.data?.stat?.let { s ->
-                    _state.value = _state.value.copy(
-                        likeCount = s.like, coinCountTotal = s.coin, favCount = s.favorite
-                    )
-                }
-            }
-        }
-    }
+
+    /**
+     * 审核312：互动控制（从本类提取）。点赞/投币/收藏/稍后再看/历史上报
+     * 都归它；本类只把状态透出去 + 转发错误与 toast。
+     */
+    private val engagement = EngagementController(
+        scope = viewModelScope,
+        aidProvider = { aid },
+        onError = { setError(it) },
+        onToast = { showToast(it) },
+    )
+
+    val isLiked: StateFlow<Boolean> = engagement.isLiked
+    val isFavorited: StateFlow<Boolean> = engagement.isFavorited
+    val coinCount: StateFlow<Int> = engagement.coinCount
+    val likeCount: StateFlow<Long> = engagement.likeCount
+    val coinCountTotal: StateFlow<Long> = engagement.coinCountTotal
+    val favCount: StateFlow<Long> = engagement.favCount
+    val favFolders: StateFlow<List<Triple<Long, String, Int>>> = engagement.favFolders
+
+    /** 加载互动状态（普通视频/番剧/离线三条链路共用） */
+    private fun loadEngagement(aid: Long, bvid: String) = engagement.load(aid, bvid)
 
     /** 发送视频弹幕（批次L5：需登录，插入当前进度点） */
     fun sendDanmaku(text: String, mode: Int = 1, color: Int = 16777215) {
@@ -1511,148 +1502,16 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         }
     }
 
-    /**
-     * 加入稍后再看（需登录）。
-     *
-     * 审核262：成功提示改走 toast。原来用 setError 报「已加入稍而复看」，
-     * 而 setError 会触发全屏红色错误覆盖层并隐藏播放控制条 ——
-     * 用户加个稍后再看就像播放器崩了（与 notifyShared 同一个 bug 模式）。
-     */
-    fun addToWatchLater() {
-        viewModelScope.launch {
-            if (!AccountSession.isLogin) { setError("请先登录"); return@launch }
-            ensureAid()
-            if (aid == 0L) { setError("无法获取视频 aid"); return@launch }
-            BiliApiClient().addToView(aid)
-                .onSuccess { ok ->
-                    if (ok) showToast("已加入稍后再看") else setError("添加失败")
-                }
-                .onFailure { setError("添加失败: ${it.message}") }
-        }
-    }
-
-    /** 点赞（需登录） */
-    fun toggleLike() {        viewModelScope.launch {
-            if (!AccountSession.isLogin) {
-                setError("请先登录后再点赞")
-                return@launch
-            }
-            ensureAid()
-            if (aid == 0L) { setError("无法获取视频 aid"); return@launch }
-            val liked = _state.value.isLiked
-            repo.likeVideo(aid, if (liked) 2 else 1)
-                .onSuccess { ok ->
-                    if (ok) _state.value = _state.value.copy(
-                        isLiked = !liked,
-                        likeCount = _state.value.likeCount + if (liked) -1 else 1
-                    )
-                    else setError("点赞失败（接口返回非 0）")
-                }
-                .onFailure { setError("点赞失败: ${it.message}") }
-        }
-    }
-
-    /** 投币（需登录，可指定枚数 1/2） */
-    fun coinOnce(multiply: Int = 1) {
-        viewModelScope.launch {
-            if (!AccountSession.isLogin) {
-                setError("请先登录后再投币")
-                return@launch
-            }
-            ensureAid()
-            if (aid == 0L) { setError("无法获取视频 aid"); return@launch }
-            repo.coinVideo(aid, multiply)
-                .onSuccess { ok ->
-                    if (ok) _state.value = _state.value.copy(
-                        coinCount = _state.value.coinCount + multiply,
-                        coinCountTotal = _state.value.coinCountTotal + multiply
-                    )
-                    else setError("投币失败（余额不足或已投满）")
-                }
-                .onFailure { setError("投币失败: ${it.message}") }
-        }
-    }
-
-    /** 收藏（需登录，使用用户默认收藏夹） */
-    /** 批次L20：加载收藏夹列表供选择 */
-    fun loadFavFolders() {
-        viewModelScope.launch {
-            runCatching {
-                BiliApiClient().getMyFavFolders().getOrNull().orEmpty()
-            }.onSuccess { folders ->
-                favFolders = folders.mapNotNull { f ->
-                    f.id.takeIf { it > 0 }?.let { Triple(it, f.title, f.media_count) }
-                }
-            }
-        }
-    }
-
-    /**
-     * 批次L20：收藏到指定收藏夹。
-     *
-     * 审核295（真 bug）：原来 deal 用全局 isFavorited 判断——视频只要在**任意**
-     * 收藏夹里，isFavorited 就是 true，于是用户选另一个收藏夹添加时会走
-     * deal=2（取消收藏），结果什么都加不进去。
-     *
-     * 收藏夹选择器的语义是「添加到所选收藏夹」，固定 deal=1；取消收藏请用
-     * toggleFavorite（默认收藏夹）。要支持「从指定收藏夹移除」需要先查该视频
-     * 在各收藏夹的存在状态，B 站没有便捷接口，暂不实现。
-     */
-    fun favoriteTo(mediaId: Long) {
-        viewModelScope.launch {
-            if (!AccountSession.isLogin) { setError("请先登录后再收藏"); return@launch }
-            ensureAid()
-            if (aid == 0L) { setError("无法获取视频 aid"); return@launch }
-            repo.favoriteVideo(aid, mediaId, 1)
-                .onSuccess { ok ->
-                    if (ok) {
-                        _state.value = _state.value.copy(isFavorited = true)
-                        showToast("已收藏到所选收藏夹")
-                    } else {
-                        setError("收藏失败（可能已在该收藏夹中）")
-                    }
-                }
-                .onFailure { setError("收藏失败: ${it.message}") }
-        }
-    }
-
-    fun toggleFavorite() {
-        viewModelScope.launch {
-            if (!AccountSession.isLogin) {
-                setError("请先登录后再收藏")
-                return@launch
-            }
-            ensureAid()
-            if (aid == 0L) { setError("无法获取视频 aid"); return@launch }
-            val fav = _state.value.isFavorited
-            var mediaId = defaultFavFolderId
-            // 审核294：原来 mediaId 还是 0 就直接报「未获取到默认收藏夹」——但
-            // loadEngagement 里取收藏夹是异步的，用户进播放器立刻点收藏就会撞上
-            // 这个竞态。这里补一次主动拉取（已缓存则秒回），拉不到才报错。
-            if (mediaId == 0L && !fav) {
-                mediaId = BiliApiClient().getMyFavFolders().getOrNull()
-                    ?.firstOrNull()?.id ?: 0L
-                defaultFavFolderId = mediaId
-            }
-            if (mediaId == 0L && !fav) { setError("未获取到默认收藏夹，请到收藏页创建"); return@launch }
-            repo.favoriteVideo(aid, mediaId, if (fav) 2 else 1)
-                .onSuccess { ok ->
-                    if (ok) _state.value = _state.value.copy(
-                        isFavorited = !fav,
-                        favCount = _state.value.favCount + if (fav) -1 else 1
-                    )
-                    else setError("收藏失败（接口返回非 0）")
-                }
-                .onFailure { setError("收藏失败: ${it.message}") }
-        }
-    }
+    fun loadFavFolders() = engagement.loadFavFolders()
+    fun favoriteTo(mediaId: Long) = engagement.favoriteTo(mediaId)
+    fun toggleFavorite() = engagement.toggleFavorite()
+    fun toggleLike() = engagement.toggleLike()
+    fun coinOnce(multiply: Int = 1) = engagement.coinOnce(multiply)
+    fun addToWatchLater() = engagement.addToWatchLater()
 
     /** 上报历史进度（播放中每 15 秒调一次） */
     fun reportProgress() {
-        viewModelScope.launch {
-            if (!AccountSession.isLogin || aid == 0L || effectiveCid == 0L) return@launch
-            repo.reportHistory(aid, effectiveCid, _state.value.currentTime / 1000)
-        }
+        engagement.reportProgress(aid, effectiveCid, _state.value.currentTime / 1000)
     }
 
     private suspend fun ensureAid() {
@@ -1935,7 +1794,8 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
             return
         }
         // 未点赞时先点赞，避免重复点赞导致取消。
-        if (!_state.value.isLiked) toggleLike()
+        // 审核312：isLiked 改读 EngagementController（PlayerState 的同名字段已删）
+        if (!engagement.isLiked.value) toggleLike()
         coinOnce(1)
         toggleFavorite()
     }

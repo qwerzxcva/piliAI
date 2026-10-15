@@ -71,6 +71,14 @@ fun VideoPlayerScreen(
     )
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    // 审核312：互动状态改从 EngagementController 的 StateFlow 读。
+    // 原来读 PlayerState 里的同名字段——互动逻辑搬到 Controller 后那些字段
+    // 已无人赋值，UI 读到的永远是初始值（点赞后计数不动）。
+    val isLiked by viewModel.isLiked.collectAsStateWithLifecycle()
+    val isFavorited by viewModel.isFavorited.collectAsStateWithLifecycle()
+    val likeCount by viewModel.likeCount.collectAsStateWithLifecycle()
+    val coinCountTotal by viewModel.coinCountTotal.collectAsStateWithLifecycle()
+    val favCount by viewModel.favCount.collectAsStateWithLifecycle()
     // 审核267：取帧按钮的协程作用域
     val captureScope = rememberCoroutineScope()
     LaunchedEffect(viewModel) {
@@ -697,27 +705,27 @@ fun VideoPlayerScreen(
                     EngagementButton(
                         icon = Icons.Filled.ThumbUp,
                         label = "点赞",
-                        count = formatCount(state.likeCount),
+                        count = formatCount(likeCount),
                         onClick = { viewModel.toggleLike() },
-                        tintColor = if (state.isLiked) Color(0xFF00A1D6) else Color.White,
+                        tintColor = if (isLiked) Color(0xFF00A1D6) else Color.White,
                         onLongClick = { viewModel.likeCoinFav() }
                     )
                     EngagementButton(
                         icon = Icons.Default.MonetizationOn,
                         label = "投币",
-                        count = formatCount(state.coinCountTotal),
+                        count = formatCount(coinCountTotal),
                         onClick = { showCoinSheet = true },
                         tintColor = Color.White
                     )
                     EngagementButton(
-                        icon = if (state.isFavorited) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                        icon = if (isFavorited) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                         label = "收藏",
-                        count = formatCount(state.favCount),
+                        count = formatCount(favCount),
                         onClick = {
                             viewModel.loadFavFolders()
                             showFavSheet = true
                         },
-                        tintColor = if (state.isFavorited) Color(0xFFFF6B9D) else Color.White
+                        tintColor = if (isFavorited) Color(0xFFFF6B9D) else Color.White
                     )
                     EngagementButton(
                         icon = Icons.AutoMirrored.Filled.Comment,
@@ -1001,11 +1009,13 @@ fun VideoPlayerScreen(
 
         // 收藏夹选择面板（批次L20）
         if (showFavSheet) {
+            // 审核312：favFolders 改为 EngagementController 的 StateFlow
+            val favFolders by viewModel.favFolders.collectAsStateWithLifecycle()
             ModalBottomSheet(onDismissRequest = { showFavSheet = false }) {
                 Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
                     Text("选择收藏夹", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(8.dp))
-                    viewModel.favFolders.forEach { f ->
+                    favFolders.forEach { f ->
                         ListItem(
                             headlineContent = { Text(f.second) },
                             supportingContent = { Text("${f.third} 个内容") },
@@ -1018,7 +1028,7 @@ fun VideoPlayerScreen(
                             }
                         )
                     }
-                    if (viewModel.favFolders.isEmpty()) {
+                    if (favFolders.isEmpty()) {
                         Text("未获取到收藏夹（需登录）", style = MaterialTheme.typography.bodySmall)
                     }
                     Spacer(Modifier.height(24.dp))
