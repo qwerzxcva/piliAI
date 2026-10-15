@@ -1337,17 +1337,18 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     
     override fun onVideoSizeChanged(width: Int, height: Int) {
         if (width <= 0 || height <= 0) return
-        val effects = com.example.piliai.piliplus.Media3SuperResolutionApplier
-            .resolve(width, height).orEmpty()
-        // 审核轮214：HDR 内容检测（Media3 特定）
         (backend as? com.example.piliai.playback.backend.Media3Backend)?.let { media3 ->
-            media3.nativePlayer()?.videoFormat?.let { fmt ->
-                if (com.example.piliai.utils.RendererPrefs.hdrToneMappingEnabled &&
-                    com.example.piliai.piliplus.isHdrContent(fmt.colorInfo)
-                ) {
-                    android.util.Log.i("PiliPlayer", "HDR 内容（tone-mapping 待 Media3 1.5+）")
-                }
-            }
+            // 审核318：HDR 检测真正接入 effect 链。此前这里只有一句 Log.i
+            // （「tone-mapping 待 Media3 1.5+」）——设置页的开关点下去毫无效果。
+            // 现在 isHdrContent 命中且开关打开时，Media3SuperResolutionApplier
+            // 会在 effect 列表里追加 RgbMatrix 高光压缩矩阵。
+            val isHdr = media3.nativePlayer()?.videoFormat?.let { fmt ->
+                com.example.piliai.piliplus.isHdrContent(fmt.colorInfo)
+            } == true
+            com.example.piliai.piliplus.Media3SuperResolutionApplier.hdrToneMappingEnabled =
+                com.example.piliai.utils.RendererPrefs.hdrToneMappingEnabled && isHdr
+            val effects = com.example.piliai.piliplus.Media3SuperResolutionApplier
+                .resolve(width, height).orEmpty()
             media3.setVideoEffects(effects)
         }
     }
