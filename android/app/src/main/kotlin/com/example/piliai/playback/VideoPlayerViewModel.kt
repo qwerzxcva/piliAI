@@ -434,6 +434,25 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
                             if (effectiveCid > 0L) loadDanmakuFor(effectiveCid)
                         }
                         startPlayback(playback.videoPath, playback.audioPath.takeIf { it.isNotEmpty() })
+                        // 审核310：离线播放补齐能力加载。原来只有弹幕——
+                        // 离线看时没 CC 字幕、进度条没有缩略图预览、点赞收藏
+                        // 状态与计数不同步（与在线路径不对称）。
+                        val offlineCid = cid.takeIf { it > 0L }
+                            ?: runCatching {
+                                com.example.piliai.database.PiliNaraDatabase
+                                    .getDatabase(appContext).downloadItemDao()
+                                    .getByBvid(bvid)?.cid
+                            }.getOrNull() ?: 0L
+                        if (offlineCid > 0L) {
+                            loadSubtitles(bvid, offlineCid)
+                            loadVideoShot(bvid, offlineCid)
+                        }
+                        runCatching {
+                            VideoRepository(BiliApiClient()).getVideoDetail(bvid).getOrNull()?.data
+                        }.getOrNull()?.let { d ->
+                            aid = d.aid
+                            if (aid > 0L) loadEngagement(aid, bvid)
+                        }
                     } else {
                         setError("离线缓存不存在或未完成")
                     }
