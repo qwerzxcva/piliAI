@@ -61,6 +61,24 @@ object DownloadNotifier {
             .build()
     }
 
+    /**
+     * 审核318：后台播放前台通知。
+     *
+     * 与下载进度共用渠道但语义不同（一个在下载、一个在播放），因此标题前缀
+     * 区分。系统媒体控制的完整 UI 由 MediaSession 提供（锁屏/蓝牙/车载），
+     * 这里只保证前台服务有合法通知。
+     */
+    fun playback(context: Context, title: String = "正在播放"): Notification {
+        ensureChannel(context)
+        return NotificationCompat.Builder(context, CHANNEL_ID)
+            .setContentTitle(title)
+            .setSmallIcon(android.R.drawable.stat_sys_download_done)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+    }
+
     /** 取消通知（下载结束/失败时清理前台态） */
     fun cancel(context: Context, notificationId: Int) {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return

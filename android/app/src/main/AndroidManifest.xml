@@ -105,6 +105,17 @@
             </intent-filter>
         </activity>
 
+        <!-- 审核318：后台播放前台服务。FOREGROUND_SERVICE_MEDIA_PLAYBACK
+             权限早已声明，此前没有任何 Service 使用它。 -->
+        <service
+            android:name=".playback.PlaybackService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+            </intent-filter>
+        </service>
+
         <!-- Document Provider for downloads -->
         <provider
             android:name=".BiliDocumentsProvider"

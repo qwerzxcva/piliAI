@@ -198,6 +198,14 @@ class StoryPlaybackViewModel(
         if (existing != null) return existing
         val created = Media3Backend(appContext(), listener)
         backend = created
+        // 审核318：注册到 PlaybackRegistry，系统媒体控制才能控制竖屏流播放。
+        // 标题取 state 里当前播放项——ensureBackend 由 play() 调起，
+        // 那时 playingBvid 已更新为即将播放的视频。
+        created.nativePlayer()?.let {
+            val title = _state.value.items.firstOrNull { v -> v.bvid == _state.value.playingBvid }
+                ?.title.orEmpty()
+            com.example.piliai.playback.PlaybackRegistry.register(appContext(), it, title)
+        }
         return created
     }
 
@@ -233,6 +241,8 @@ class StoryPlaybackViewModel(
     fun togglePlayPause() {
         val b = backend ?: return
         if (b.isPlaying()) b.pause() else b.play()
+        // 审核318：同步播放态到 MediaSession
+        com.example.piliai.playback.PlaybackRegistry.refreshPlaybackState()
     }
 
     /** 应用退到后台：暂停（与详情页 pauseOnMinimize 语义一致，省电 + 不占音频焦点） */
@@ -243,6 +253,8 @@ class StoryPlaybackViewModel(
     override fun onCleared() {
         clockJob?.cancel()
         loadJob?.cancel()
+        // 审核318：先反注册再 release（与详情页播放器同一顺序）
+        com.example.piliai.playback.PlaybackRegistry.unregister()
         backend?.release()
         backend = null
     }

@@ -962,6 +962,11 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
             "gpu-next" -> com.example.piliai.playback.backend.GpuNextBackend(appContext, this)
             else -> com.example.piliai.playback.backend.Media3Backend(appContext, this)
         }
+        // 审核318：向 PlaybackRegistry 注册，让 PlaybackService 的 MediaSession
+        // 能拿到本 player，系统媒体控制（锁屏/蓝牙/车载）才能控制播放。
+        // 只对 Media3 后端注册——GpuNextBackend 不实现 Player 接口。
+        (backend as? com.example.piliai.playback.backend.Media3Backend)?.nativePlayer()
+            ?.let { com.example.piliai.playback.PlaybackRegistry.register(appContext, it, videoTitle) }
     }
     
     /** 审核267：当前播放地址的 Uri（无内容时返回 null） */
@@ -1101,6 +1106,8 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         viewModelScope.launch {
             backend?.play()
             _state.value = _state.value.copy(isPlaying = true)
+            // 审核318：同步播放态到 MediaSession，锁屏/通知栏的状态才准确
+            com.example.piliai.playback.PlaybackRegistry.refreshPlaybackState()
         }
     }
     
@@ -1108,6 +1115,7 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         viewModelScope.launch {
             backend?.pause()
             _state.value = _state.value.copy(isPlaying = false)
+            com.example.piliai.playback.PlaybackRegistry.refreshPlaybackState()
         }
     }
     
@@ -1357,6 +1365,9 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         // 审核311：字幕与弹幕的协程改由各自 Controller 的 scope 托管，
         // 不再需要在 onCleared 逐个 cancel
         try {
+            // 审核318：先反注册再 release——顺序反了会让 MediaSession 在
+            // player 已 release 后仍持有它，系统媒体控制回调打到死 player 上。
+            com.example.piliai.playback.PlaybackRegistry.unregister()
             backend?.release()
         } finally {
             backend = null
