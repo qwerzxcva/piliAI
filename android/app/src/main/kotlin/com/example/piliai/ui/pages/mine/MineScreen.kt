@@ -72,6 +72,8 @@ fun MineScreen(
     // 审核297：我的关注入口。此前只有从 UP 主空间才能进关注列表，
     // 用户想看自己关注了谁没有直接入口。
     onFollowsClick: (Long) -> Unit = {},
+    // 审核319：听视频模式入口（收藏夹作播放列表 + CC 字幕歌词）
+    onListenVideoClick: (Long) -> Unit = {},
     viewModel: MineViewModel = viewModel()
 ) {
     val nav by viewModel.nav.collectAsStateWithLifecycle()
@@ -121,6 +123,8 @@ fun MineScreen(
                     onSubscribeClick = onSubscribeClick,
                     // 审核297：透传「我的关注」
                     onFollowsClick = onFollowsClick,
+                    // 审核319：透传「听视频」
+                    onListenVideoClick = onListenVideoClick,
                     onLogout = { viewModel.logout() }
                 )
             }
@@ -200,6 +204,8 @@ fun UserContent(
     onSubscribeClick: () -> Unit = {},
     // 审核297：我的关注入口（此前只能从 UP 主空间绕进去）
     onFollowsClick: (Long) -> Unit = {},
+    // 审核319：听视频模式入口
+    onListenVideoClick: (Long) -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
     LazyColumn(
@@ -229,6 +235,10 @@ fun UserContent(
                     }))
                     MenuItemRow(MenuItemData("追番中心", Icons.Default.PlayCircle, onBangumiClick))
                     MenuItemRow(MenuItemData("我的订阅", Icons.Default.Subscriptions, onSubscribeClick))
+                    // 审核319：听视频模式入口（收藏夹作播放列表 + CC 字幕歌词）
+                    MenuItemRow(MenuItemData("听视频", Icons.Default.MusicNote, {
+                        nav?.mid?.let { onListenVideoClick(it) }
+                    }))
                 }
             }
         }

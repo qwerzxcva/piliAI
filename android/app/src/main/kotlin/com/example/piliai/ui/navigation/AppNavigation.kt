@@ -80,6 +80,11 @@ sealed class Screen(val route: String) {
     }
     object History : Screen("history")
     object Story : Screen("story")  // 审核轮207：竖屏沉浸式推荐流（BiliPai story 移植）
+    // 审核319：听视频模式（BiliPai feature/audio 移植）。收藏夹即播放列表，
+    // 歌词用 B 站 CC 字幕轨。mid 由调用方传入（收藏夹接口需要 up_mid）。
+    object ListenVideo : Screen("listen_video?mid={mid}") {
+        fun createRoute(mid: Long) = "listen_video?mid=$mid"
+    }
     object TodayWatch : Screen("today_watch")  // 今日推荐独立页（today-watch 移植）
     object Settings : Screen("settings")
     object VideoPlayer : Screen("video/{bvid}?cid={cid}&local={local}") {
@@ -364,6 +369,10 @@ fun AppNavigation() {
                 onFollowsClick = { mid ->
                     navController.navigate(Screen.FollowList.createRoute(mid, false))
                 },
+                // 审核319：听视频模式（收藏夹作播放列表 + CC 字幕歌词）
+                onListenVideoClick = { mid ->
+                    navController.navigate(Screen.ListenVideo.createRoute(mid))
+                },
                 onDownloadsClick = { navController.navigate(Screen.Downloads.route) },
                 onSubscribeClick = { navController.navigate(Screen.Subscribe.route) }
             )
@@ -412,6 +421,17 @@ fun AppNavigation() {
                 onUserClick = { mid ->
                     navController.navigate(Screen.Member.createRoute(mid))
                 },
+            )
+        }
+        // 审核319：听视频模式。mid 从 MineScreen 的登录资料传入。
+        composable(
+            route = Screen.ListenVideo.route,
+            arguments = listOf(navArgument("mid") { type = NavType.LongType; defaultValue = 0L }),
+        ) { backStackEntry ->
+            val mid = backStackEntry.arguments?.getLong("mid") ?: 0L
+            com.example.piliai.ui.audio.ListenVideoScreen(
+                mid = mid,
+                onBack = { navController.popBackStack() },
             )
         }
         composable(Screen.TodayWatch.route) {

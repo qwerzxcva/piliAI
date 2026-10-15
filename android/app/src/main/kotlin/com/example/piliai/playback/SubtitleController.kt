@@ -39,6 +39,17 @@ class SubtitleController(
     private val _current = MutableStateFlow("")
     val current: StateFlow<String> = _current.asStateFlow()
 
+    // 审核319： cues 全量暴露 + 当前行索引，供听视频模式的歌词视图使用。
+    // 此前只暴露当前一行文本（给播放器字幕条用）；歌词视图需要整条时间轴
+    // 才能做滚动高亮，因此补这两个 StateFlow。cueList 是私有字段 cues 的
+    // 快照，外部只能读、不能改。
+    // 命名说明：不能叫 cues——类里已有同名私有字段 var cues，会冲突。
+    private val _cueList = MutableStateFlow<List<com.example.piliai.data.model.SubtitleCue>>(emptyList())
+    val cueList: StateFlow<List<com.example.piliai.data.model.SubtitleCue>> = _cueList.asStateFlow()
+
+    private val _currentIndex = MutableStateFlow(-1)
+    val currentIndex: StateFlow<Int> = _currentIndex.asStateFlow()
+
     private val _selectedId = MutableStateFlow(-1L)
     val selectedId: StateFlow<Long> = _selectedId.asStateFlow()
 
@@ -59,6 +70,9 @@ class SubtitleController(
         _selectedId.value = -1L
         _current.value = ""
         _viewPoints.value = emptyList()
+        // 审核319：歌词视图的状态一并清空
+        _cueList.value = emptyList()
+        _currentIndex.value = -1
     }
 
     /**
@@ -113,6 +127,9 @@ class SubtitleController(
         _selectedId.value = id
         cues = emptyList()
         _current.value = ""
+        // 审核319：切轨道时重置歌词状态
+        _cueList.value = emptyList()
+        _currentIndex.value = -1
         if (url == null) return
         val myGen = generation
         bodyJob = scope.launch {
@@ -120,6 +137,8 @@ class SubtitleController(
                 val body = BiliApiClient().fetchSubtitleBody(url).getOrNull()
                 if (myGen != generation || _selectedId.value != id || body == null) return@launch
                 cues = body.body.sortedBy { it.from }
+                // 审核319：同步给歌词视图
+                _cueList.value = cues
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
@@ -134,5 +153,8 @@ class SubtitleController(
         val cue = cues.firstOrNull { sec >= it.from && sec <= it.to }
         val text = cue?.content.orEmpty().replace("<br/>", "\n")
         if (text != _current.value) _current.value = text
+        // 审核319：同步当前行索引（歌词高亮用）。找不到时用 -1。
+        val idx = cues.indexOfFirst { sec >= it.from && sec <= it.to }
+        if (idx != _currentIndex.value) _currentIndex.value = idx
     }
 }
