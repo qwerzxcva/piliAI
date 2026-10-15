@@ -52,6 +52,10 @@ class MainApplication : Application() {
         // Animeko 特性：恢复 Bangumi 登录态（Bearer Token，与 B站 Cookie 独立）
         com.example.piliai.data.remote.BangumiSession.restore(this)
 
+        // 审核318：下载通知渠道。WorkManager 前台任务必须给通知，渠道不预先
+        // 建好则 Android 8+ 上通知被静默丢弃，用户看不到下载进度。
+        com.example.piliai.data.download.DownloadNotifier.ensureChannel(this)
+
         // 弹幕屏蔽规则启动 warmup（缓存到内存供渲染过滤）
         com.example.piliai.ui.settings.DanmakuBlockViewModel.warmup(
             com.example.piliai.database.PiliNaraDatabase.getDatabase(this)

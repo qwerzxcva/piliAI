@@ -1,9 +1,15 @@
 package com.example.piliai.ui.navigation
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -11,6 +17,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.padding
@@ -162,6 +169,9 @@ fun AppNavigation() {
         when (tab) {
             MainTab.HOME -> Screen.Home.route
             MainTab.DYNAMICS -> Screen.Dynamics.route
+            // 审核318：直播列表页此前无任何入口（路由注册了但没人 navigate），
+            // 因此升为一级 tab。参考 BiliPai BottomNavItem.LIVE。
+            MainTab.LIVE -> Screen.LiveList.route
             MainTab.MINE -> Screen.Profile.route
         }
     }
@@ -185,6 +195,12 @@ fun AppNavigation() {
             if (showDock) {
                 // 审核234：BiliPai 悬浮胶囊 dock——水平 16dp/底部 12dp 悬空、全圆角容器、
                 // 选中项 primaryContainer 胶囊指示（替代 MD3 NavigationBar 通栏）
+                //
+                // 审核318：直播 tab 加入后变成 4 个。原来每个 tab 是「图标+文字」
+                // 且带 18dp 水平内边距，4 个挤在一行必然超宽被裁。改为 Kototoro
+                // KototoroBottomNav 的规格：纯图标（22dp）+ 胶囊指示 + 点击脉冲，
+                // 选中态图标做颜色 lerp 动画（0.25s）。文字只保留在 a11y 的
+                // contentDescription 里（读屏可用，视觉不挤）。
                 Box(Modifier.fillMaxWidth().padding(horizontal = 48.dp, vertical = 12.dp)) {
                     Row(
                         modifier = Modifier
@@ -196,22 +212,46 @@ fun AppNavigation() {
                                 MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
                                 RoundedCornerShape(50)
                             )
-                            .padding(vertical = 6.dp),
+                            .padding(vertical = 8.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         MainTab.entries.forEach { tab ->
                             val route = tabRouteOf(tab)
                             val selected = currentRoute == route
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
+                            // 审核318：图标颜色 lerp——选中态从 onSurfaceVariant 渐变到
+                            // onPrimaryContainer，比硬切换柔和。
+                            val iconTint by androidx.compose.animation.animateColorAsState(
+                                targetValue = if (selected) {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                                animationSpec = androidx.compose.animation.core.tween(250),
+                                label = "tabIconTint",
+                            )
+                            // 审核318：点击脉冲——非选中 tab 被点时轻微回弹（0.85f→1f），
+                            // 给用户「按到了」的确认。
+                            val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                            val pressed by interaction.collectIsPressedAsState()
+                            val scale by androidx.compose.animation.core.animateFloatAsState(
+                                targetValue = if (pressed) 0.85f else 1f,
+                                animationSpec = androidx.compose.animation.core.tween(180),
+                                label = "tabScale",
+                            )
+                            Box(
+                                contentAlignment = Alignment.Center,
                                 modifier = Modifier
+                                    .size(48.dp)
                                     .clip(RoundedCornerShape(50))
                                     .background(
                                         if (selected) MaterialTheme.colorScheme.primaryContainer
                                         else Color.Transparent
                                     )
-                                    .clickable {
+                                    .clickable(
+                                        interactionSource = interaction,
+                                        indication = null,
+                                    ) {
                                         if (!selected) {
                                             navController.navigate(route) {
                                                 popUpTo(Screen.Home.route) { saveState = true }
@@ -219,20 +259,15 @@ fun AppNavigation() {
                                                 restoreState = true
                                             }
                                         }
-                                    }
-                                    .padding(horizontal = 18.dp, vertical = 6.dp),
+                                    },
                             ) {
                                 Icon(
                                     if (selected) tab.iconFilled else tab.iconOutlined,
                                     contentDescription = stringResource(tab.labelRes),
-                                    tint = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
-                                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                Text(
-                                    stringResource(tab.labelRes),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
-                                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    tint = iconTint,
+                                    modifier = Modifier
+                                        .size(22.dp)
+                                        .scale(scale),
                                 )
                             }
                         }
@@ -251,6 +286,10 @@ fun AppNavigation() {
             HomeScreen(
                 onVideoClick = { bvid, cid ->
                     navController.navigate(Screen.VideoPlayer.createRoute(bvid, cid))
+                },
+                // 审核318：首页卡片补 UP 主跳转（此前未接线，只有分区页有）
+                onAuthorClick = { mid ->
+                    navController.navigate(Screen.Member.createRoute(mid))
                 },
                 onSearchClick = {
                     navController.navigate(Screen.Search.route)
@@ -291,6 +330,10 @@ fun AppNavigation() {
             DynamicsScreen(
                 onOpenVideo = { bvid, cid ->
                     navController.navigate(Screen.VideoPlayer.createRoute(bvid, cid))
+                },
+                // 审核318：点头像/UP 主名跳空间（此前无此参数）
+                onOpenUser = { mid ->
+                    navController.navigate(Screen.Member.createRoute(mid))
                 },
                 onGoLogin = { navController.navigate(Screen.Login.route) }
             )

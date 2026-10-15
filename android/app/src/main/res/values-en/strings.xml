@@ -3,6 +3,7 @@
     <string name="app_name">PiliNara</string>
     <string name="tab_home">Home</string>
     <string name="tab_dynamics">Feed</string>
+    <string name="tab_live">Live</string>
     <string name="tab_mine">Profile</string>
     <string name="bangumi_subject_details">Bangumi subject details</string>
     <string name="bangumi_load_failed">Could not load Bangumi information. Check your connection and retry.</string>

@@ -83,9 +83,6 @@ class HomeViewModel(
     val preferredSource: String
         get() = repo.preferredSource
 
-    /** 审核237：刷新/加载中（下拉刷新指示器用） */
-    val isRefreshing: StateFlow<Boolean> = repo.isLoading
-
     /**
      * 审核241（P0-2）：加载更多失败的一次性提示。
      * 此前失败完全静默：用户反复触底打请求，却看不到「加载失败/到底」。

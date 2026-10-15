@@ -82,6 +82,10 @@ import com.example.piliai.utils.toCoverUrl
 @Composable
 fun HomeScreen(
     onVideoClick: (bvid: String, cid: Long) -> Unit = { _, _ -> },
+    // 审核318：点头像/UP 主名跳转空间。VideoGridCard 早就有 onAuthorClick 参数，
+    // 分区页（ZoneScreen.kt:188）也一直在传，只有首页没传——同一个组件在首页
+    // 点 UP 主行无反应，用户以为卡片坏了。
+    onAuthorClick: (mid: Long) -> Unit = {},
     onSearchClick: () -> Unit = {},
     onMessageClick: () -> Unit = {},
     onMineClick: () -> Unit = {},
@@ -347,6 +351,13 @@ fun HomeScreen(
                                 danmakuCountText = card.danmakuCountText,
                                 authorName = card.author,
                                 authorFaceUrl = card.authorFace.toCoverUrl(),
+                                // 审核318：补 UP 主跳转（mid > 0 才挂，与分区页一致）。
+                                // authorMid 为 0 时不传，卡片保持整块点击不分裂行为。
+                                onAuthorClick = if (card.authorMid > 0L) {
+                                    { onAuthorClick(card.authorMid) }
+                                } else {
+                                    null
+                                },
                                 onClick = { onVideoClick(card.bvid, card.cid) },
                             )
                         }

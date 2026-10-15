@@ -1493,7 +1493,8 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
 
     val isLiked: StateFlow<Boolean> = engagement.isLiked
     val isFavorited: StateFlow<Boolean> = engagement.isFavorited
-    val coinCount: StateFlow<Int> = engagement.coinCount
+    // 审核317：coinCount 已删——UI 只展示 coinCountTotal（投币总数），
+    // 单个视频的已投状态从不展示，留着是死 StateFlow。
     val likeCount: StateFlow<Long> = engagement.likeCount
     val coinCountTotal: StateFlow<Long> = engagement.coinCountTotal
     val favCount: StateFlow<Long> = engagement.favCount

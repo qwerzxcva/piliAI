@@ -2,5 +2,6 @@
     <string name="app_name">piliai</string>
     <string name="tab_home">首页</string>
     <string name="tab_dynamics">动态</string>
+    <string name="tab_live">直播</string>
     <string name="tab_mine">我的</string>
 </resources>

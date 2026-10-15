@@ -43,8 +43,6 @@ class EngagementController(
     private val _isFavorited = MutableStateFlow(false)
     val isFavorited: StateFlow<Boolean> = _isFavorited.asStateFlow()
 
-    private val _coinCount = MutableStateFlow(0)
-    val coinCount: StateFlow<Int> = _coinCount.asStateFlow()
 
     private val _likeCount = MutableStateFlow(0L)
     val likeCount: StateFlow<Long> = _likeCount.asStateFlow()
@@ -74,7 +72,6 @@ class EngagementController(
             // 1) 交互状态（已赞/已投/已藏）
             BiliApiClient().getVideoRelation(aid).onSuccess { (liked, coined, fav) ->
                 _isLiked.value = liked
-                _coinCount.value = if (coined) 1 else 0
                 _isFavorited.value = fav
             }
             // 2) 默认收藏夹（第一个）
@@ -141,7 +138,6 @@ class EngagementController(
             repo.coinVideo(aid, multiply)
                 .onSuccess { ok ->
                     if (ok) {
-                        _coinCount.value = _coinCount.value + multiply
                         _coinCountTotal.value = _coinCountTotal.value + multiply
                     } else {
                         onError("投币失败（余额不足或已投满）")

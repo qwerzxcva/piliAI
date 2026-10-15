@@ -113,18 +113,44 @@ class DynamicsViewModel : ViewModel() {
 
 /**
  * 动态页：聚合流（视频动态可点击播放），下拉刷新 + 无限翻页。
+ *
+ * 审核318：新增内容分类 tab（全部/视频/图文）与点头像跳 UP 主空间。
+ * BiliPai DynamicScreen 有 5 个 tab（全部/投稿/番剧/专栏/UP）+ onUserClick
+ * 等 11 个回调；piliai 此前只有一条扁平流，且 DynamicCard 只支持整卡点击，
+ * 点头像/名字无反应。
+ *
+ * 说明：B 站 web-dynamic/v1/feed/all 是单一聚合流，不像 BiliPai 那样按
+ * type 分别请求，因此这里按已加载条目的内容形态在前端过滤（视频/图文），
+ * 不做二次网络请求。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DynamicsScreen(
     onOpenVideo: (bvid: String, cid: Long) -> Unit = { _, _ -> },
+    // 审核318：点头像/UP 主名跳转空间页（此前无此参数）
+    onOpenUser: (mid: Long) -> Unit = {},
     onGoLogin: () -> Unit = {},
     viewModel: DynamicsViewModel = viewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
+    // 审核318：内容分类。0=全部 1=视频 2=图文。
+    // 分类纯前端过滤（见下方 visibleItems），切换不触发网络请求。
+    var tab by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    val tabLabels = listOf("全部", "视频", "图文")
+
     LaunchedEffect(Unit) {
         if (state.items.isEmpty() && state.error == null) viewModel.refresh()
+    }
+
+    // 审核318：按内容形态过滤。视频动态有 archive；图文动态两者都没有
+    // （纯文字/图片/转发）。
+    val visibleItems = remember(state.items, tab) {
+        when (tab) {
+            1 -> state.items.filter { it.videoInfo != null }
+            2 -> state.items.filter { it.videoInfo == null }
+            else -> state.items
+        }
     }
 
     Scaffold(
@@ -137,7 +163,7 @@ fun DynamicsScreen(
                     }
                 }
             )
-        }
+        },
     ) { padding ->
         when {
             // 未登录引导
@@ -179,8 +205,40 @@ fun DynamicsScreen(
                     contentPadding = PaddingValues(vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(state.items, key = { it.id_str }) { item ->
-                        DynamicCard(item = item, onOpenVideo = onOpenVideo)
+                    // 审核318：内容分类条作为列表第一项（不用 Scaffold bottomBar——
+                    // 动态是底部导航一级 tab，会与全局悬浮 dock 重叠）。
+                    item(key = "__tabs") {
+                        com.example.piliai.ui.components.CategoryPillStrip(
+                            labels = tabLabels,
+                            selectedIndex = tab,
+                            onSelect = { tab = it },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 4.dp),
+                        )
+                    }
+                    // 审核318：当前分类无内容时给空态（原来切到空分类是一片空白）
+                    if (visibleItems.isEmpty() && !state.loading && state.items.isNotEmpty()) {
+                        item(key = "__empty") {
+                            Box(
+                                Modifier.fillMaxWidth().padding(vertical = 48.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    "当前分类暂无动态",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                    items(visibleItems, key = { it.id_str }) { item ->
+                        DynamicCard(
+                            item = item,
+                            onOpenVideo = onOpenVideo,
+                            // 审核318：点头像/名字跳 UP 主空间
+                            onOpenUser = onOpenUser,
+                        )
                     }
                     if (state.hasMore) {
                         item {
@@ -213,7 +271,9 @@ fun DynamicsScreen(
 @Composable
 private fun DynamicCard(
     item: DynamicItem,
-    onOpenVideo: (bvid: String, cid: Long) -> Unit
+    onOpenVideo: (bvid: String, cid: Long) -> Unit,
+    // 审核318：点头像/名字跳 UP 主空间（此前只有整卡点击跳视频）
+    onOpenUser: (mid: Long) -> Unit = {},
 ) {
     val v = item.videoInfo
     val author = item.modules?.module_author
@@ -230,14 +290,36 @@ private fun DynamicCard(
     ) {
         Column(Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // 审核318：头像可点跳空间（mid > 0 才挂）
+                val authorMid = author?.mid ?: 0L
                 AsyncImage(
                     model = author?.face.toCoverUrl(),
                     contentDescription = author?.name,
-                    modifier = Modifier.size(36.dp).clip(RoundedCornerShape(50)),
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(50))
+                        .then(
+                            if (authorMid > 0L) {
+                                Modifier.clickable { onOpenUser(authorMid) }
+                            } else {
+                                Modifier
+                            }
+                        ),
                     contentScale = ContentScale.Crop
                 )
                 Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
+                // 审核318：UP 主名也可点跳空间（与头像同目标；点名字比点小头像容易）
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .then(
+                            if (authorMid > 0L) {
+                                Modifier.clickable { onOpenUser(authorMid) }
+                            } else {
+                                Modifier
+                            }
+                        )
+                ) {
                     Text(
                         author?.name ?: "",
                         fontWeight = FontWeight.SemiBold,

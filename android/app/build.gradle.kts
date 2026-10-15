@@ -103,6 +103,10 @@ dependencies {
     // 二维码生成（扫码登录）
     implementation("com.google.zxing:core:3.5.3")
     implementation("androidx.media:media:1.7.0")
+    // 审核318：离线下载改为 WorkManager 前台任务——此前 DownloadManager 用
+    // 裸 CoroutineScope(SupervisorJob()) 起协程，进程一死任务就断，用户
+    // 退出应用（或系统回收）后下载永远停在中间。
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
     
     // Ktor for networking
     implementation("io.ktor:ktor-client-core:3.0.1")
