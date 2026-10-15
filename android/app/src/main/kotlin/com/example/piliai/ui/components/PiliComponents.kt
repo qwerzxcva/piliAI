@@ -6,9 +6,11 @@ package com.example.piliai.ui.components
  * - SegmentedPillRow：浮动胶囊分段控件（顶部分类/设置分类共用）
  * - SkeletonVideoCardRow：首页加载骨架屏（替代转圈，感知更快）
  */
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -54,11 +56,16 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -127,13 +134,24 @@ fun CategoryPillStrip(
     ) {
         itemsIndexed(labels) { i, label ->
             val selected = i == selectedIndex
+            // 审核318：选中态底色与文字色走动画（PiliMotion.fadeFast）——此前是
+            // 硬切换，切分类时「啪」地变色。Kototoro 分段控件同样做颜色补间。
+            val pillBg by androidx.compose.animation.animateColorAsState(
+                targetValue = if (selected) MaterialTheme.colorScheme.primaryContainer
+                else Color.Transparent,
+                animationSpec = com.example.piliai.ui.theme.PiliMotion.fadeFast(),
+                label = "pillBg",
+            )
+            val pillText by androidx.compose.animation.animateColorAsState(
+                targetValue = if (selected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+                animationSpec = com.example.piliai.ui.theme.PiliMotion.fadeFast(),
+                label = "pillText",
+            )
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
-                    .background(
-                        if (selected) MaterialTheme.colorScheme.primaryContainer
-                        else Color.Transparent
-                    )
+                    .background(pillBg)
                     // padding 提到 clickable 之前，保证触达区含内边距
                     .padding(horizontal = 14.dp, vertical = 8.dp)
                     .clickable { onSelect(i) },
@@ -142,8 +160,7 @@ fun CategoryPillStrip(
                 Text(
                     label,
                     style = MaterialTheme.typography.labelLarge,
-                    color = if (selected) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = pillText,
                     maxLines = 1,
                 )
             }
@@ -417,13 +434,44 @@ fun VideoGridCard(
     authorFaceUrl: String = "",
     onAuthorClick: (() -> Unit)? = null,
     onClick: () -> Unit = {},
+    // 审核318：入场动画开关。LazyVerticalGrid 的 items 里传 index 控制逐项
+    // 淡入上移（Kototoro HomeWaterfallMotionSpec 的做法）；不传则关闭，
+    // 避免非列表场景（如骨架屏对照）出现意外动画。
+    enterAnimation: Boolean = false,
+    enterIndex: Int = 0,
 ) {
     val rimBrush = rememberCoverRimBrush()
     val coverShape = RoundedCornerShape(12.dp)
     val titleSize = 13.sp
+    // 审核318：入场动画。首次进入组合时从「下方 12dp + 透明」补间到原位，
+    // 按 index 加 30ms 阶梯延迟，形成瀑布流入场（Kototoro HomeWaterfallMotionSpec）。
+    // 动画完成后停留在终态（animateFloatAsState 的目标值就是 1f），不影响交互。
+    var appeared by remember { androidx.compose.runtime.mutableStateOf(false) }
+    LaunchedEffect(Unit) { appeared = true }
+    val enterProgress by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (appeared) 1f else 0f,
+        animationSpec = if (enterAnimation) {
+            androidx.compose.animation.core.tween(
+                durationMillis = 220,
+                delayMillis = (enterIndex.coerceIn(0, 12) * 30),
+                easing = androidx.compose.animation.core.FastOutSlowInEasing,
+            )
+        } else {
+            // 关闭动画时立即到终态（duration 0 等价于无动画）
+            androidx.compose.animation.core.tween(durationMillis = 0)
+        },
+        label = "gridCardEnter",
+    )
+    val enterOffset = androidx.compose.ui.unit.lerp(
+        androidx.compose.ui.unit.Dp(12f), androidx.compose.ui.unit.Dp(0f), enterProgress,
+    )
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .graphicsLayer {
+                alpha = enterProgress
+                translationY = enterOffset.toPx()
+            }
             .clickable(onClick = onClick),
     ) {
         Box(

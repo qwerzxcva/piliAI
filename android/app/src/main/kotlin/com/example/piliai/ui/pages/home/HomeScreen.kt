@@ -3,6 +3,8 @@ package com.example.piliai.ui.pages.home
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.WindowInsets
@@ -25,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
@@ -75,6 +78,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.piliai.data.model.VideoItem
+import com.example.piliai.ui.theme.PiliMotion
 import com.example.piliai.utils.toHttpsUrl
 import com.example.piliai.utils.toCoverUrl
 
@@ -214,10 +218,23 @@ fun HomeScreen(
             onRefresh = { viewModel.refresh() },
             modifier = Modifier.fillMaxSize().padding(padding),
         ) {
-            // 审核279：显示当前生效的数据源。原来只在降级为热门时提示，
-            // 用户切到「入站必刷/每周必看」后看不出当前是哪档。
-            if (feedSource != com.example.piliai.data.repository.HomeRepository.FeedSource.RECOMMEND &&
+            // 审核318：数据源提示条改 AnimatedVisibility（PiliMotion.fadeDefault +
+            // spatialDefault 轻微上移）——原来是条件渲染，切换数据源时
+            // 提示条「凭空出现」，视觉上很跳。
+            val showSourceHint = feedSource !=
+                com.example.piliai.data.repository.HomeRepository.FeedSource.RECOMMEND &&
                 state is HomeUiState.Success
+            androidx.compose.animation.AnimatedVisibility(
+                visible = showSourceHint,
+                enter = androidx.compose.animation.fadeIn(
+                    animationSpec = PiliMotion.fadeDefault(),
+                ) + androidx.compose.animation.slideInVertically(
+                    animationSpec = PiliMotion.spatialDefault(),
+                    initialOffsetY = { it / 6 },
+                ),
+                exit = androidx.compose.animation.fadeOut(
+                    animationSpec = PiliMotion.fadeFast(),
+                ),
             ) {
                 val label = when (feedSource) {
                     com.example.piliai.data.repository.HomeRepository.FeedSource.POPULAR ->
@@ -256,7 +273,15 @@ fun HomeScreen(
                 )
             }
 
-            when (val s = state) {
+            // 审核318：状态切换用 Crossfade（PiliMotion.fadeDefault）——此前是硬切换，
+            // 骨架屏瞬间变成网格，观感上像「闪一下」。Kototoro 全站状态切换都走
+            // motionScheme 的语义淡入淡出。
+            androidx.compose.animation.Crossfade(
+                targetState = state,
+                animationSpec = PiliMotion.fadeDefault(),
+                label = "homeState",
+            ) { s ->
+            when (s) {
                 is HomeUiState.Loading -> {
                     // 审核234：骨架屏替代转圈（BiliPai HomeFeedSkeletonCard 观感，感知加载更快）
                     // 审核283：列数与成功态一致，避免加载完成时网格跳变
@@ -342,7 +367,11 @@ fun HomeScreen(
                                 }
                             }
                         }
-                        items(s.items, key = { it.bvid }) { card ->
+                        // 审核318：改 itemsIndexed 以传入场 index。卡片按 30ms 阶梯
+                        // 延迟淡入上移，形成瀑布流入场（Kototoro HomeWaterfallMotionSpec）。
+                        // 翻页加载更多时同样逐项入场——只对新增部分生效，因为
+                        // Compose 会复用已 appeared 的 item 状态。
+                        itemsIndexed(s.items, key = { _, card -> card.bvid }) { index, card ->
                             com.example.piliai.ui.components.VideoGridCard(
                                 title = card.title,
                                 coverUrl = card.pic.toCoverUrl(),
@@ -359,6 +388,8 @@ fun HomeScreen(
                                     null
                                 },
                                 onClick = { onVideoClick(card.bvid, card.cid) },
+                                enterAnimation = true,
+                                enterIndex = index,
                             )
                         }
                     }
@@ -381,6 +412,7 @@ fun HomeScreen(
                         }
                     }
                 }
+            }
             }
         }
     }
@@ -508,16 +540,27 @@ private fun HeroCarousel(
             ) {
                 repeat(items.size) { i ->
                     val selected = pagerState.currentPage == i
+                    // 审核318：指示器宽度/颜色都走动画（PiliMotion.spatialFast）——
+                    // 原来是硬切换，滑页时胶囊「跳」一下。Kototoro 的胶囊指示器
+                    // 同样做宽度补间。
+                    val indicatorWidth by androidx.compose.animation.core.animateDpAsState(
+                        targetValue = if (selected) 16.dp else 6.dp,
+                        animationSpec = PiliMotion.spatialFast(),
+                        label = "heroIndicatorWidth",
+                    )
+                    val indicatorColor by androidx.compose.animation.animateColorAsState(
+                        targetValue = if (selected) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f),
+                        animationSpec = PiliMotion.fadeFast(),
+                        label = "heroIndicatorColor",
+                    )
                     Box(
                         Modifier
                             .padding(horizontal = 3.dp)
-                            .width(if (selected) 16.dp else 6.dp)
+                            .width(indicatorWidth)
                             .height(6.dp)
                             .clip(RoundedCornerShape(3.dp))
-                            .background(
-                                if (selected) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
-                            )
+                            .background(indicatorColor)
                     )
                 }
             }
