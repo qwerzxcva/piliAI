@@ -14,7 +14,7 @@ import kotlin.math.sin
 
 // 审核：Media3 音频处理器属 UnstableApi，显式 OptIn 声明（消除 lint UnsafeOptInUsageError）
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
-internal class AudioNormalizationProcessor : BaseAudioProcessor() {
+class AudioNormalizationProcessor : BaseAudioProcessor() {
     @Volatile
     private var configuration: AudioNormalizationConfiguration? = null
     private var appliedConfiguration: AudioNormalizationConfiguration? = null
@@ -292,7 +292,7 @@ internal class AudioNormalizationProcessor : BaseAudioProcessor() {
     }
 }
 
-internal data class EqualizerBand(
+data class EqualizerBand(
     val frequencyHz: Double,
     val gainDb: Double,
     val q: Double,
@@ -310,7 +310,7 @@ internal data class EqualizerBand(
     }
 }
 
-internal data class AudioNormalizationConfiguration(
+data class AudioNormalizationConfiguration(
     val gain: Double = 1.0,
     val peak: Double = 1.0,
     val filter: String? = null,

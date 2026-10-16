@@ -16,8 +16,11 @@ import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import com.example.piliai.piliplus.AudioNormalizationConfiguration
+import com.example.piliai.piliplus.AudioNormalizationProcessor
 import com.example.piliai.piliplus.Media3LoadControlFactory
 import com.example.piliai.utils.RendererPrefs
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,6 +44,16 @@ class Media3Backend(
     private val _isPlaying = MutableStateFlow(false)
     override val isPlayingFlow: StateFlow<Boolean> = _isPlaying
 
+    /**
+     * 审核320：音量归一化处理器。
+     *
+     * 此前 AudioNormalizationProcessor 只有 GpuNextBackend 用（mpv 的
+     * loudnorm 滤镜），默认的 Media3 后端完全不接——设置页那个开关对
+     * 绝大多数用户没有任何效果。现在通过 ExoPlayer 的
+     * setAudioProcessors 接入，两条后端体验对齐。
+     */
+    private val audioNormalization = AudioNormalizationProcessor()
+
     init {
         // 审核：AudioAttributes 必须在 Builder 设置（setter 已移除）
         val audioAttributes = androidx.media3.common.AudioAttributes.Builder()
@@ -62,6 +75,9 @@ class Media3Backend(
             .build()
             .apply {
                 addListener(ExoPlayerListener())
+                // 审核320：按偏好刷一次归一化参数（处理器挂在 buildRenderersFactory
+                // 覆写的 buildAudioSink 上；关闭时 configuration=null 直通）。
+                applyAudioNormalization()
                 // 审核242：丢帧检测（bv ExoMediaPlayer.kt:71-90/643 的
                 // onDroppedVideoFrames 监听）。持续丢帧说明当前画质/超分
                 // 超出设备解码能力，提示用户降档比默默卡死好。
@@ -100,6 +116,11 @@ class Media3Backend(
 
     override fun prepare(request: PlaybackRequest) {
         val p = player ?: return
+
+        // 审核320：每次起播都按最新偏好刷一次音量归一化。用户在设置里
+        // 切换开关后 RendererPrefs 已同步，但播放器实例不知道——起播时
+        // 补齐，避免「改了设置要杀进程才生效」。
+        applyAudioNormalization()
 
         val isLocal = !request.videoUri.toString().startsWith("http")
         val localFactory = DefaultDataSource.Factory(context)
@@ -200,6 +221,28 @@ class Media3Backend(
         player = null
     }
 
+    /**
+     * 审核320：按当前偏好刷新音量归一化。
+     *
+     * 设置页切换开关时调用（RendererPrefs 已同步）。configuration 为 null
+     * 时处理器直通，因此关闭开关只是去掉效果，不会中断音频管线。
+     */
+    fun applyAudioNormalization() {
+        audioNormalization.setConfiguration(
+            if (RendererPrefs.audioNormalization) {
+                AudioNormalizationConfiguration(
+                    // 与 GpuNextBackend 的 loudnorm 参数对齐：
+                    // I=-16 LUFS、TP=-1.5 dBTP
+                    targetRmsDb = -16.0,
+                    maxGain = 10.0,
+                    dynamic = true,
+                )
+            } else {
+                null
+            }
+        )
+    }
+
     override fun positionMs(): Long = player?.currentPosition ?: 0L
 
     override fun durationMs(): Long = player?.duration?.takeIf { it > 0L } ?: 0L
@@ -279,7 +322,6 @@ class Media3Backend(
      */
     private fun buildRenderersFactory(): DefaultRenderersFactory {
         val mode = RendererPrefs.hardwareDecodeMode
-        if (mode == "auto") return DefaultRenderersFactory(context)
         val preferHardware = (mode == "hardware")
         val selector = object : MediaCodecSelector {
             override fun getDecoderInfos(
@@ -309,6 +351,26 @@ class Media3Backend(
                     context, extensionRendererMode, selector, enableDecoderFallback,
                     eventHandler, eventListener, allowedVideoJoiningTimeMs, out
                 )
+            }
+
+            /**
+             * 审核320：把音量归一化处理器挂进音频管线。
+             *
+             * 这是 Media3 1.3.1 接入 AudioProcessor 的唯一入口
+             * （ExoPlayer.Builder 既没有 setAudioProcessors 也没有
+             * setAudioSink，两者都在 DefaultRenderersFactory 上，javap 已核实）。
+             * 保持父类其余参数不变，只替换 processors 数组。
+             */
+            override fun buildAudioSink(
+                context: Context,
+                enableFloatOutput: Boolean,
+                enableAudioTrackPlaybackParams: Boolean,
+            ): androidx.media3.exoplayer.audio.AudioSink {
+                return DefaultAudioSink.Builder(context)
+                    .setEnableFloatOutput(enableFloatOutput)
+                    .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                    .setAudioProcessors(arrayOf(audioNormalization))
+                    .build()
             }
         }
     }

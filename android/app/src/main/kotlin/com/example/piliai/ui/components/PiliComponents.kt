@@ -421,7 +421,11 @@ fun SkeletonVideoCard(modifier: Modifier = Modifier) {
  *   不再放封面外下方：省垂直空间、层级更清晰，是 Kototoro 的标志性观感
  * - 遮罩用 6 段色标（末端黑 72%），标题带文字阴影保证亮封面可读
  * - UP 主行留在封面外下方（视频 App 需要作者归属，Kototoro 的副标题同理）
+ *
+ * 审核320：补长按（combinedClickable）与发布时间。combinedClickable 属
+ * ExperimentalFoundationApi，故在此显式 OptIn（与 VideoListRow 一致）。
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun VideoGridCard(
     title: String,
@@ -434,6 +438,13 @@ fun VideoGridCard(
     authorFaceUrl: String = "",
     onAuthorClick: (() -> Unit)? = null,
     onClick: () -> Unit = {},
+    // 审核320：长按（调出「不感兴趣/稍后再看/屏蔽」等操作）。
+    // BiliPai/BiliRoamingX 的网格卡都支持长按，piliai 此前完全没有——
+    // 用户无法在不喜欢的视频上做任何操作。
+    onLongClick: (() -> Unit)? = null,
+    // 审核320：发布时间（如「3天前」「1周前」）。Kototoro 卡片同样在
+    // 作者行右侧展示附加信息，视频内容需要时间归属。
+    publishTimeText: String = "",
     // 审核318：入场动画开关。LazyVerticalGrid 的 items 里传 index 控制逐项
     // 淡入上移（Kototoro HomeWaterfallMotionSpec 的做法）；不传则关闭，
     // 避免非列表场景（如骨架屏对照）出现意外动画。
@@ -443,11 +454,12 @@ fun VideoGridCard(
     val rimBrush = rememberCoverRimBrush()
     val coverShape = RoundedCornerShape(12.dp)
     val titleSize = 13.sp
-    // 审核318：入场动画。首次进入组合时从「下方 12dp + 透明」补间到原位，
-    // 按 index 加 30ms 阶梯延迟，形成瀑布流入场（Kototoro HomeWaterfallMotionSpec）。
-    // 动画完成后停留在终态（animateFloatAsState 的目标值就是 1f），不影响交互。
-    var appeared by remember { androidx.compose.runtime.mutableStateOf(false) }
-    LaunchedEffect(Unit) { appeared = true }
+    // 审核320：关闭入场动画时不创建 LaunchedEffect/动画状态。首页滚动性能
+    // 由此避免每个网格 item 各自维护动画协程。
+    var appeared by remember { androidx.compose.runtime.mutableStateOf(!enterAnimation) }
+    if (enterAnimation) {
+        LaunchedEffect(Unit) { appeared = true }
+    }
     val enterProgress by androidx.compose.animation.core.animateFloatAsState(
         targetValue = if (appeared) 1f else 0f,
         animationSpec = if (enterAnimation) {
@@ -457,7 +469,6 @@ fun VideoGridCard(
                 easing = androidx.compose.animation.core.FastOutSlowInEasing,
             )
         } else {
-            // 关闭动画时立即到终态（duration 0 等价于无动画）
             androidx.compose.animation.core.tween(durationMillis = 0)
         },
         label = "gridCardEnter",
@@ -472,7 +483,12 @@ fun VideoGridCard(
                 alpha = enterProgress
                 translationY = enterOffset.toPx()
             }
-            .clickable(onClick = onClick),
+            // 审核320：长按支持。用 combinedClickable 而不是 clickable，
+            // 否则长按手势被点击消费掉。indication 由默认 ripple 提供。
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+            ),
     ) {
         Box(
             Modifier
@@ -580,7 +596,7 @@ fun VideoGridCard(
             )
         }
         // 封面外仅保留 UP 主行：头像 + 名称（视频内容需要作者归属）
-        if (authorName.isNotBlank()) {
+        if (authorName.isNotBlank() || publishTimeText.isNotBlank()) {
             Row(
                 modifier = Modifier
                     .padding(start = 2.dp, top = 6.dp)
@@ -607,7 +623,26 @@ fun VideoGridCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
+                // 审核320：发布时间跟在 UP 主名后面（Kototoro 卡片同样在
+                // 作者行展示附加信息）。用 spacer + 圆点分隔，避免挤在一起。
+                if (publishTimeText.isNotBlank()) {
+                    if (authorName.isNotBlank()) {
+                        Text(
+                            text = "·",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        )
+                        Spacer(Modifier.width(3.dp))
+                    }
+                    Text(
+                        text = publishTimeText,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        maxLines = 1,
+                    )
+                }
             }
         }
     }

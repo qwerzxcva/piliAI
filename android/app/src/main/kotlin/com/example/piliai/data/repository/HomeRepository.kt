@@ -126,14 +126,21 @@ class HomeRepository(private val apiClient: BiliApiClient = BiliApiClient()) {
      * @return 成功时返回新列表；失败时抛异常（调用方决定是否保留旧列表）。
      */
     suspend fun refresh(): Result<List<VideoItem>> = withContext(Dispatchers.IO) {
+        val previous = _videos.value
         runCatching {
             freshIdx = 1
             popularPage = 1
             preciousPage = 1
             weeklyNumber = 0
             _hasMore.value = true
+            // 审核320：刷新必须替换首屏，而不是在旧列表上 appendUnique。
+            // 旧实现导致下拉刷新请求成功后视频看起来完全不变。
+            _videos.value = emptyList()
             loadFirstPage()
                 .getOrElse { throw it }
+        }.onFailure {
+            // 请求失败时恢复旧列表，避免网络抖动造成白屏。
+            _videos.value = previous
         }
     }
 

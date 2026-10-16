@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -202,6 +204,9 @@ fun AppNavigation() {
     val showDock = !isFullScreen
 
     Scaffold(
+        // 审核320：外层不消费系统 inset。普通页由自己的 TopAppBar 消费状态栏，
+        // 全屏页保持真正全屏；底部悬浮 dock 自己通过 navigationBarsPadding 避让。
+        contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
         bottomBar = {
             if (showDock) {
                 // 审核234：BiliPai 悬浮胶囊 dock——水平 16dp/底部 12dp 悬空、全圆角容器、
@@ -212,7 +217,12 @@ fun AppNavigation() {
                 // KototoroBottomNav 的规格：纯图标（22dp）+ 胶囊指示 + 点击脉冲，
                 // 选中态图标做颜色 lerp 动画（0.25s）。文字只保留在 a11y 的
                 // contentDescription 里（读屏可用，视觉不挤）。
-                Box(Modifier.fillMaxWidth().padding(horizontal = 48.dp, vertical = 12.dp)) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 48.dp, vertical = 12.dp)
+                ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -288,7 +298,13 @@ fun AppNavigation() {
         },
         containerColor = MaterialTheme.colorScheme.background,
     ) { padding ->
-        Box(Modifier.padding(padding)) {
+        // 审核320（真 bug）：原来直接 Box(Modifier.padding(padding))，把 Scaffold
+        // 算出的 top inset 也应用了。但 top inset 该由各页自己的 TopAppBar 消费
+        // （MD3 TopAppBar 默认会处理 statusBars），外层再吃一次会导致两种后果：
+        // - 普通页：TopAppBar 上方多一条空白带
+        // - 全屏页（播放器/竖屏流/搜索）：画面被顶下去，状态栏露黑边
+        // 正确做法：外层只消费 bottom（悬浮 dock 需要），top 交给页面。
+        Box(Modifier.padding(bottom = padding.calculateBottomPadding())) {
     NavHost(
         navController = navController,
         startDestination = Screen.Home.route
