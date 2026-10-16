@@ -42,9 +42,40 @@ object DandanApi {
 
     private fun randomUa() = USER_AGENTS[Random.nextInt(USER_AGENTS.size)]
 
-    /** 是否已配置凭据（通过 BuildConfig 检查） */
-    val isEnabled: Boolean get() =
+    /**
+     * 是否已配置凭据（通过 BuildConfig 检查）。
+     *
+     * 审核320（真 bug）：此前这里只查凭据，完全不看用户的
+     * 「弹弹play 弹幕源」开关——开关在设置页写了 DataStore，播放器
+     * 却从不读，用户点下去没有任何效果。现在两者都要满足。
+     *
+     * 进程内缓存由 [syncEnabled] 维护：DataStore 是异步 Flow，而弹幕
+     * 加载发生在 IO 协程里，不适合每次 runBlocking 读盘。
+     */
+    val isEnabled: Boolean get() = userEnabled && hasCredentials
+
+    /** 仅凭据是否就绪（与用户开关无关） */
+    val hasCredentials: Boolean get() =
         BuildConfig.DANDAN_API_APPID.isNotEmpty() && BuildConfig.DANDAN_API_KEY.isNotEmpty()
+
+    /** 用户开关（进程内缓存，启动时由 MainApplication 预热） */
+    @Volatile
+    var userEnabled: Boolean = false
+
+    /**
+     * 从 DataStore 同步用户开关到进程内缓存。
+     * 在 Application.onCreate 与设置页开关变更时调用。
+     */
+    fun syncEnabled(value: Boolean) {
+        userEnabled = value
+    }
+
+    /** 供 UI 判断「为什么不能用」：未配置凭据 / 已关闭 */
+    fun disabledReason(): String? = when {
+        !hasCredentials -> "未配置弹弹play API 凭据"
+        !userEnabled -> "弹弹play 弹幕源已关闭"
+        else -> null
+    }
 
     private val gson = com.google.gson.Gson()
 

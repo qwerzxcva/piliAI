@@ -56,6 +56,17 @@ class MainApplication : Application() {
         // 建好则 Android 8+ 上通知被静默丢弃，用户看不到下载进度。
         com.example.piliai.data.download.DownloadNotifier.ensureChannel(this)
 
+        // 审核320：DanDan 弹幕开关预热。设置页写的是 DataStore（异步 Flow），
+        // 而播放器加载弹幕在 IO 协程里，不适合每次 runBlocking 读盘——此前
+        // DandanApi.isEnabled 只看凭据不看开关，用户点了没反应。
+        appScope.launch {
+            com.example.piliai.utils.StorageManager.getInstance(this@MainApplication)
+                .dandanDanmakuFlow
+                .collect { enabled ->
+                    com.example.piliai.danmaku.DandanApi.syncEnabled(enabled)
+                }
+        }
+
         // 弹幕屏蔽规则启动 warmup（缓存到内存供渲染过滤）
         com.example.piliai.ui.settings.DanmakuBlockViewModel.warmup(
             com.example.piliai.database.PiliNaraDatabase.getDatabase(this)

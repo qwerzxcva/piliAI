@@ -61,6 +61,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -82,6 +83,7 @@ import com.example.piliai.R
 import com.example.piliai.data.model.VideoItem
 import com.example.piliai.ui.theme.PiliMotion
 import com.example.piliai.utils.toHttpsUrl
+import kotlinx.coroutines.launch
 import com.example.piliai.utils.toCoverUrl
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -198,6 +200,11 @@ fun HomeScreen(
         // 的直接来源之一。改为单条可横滑的分段控件：一组胶囊、一个容器、
         // 选中项 primaryContainer 填充（Kototoro/BiliPai 的做法）。
         var selectedTab by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+        // 审核320：长按选中的卡片（弹操作菜单）
+        var longPressCard by remember { androidx.compose.runtime.mutableStateOf<VideoItem?>(null) }
+        // 审核320：本地隐藏的 bvid 集合（长按→「不感兴趣」）。只在本次进程内
+        // 生效、不持久化——持久化需要决定「隐藏多久/能否恢复」，属产品决策。
+        val hiddenBvids = remember { mutableSetOf<String>() }
         // 审核318：标签先在 Composable 上下文解析成普通字符串，再进 remember——
         // stringResource 是 @Composable，不能在 remember { } 里调用。
         val tabLabels = listOf(
@@ -386,7 +393,13 @@ fun HomeScreen(
                         // 延迟淡入上移，形成瀑布流入场（Kototoro HomeWaterfallMotionSpec）。
                         // 翻页加载更多时同样逐项入场——只对新增部分生效，因为
                         // Compose 会复用已 appeared 的 item 状态。
-                        itemsIndexed(s.items, key = { _, card -> card.bvid }) { index, card ->
+                        // 审核320：过滤本地隐藏的（长按→不感兴趣）。不改 s.items
+                        // 本身——那是 VM 状态，改了会让翻页页码错乱。
+                        val visibleCards = s.items.filter { it.bvid !in hiddenBvids }
+                        itemsIndexed(
+                            visibleCards,
+                            key = { _, card -> card.bvid },
+                        ) { index, card ->
                             com.example.piliai.ui.components.VideoGridCard(
                                 title = card.title,
                                 coverUrl = card.pic.toCoverUrl(),
@@ -395,6 +408,9 @@ fun HomeScreen(
                                 danmakuCountText = card.danmakuCountText,
                                 authorName = card.author,
                                 authorFaceUrl = card.authorFace.toCoverUrl(),
+                                // 审核320：发布时间（相对时间，如「3天前」）
+                                publishTimeText = com.example.piliai.utils
+                                    .formatRelativeTime(card.pubdate.toLong()),
                                 // 审核318：补 UP 主跳转（mid > 0 才挂，与分区页一致）。
                                 // authorMid 为 0 时不传，卡片保持整块点击不分裂行为。
                                 onAuthorClick = if (card.authorMid > 0L) {
@@ -403,8 +419,12 @@ fun HomeScreen(
                                     null
                                 },
                                 onClick = { onVideoClick(card.bvid, card.cid) },
-                                enterAnimation = true,
-                                enterIndex = index,
+                                // 审核320：长按弹操作菜单（此前完全没接）
+                                onLongClick = { longPressCard = card },
+                                // 审核320：滚动性能优先。首页大量卡片不启用逐项入场动画，
+                                // 避免 LazyVerticalGrid 滚动时每个 item 同时启动协程/动画造成掉帧。
+                                enterAnimation = false,
+                                enterIndex = 0,
                             )
                         }
                     }
@@ -429,6 +449,88 @@ fun HomeScreen(
                 }
             }
             }
+        }
+
+        // 审核320：长按操作菜单。
+        //
+        // 功能：稍后再看 / 复制链接 / 不感兴趣（本地隐藏）。
+        // 「不感兴趣」只做本地隐藏（不发 B 站的不感兴趣接口）——那个接口需要
+        // 登录态且有风控，失败会让用户以为没生效；本地隐藏至少当下可见、可预期。
+        longPressCard?.let { card ->
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            val scope = rememberCoroutineScope()
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { longPressCard = null },
+                title = {
+                    Text(
+                        card.title,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                },
+                text = {
+                    Column {
+                        androidx.compose.material3.TextButton(
+                            onClick = {
+                                scope.launch {
+                                    com.example.piliai.data.remote.BiliApiClient()
+                                        .addToView(card.aid)
+                                        .onSuccess {
+                                            android.widget.Toast.makeText(
+                                                ctx, "已加入稍后再看",
+                                                android.widget.Toast.LENGTH_SHORT,
+                                            ).show()
+                                        }
+                                        .onFailure {
+                                            android.widget.Toast.makeText(
+                                                ctx, "操作失败：${it.message}",
+                                                android.widget.Toast.LENGTH_SHORT,
+                                            ).show()
+                                        }
+                                }
+                                longPressCard = null
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text("稍后再看", modifier = Modifier.fillMaxWidth()) }
+
+                        androidx.compose.material3.TextButton(
+                            onClick = {
+                                val clip = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                                    as android.content.ClipboardManager
+                                clip.setPrimaryClip(
+                                    android.content.ClipData.newPlainText(
+                                        "bvid",
+                                        "https://www.bilibili.com/video/${card.bvid}",
+                                    )
+                                )
+                                android.widget.Toast.makeText(
+                                    ctx, "链接已复制", android.widget.Toast.LENGTH_SHORT,
+                                ).show()
+                                longPressCard = null
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text("复制链接", modifier = Modifier.fillMaxWidth()) }
+
+                        androidx.compose.material3.TextButton(
+                            onClick = {
+                                hiddenBvids.add(card.bvid)
+                                android.widget.Toast.makeText(
+                                    ctx, "已隐藏，重启应用后恢复",
+                                    android.widget.Toast.LENGTH_SHORT,
+                                ).show()
+                                longPressCard = null
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text("不感兴趣", modifier = Modifier.fillMaxWidth()) }
+                    }
+                },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(onClick = { longPressCard = null }) {
+                        Text("取消")
+                    }
+                },
+            )
         }
     }
 }
