@@ -23,6 +23,7 @@ class TodayWatchViewModel(app: Application) : AndroidViewModel(app) {
         data object Loading : UiState
         data class Success(val plan: TodayWatchPlan) : UiState
         data object Hidden : UiState
+        data class Error(val message: String) : UiState
     }
 
     private val _state = MutableStateFlow<UiState>(UiState.Idle)
@@ -92,7 +93,9 @@ class TodayWatchViewModel(app: Application) : AndroidViewModel(app) {
                     _state.value = if (plan.videoQueue.isEmpty()) UiState.Hidden else UiState.Success(plan)
                 }
                 .onFailure {
-                    _state.value = UiState.Hidden   // 失败静默隐藏，不影响首页主体
+                    _state.value = UiState.Error(
+                        it.message ?: "今日推荐加载失败，请重试"
+                    )
                 }
         }
     }

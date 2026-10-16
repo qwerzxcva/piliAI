@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -72,6 +73,11 @@ fun TodayWatchScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { viewModel.refresh() }) {
+                        Icon(Icons.Filled.Refresh, contentDescription = "刷新今日推荐")
                     }
                 },
             )
@@ -152,6 +158,19 @@ fun TodayWatchScreen(
                         }
                     }
                 }
+                is TodayWatchViewModel.UiState.Error ->
+                    androidx.compose.foundation.layout.Box(
+                        Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(s.message, color = MaterialTheme.colorScheme.error)
+                            Spacer(Modifier.height(12.dp))
+                            androidx.compose.material3.Button(onClick = { viewModel.refresh() }) {
+                                Text("重试")
+                            }
+                        }
+                    }
                 else -> {}
             }
         }
