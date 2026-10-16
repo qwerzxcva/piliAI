@@ -1278,7 +1278,7 @@ fun VideoPlayerScreen(
         }
 
         // Gesture handler
-        if (!isInPiP) Box(
+        if (!isInPiP && !showControls) Box(
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(Unit) {
