@@ -195,6 +195,7 @@ fun HomeScreen(
             }
         },
     ) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding)) {
         // 审核282：分类条。原来是「两个 SegmentedPillRow 塞进一个横向 LazyRow」——
         // 7 个 tab 拆成 4+3 两组并列，语义混乱且整行只能横滑，是首页「廉价感」
         // 的直接来源之一。改为单条可横滑的分段控件：一组胶囊、一个容器、
@@ -238,49 +239,8 @@ fun HomeScreen(
         PullToRefreshBox(
             isRefreshing = repoRefreshing,
             onRefresh = { viewModel.refresh() },
-            modifier = Modifier.fillMaxSize().padding(padding),
+            modifier = Modifier.weight(1f).fillMaxWidth(),
         ) {
-            // 审核318：数据源提示条改 AnimatedVisibility（PiliMotion.fadeDefault +
-            // spatialDefault 轻微上移）——原来是条件渲染，切换数据源时
-            // 提示条「凭空出现」，视觉上很跳。
-            val showSourceHint = feedSource !=
-                com.example.piliai.data.repository.HomeRepository.FeedSource.RECOMMEND &&
-                state is HomeUiState.Success
-            androidx.compose.animation.AnimatedVisibility(
-                visible = showSourceHint,
-                enter = androidx.compose.animation.fadeIn(
-                    animationSpec = PiliMotion.fadeDefault(),
-                ) + androidx.compose.animation.slideInVertically(
-                    animationSpec = PiliMotion.spatialDefault(),
-                    initialOffsetY = { it / 6 },
-                ),
-                exit = androidx.compose.animation.fadeOut(
-                    animationSpec = PiliMotion.fadeFast(),
-                ),
-            ) {
-                val label = when (feedSource) {
-                    com.example.piliai.data.repository.HomeRepository.FeedSource.POPULAR ->
-                        stringResource(R.string.home_feed_popular)
-                    com.example.piliai.data.repository.HomeRepository.FeedSource.PRECIOUS ->
-                        stringResource(R.string.home_feed_precious)
-                    com.example.piliai.data.repository.HomeRepository.FeedSource.WEEKLY ->
-                        stringResource(R.string.home_feed_weekly)
-                    else -> ""
-                }
-                androidx.compose.material3.Surface(
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp),
-                    shape = RoundedCornerShape(10.dp),
-                ) {
-                    Text(
-                        stringResource(R.string.home_feed_current_hint, label),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    )
-                }
-            }
-
             // 审核283：网格列数按可用宽度算（Loading 骨架屏与 Success 网格共用），
             // 移植 Kototoro resolveGridColumnCount（KototoroContentListScreen.kt:742）。
             // 手机竖屏仍是 2 列；平板/折叠屏展开时自动到 3~4 列，不会出现
@@ -329,18 +289,11 @@ fun HomeScreen(
                         // 100dp 渐变遮罩、胶囊指示器）
                         if (topRcmd.isNotEmpty()) {
                             item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
-                                Column {
-                                    com.example.piliai.ui.components.SectionHeader(
-                                        title = stringResource(R.string.home_hero_for_you),
-                                        count = topRcmd.size,
-                                        modifier = Modifier.padding(top = 4.dp),
-                                    )
-                                    HeroCarousel(
-                                        items = topRcmd,
-                                        onItemClick = { onVideoClick(it.bvid, it.cid) },
-                                        modifier = Modifier.padding(vertical = 2.dp),
-                                    )
-                                }
+                                HeroCarousel(
+                                    items = topRcmd,
+                                    onItemClick = { onVideoClick(it.bvid, it.cid) },
+                                    modifier = Modifier.padding(bottom = 12.dp),
+                                )
                             }
                         }
                         // 今日推荐 Section（全宽，成功才显示）
@@ -532,6 +485,7 @@ fun HomeScreen(
                 },
             )
         }
+    }
     }
 }
 

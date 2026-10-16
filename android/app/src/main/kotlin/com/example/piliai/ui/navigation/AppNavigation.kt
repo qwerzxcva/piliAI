@@ -39,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.core.net.toUri
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -171,13 +172,16 @@ fun AppNavigation() {
     val sourcePlaybackSession: com.example.piliai.playback.SourcePlaybackSession =
         androidx.lifecycle.viewmodel.compose.viewModel()
     val ctx = androidx.compose.ui.platform.LocalContext.current
+    val storage = remember(ctx) { com.example.piliai.utils.StorageManager(ctx) }
+    val bottomTabsRaw by storage.bottomTabsFlow.collectAsStateWithLifecycle(
+        initialValue = MainTab.defaultIds.joinToString(",")
+    )
+    val visibleTabs = remember(bottomTabsRaw) { MainTab.parse(bottomTabsRaw) }
 
-    // 审核（关键修复）：MainActivity 原先使用 MainApp，其 NavHost 只有 6 条路由且
-    // HomeScreen 的 onSearchClick 等回调全为空实现——导致搜索/排行/分区/番剧/
-    // 推荐流/今日推荐等按钮点击无反应，且 25+ 个页面不可达。
-    // 现改为以本文件（完整路由图）为唯一入口，并在此挂载三 tab 底部导航。
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+
+    // 审核（关键修复）：完整路由图与可配置底栏共用一个入口。
     val tabRouteOf: (MainTab) -> String = { tab ->
         when (tab) {
             MainTab.HOME -> Screen.Home.route
@@ -237,7 +241,7 @@ fun AppNavigation() {
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        MainTab.entries.forEach { tab ->
+                        visibleTabs.forEach { tab ->
                             val route = tabRouteOf(tab)
                             val selected = currentRoute == route
                             // 审核318：图标颜色 lerp——选中态从 onSurfaceVariant 渐变到

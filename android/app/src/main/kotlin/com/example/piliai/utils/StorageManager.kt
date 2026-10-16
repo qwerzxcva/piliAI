@@ -47,6 +47,8 @@ class StorageManager(private val context: Context) {
         // 审核279：首页数据源偏好（auto=自动降级 / recommend=推荐流 / popular=热门）。
         // 某个接口被风控时用户可手动切到能用的，不用干等。
         private val HOME_FEED_SOURCE_KEY = stringPreferencesKey("homeFeedSource")
+        // 审核322：底栏配置，逗号分隔稳定 tab id；默认全量显示。
+        private val BOTTOM_TABS_KEY = stringPreferencesKey("bottomTabs")
         private val COMPLETION_ACTION_KEY = stringPreferencesKey("completionAction")
         // Kazumi 特性：低延迟音频（缩短 AudioTrack 缓冲，代价是弱网易卡顿）
         private val LOW_LATENCY_AUDIO_KEY = booleanPreferencesKey("lowLatencyAudio")
@@ -203,6 +205,13 @@ class StorageManager(private val context: Context) {
     /** 审核279：首页数据源偏好（auto/recommend/popular） */
     val homeFeedSourceFlow: Flow<String> = context.dataStore.data
         .map { preferences -> preferences[HOME_FEED_SOURCE_KEY] ?: "auto" }
+
+    val bottomTabsFlow: Flow<String> = context.dataStore.data
+        .map { preferences -> preferences[BOTTOM_TABS_KEY] ?: "home,dynamics,live,mine" }
+
+    suspend fun setBottomTabs(ids: List<String>) {
+        context.dataStore.edit { preferences -> preferences[BOTTOM_TABS_KEY] = ids.joinToString(",") }
+    }
 
     /**
      * 审核291：持久化的 buvid3（匿名风控指纹）。

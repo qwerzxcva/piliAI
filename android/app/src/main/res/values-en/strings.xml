@@ -16,11 +16,6 @@
     <string name="home_tab_zone">Zones</string>
     <string name="home_tab_story">Stories</string>
     <string name="home_tab_today">Today</string>
-    <string name="home_feed_popular">Popular</string>
-    <string name="home_feed_precious">Must-watch</string>
-    <string name="home_feed_weekly">Weekly picks</string>
-    <string name="home_feed_current_hint">Current: %1$s (change in Settings → Home feed source)</string>
-    <string name="home_hero_for_you">Recommended for you</string>
     <string name="home_empty_filtered_title">No videos match your filters</string>
     <string name="home_empty_filtered_hint">Your recommendation filters may be too strict.\nLoosen them in Settings → Recommendation filters</string>
     <string name="home_load_failed">Failed to load: %1$s</string>
