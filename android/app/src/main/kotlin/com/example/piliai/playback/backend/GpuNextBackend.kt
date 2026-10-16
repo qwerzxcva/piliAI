@@ -388,7 +388,15 @@ class GpuNextBackend(
         private const val PUMP_INTERVAL_MS = 250L
         private const val MAX_EVENTS_PER_TICK = 16
 
-        fun isAvailable(): Boolean = RustGpuNextBridge.libraryLoaded
+        /**
+         * GPU-next 当前仅在 native 库加载且完成真实渲染 API 初始化后才可用。
+         *
+         * 审核321：RustGpuNextBridge 当前只实现 libmpv client API token/属性
+         * 桥接，源码明确未启用 vo=gpu-next、未调用 render API，也没有输出帧。
+         * 不能把 loadLibrary 成功误报为可播放后端，否则设置页显示可用但切换
+         * 后起播黑屏/失败。真实 GPU-next 渲染接通前，统一回退 Media3。
+         */
+        fun isAvailable(): Boolean = false
     }
 }
 
