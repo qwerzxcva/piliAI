@@ -1033,24 +1033,19 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
 
         ensureBackend()
         val current = backend
+        val playbackRequest = PlaybackRequest(
+            videoUri = videoUri,
+            audioUri = audioUrl?.takeIf { it.isNotEmpty() }?.let { raw ->
+                if (raw.startsWith("/")) Uri.fromFile(java.io.File(raw)) else raw.toUri()
+            },
+            headers = headers,
+            userAgent = userAgent,
+            resumePositionMs = resumePositionMs,
+            playWhenReady = playWhenReady,
+        )
+        current?.prepare(playbackRequest)
         if (current is com.example.piliai.playback.backend.GpuNextBackend) {
-            val request = PlaybackRequest(
-                videoUri = videoUri,
-                audioUri = audioUrl?.takeIf { it.isNotEmpty() }?.let { raw ->
-                    if (raw.startsWith("/")) Uri.fromFile(java.io.File(raw)) else raw.toUri()
-                },
-                headers = headers,
-                userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-                    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-                resumePositionMs = resumePositionMs,
-                playWhenReady = playWhenReady
-            )
-            current.prepare(request)
             pendingGpuSurface?.let { current.attachSurface(it) }
-        } else {
-            (current as? com.example.piliai.playback.backend.Media3Backend)
-                ?.prepareMediaSource(merged, playWhenReady)
-            if (resumePositionMs > 0L) current?.seekTo(resumePositionMs)
         }
         _state.value = _state.value.copy(
             isPlaying = playWhenReady, isBuffering = true,
