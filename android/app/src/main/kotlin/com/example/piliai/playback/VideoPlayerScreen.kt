@@ -718,14 +718,23 @@ fun VideoPlayerScreen(
                         }
                     }
                     // 审核236：BiliPai 风细圆角进度条（4dp 轨道+BiliPink 填充+白点 thumb）
+                    // 审核361：原来 value 直接绑 state.currentTime，拖动时每帧都被
+                    // 播放进度覆盖，滑块会跳回去——拖不动。拖动中用本地值。
+                    var dragFraction by remember { androidx.compose.runtime.mutableFloatStateOf(-1f) }
                     Slider(
-                        value = if (state.duration > 0) state.currentTime.toFloat() / state.duration else 0f,
+                        value = when {
+                            dragFraction >= 0f -> dragFraction
+                            state.duration > 0 -> state.currentTime.toFloat() / state.duration
+                            else -> 0f
+                        },
                         onValueChange = { fraction ->
                             isSeeking = true
+                            dragFraction = fraction
                             seekPreviewSec = ((state.duration * fraction) / 1000).toLong()
                         },
                         onValueChangeFinished = {
                             isSeeking = false
+                            dragFraction = -1f
                             viewModel.seekTo(seekPreviewSec * 1000)
                         },
                         modifier = Modifier.fillMaxSize().height(24.dp),
