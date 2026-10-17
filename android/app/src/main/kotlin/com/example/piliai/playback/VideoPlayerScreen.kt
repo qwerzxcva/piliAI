@@ -1435,7 +1435,9 @@ fun VideoPlayerScreen(
                 icon = Icons.Filled.ThumbUp,
                 label = formatCount(likeCount),
                 tint = if (isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                selected = isLiked,
                 onClick = { viewModel.toggleLike() },
+                onLongClick = { viewModel.likeCoinFav() },
             )
             PlayerActionChip(
                 icon = Icons.Default.MonetizationOn,
@@ -1532,21 +1534,45 @@ fun VideoPlayerScreen(
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun PlayerActionChip(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     tint: Color,
     onClick: () -> Unit,
+    selected: Boolean = false,
+    onLongClick: (() -> Unit)? = null,
 ) {
+    // 审核332：对齐 PiliNara ActionRowLineItem——胶囊描边，选中填色。
     Row(
         modifier = Modifier
-            .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .clip(RoundedCornerShape(50))
+            .background(
+                if (selected) MaterialTheme.colorScheme.secondaryContainer
+                else Color.Transparent
+            )
+            .then(
+                if (onLongClick != null) {
+                    Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)
+                } else {
+                    Modifier.clickable(onClick = onClick)
+                }
+            )
+            .then(
+                if (!selected) {
+                    Modifier.border(
+                        1.dp,
+                        MaterialTheme.colorScheme.secondaryContainer,
+                        RoundedCornerShape(50),
+                    )
+                } else Modifier
+            )
+            .padding(horizontal = 12.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Icon(icon, null, tint = tint, modifier = Modifier.size(18.dp))
+        Icon(icon, null, tint = tint, modifier = Modifier.size(15.dp))
         Text(label, style = MaterialTheme.typography.labelMedium, color = tint)
     }
 }
