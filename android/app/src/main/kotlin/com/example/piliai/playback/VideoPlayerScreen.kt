@@ -70,6 +70,8 @@ fun VideoPlayerScreen(
     onOpenNote: (bvid: String, cid: Long, positionMs: Long) -> Unit = { _, _, _ -> },
     onSearchTag: (String) -> Unit = {},
     onOpenUser: (Long) -> Unit = {},
+    // 审核347：听音频（用当前 UP 主 mid 打开音频模式）
+    onOpenListenAudio: (Long) -> Unit = {},
     sourceRequest: SourcePlaybackRequest? = null,
     // 自动 PiP 资格必须区分“仍停留在本播放页”与“已导航到其他页面”。
     // 页面 lifecycle 在导航转场期间可能仍为 STARTED，因此需要一个独立的
@@ -1589,6 +1591,16 @@ fun VideoPlayerScreen(
                 label = "笔记",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 onClick = { onOpenNote(bvid, cid, viewModel.getCurrentTime()) },
+            )
+            PlayerActionChip(
+                icon = Icons.Default.Headphones,
+                label = "听音频",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                onClick = {
+                    val mid = viewModel.videoOwnerMid
+                    if (mid > 0L) onOpenListenAudio(mid)
+                    else viewModel.showToast("无法获取 UP 主信息")
+                },
             )
             PlayerActionChip(
                 icon = Icons.Default.PhotoCamera,

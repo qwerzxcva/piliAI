@@ -531,6 +531,7 @@ fun AppNavigation() {
                     navController.navigate(Screen.VideoNote.createRoute(bv, cid, posMs))
                 },
                 onSearchTag = { tag -> navController.navigate(Screen.Search.createRoute(tag)) },
+                onOpenListenAudio = { mid -> navController.navigate(Screen.ListenVideo.createRoute(mid)) },
                 isCurrentDestination = {
                     navController.currentBackStackEntry === backStackEntry
                 }
