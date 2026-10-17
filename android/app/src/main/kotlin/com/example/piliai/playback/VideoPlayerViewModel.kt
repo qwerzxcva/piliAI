@@ -62,6 +62,10 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     /** 兼容层：UI 与 PlayerView 仍需要 ExoPlayer 实例，仅当后端为 Media3 时非空 */
     val player: androidx.media3.exoplayer.ExoPlayer?
         get() = (backend as? com.example.piliai.playback.backend.Media3Backend)?.nativePlayer()
+
+    /** PlayerView 在 factory 时 player 还是 null；这个计数在后端建好后加一，逼界面重新绑定。 */
+    private val _playerEpoch = MutableStateFlow(0)
+    val playerEpoch: StateFlow<Int> = _playerEpoch.asStateFlow()
     
     val activeBackend: String
         get() = com.example.piliai.playback.backend.PlaybackBackends.resolve(
@@ -967,6 +971,7 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         // 只对 Media3 后端注册——GpuNextBackend 不实现 Player 接口。
         (backend as? com.example.piliai.playback.backend.Media3Backend)?.nativePlayer()
             ?.let { com.example.piliai.playback.PlaybackRegistry.register(appContext, it, videoTitle) }
+        _playerEpoch.value = _playerEpoch.value + 1
     }
     
     /** 审核267：当前播放地址的 Uri（无内容时返回 null） */

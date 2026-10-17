@@ -334,9 +334,16 @@ fun VideoPlayerScreen(
                 modifier = Modifier.fillMaxSize()
             )
         } else {
+            val playerEpoch by viewModel.playerEpoch.collectAsStateWithLifecycle()
             AndroidView(
                 factory = { ctx ->
                     createPlayerView(ctx, viewModel.player).also { playerViewRef = it }
+                },
+                update = { view ->
+                    // ExoPlayer is created later in ensureBackend(). Binding only in
+                    // factory leaves view.player null, so progress moves with no picture.
+                    val player = if (playerEpoch >= 0) viewModel.player else null
+                    if (view.player !== player) view.player = player
                 },
                 modifier = Modifier.fillMaxSize()
             )
@@ -522,8 +529,18 @@ fun VideoPlayerScreen(
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
                     }
-                    Text(title, color = Color.White, style = MaterialTheme.typography.titleSmall, maxLines = 1)
-                    Row {
+                    Text(
+                        title,
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Row(
+                        Modifier
+                            .widthIn(max = 220.dp)
+                            .horizontalScroll(rememberScrollState()),
+                    ) {
                         // 清晰度
                         if (state.qualities.isNotEmpty()) {
                             Text(
@@ -704,8 +721,10 @@ fun VideoPlayerScreen(
                 Spacer(Modifier.height(16.dp))
                 
                 // Engagement buttons
-                Row(modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     EngagementButton(
                         icon = Icons.Filled.ThumbUp,
                         label = "点赞",
@@ -733,7 +752,14 @@ fun VideoPlayerScreen(
                     )
                     EngagementButton(
                         icon = Icons.AutoMirrored.Filled.Comment,
-                        label = "评论", onClick = { onOpenComments(bvid) },
+                        label = "评论",
+                        onClick = {
+                            if (bvid.isBlank() || bvid.startsWith("ep")) {
+                                viewModel.showToast("这个视频没有评论区")
+                            } else {
+                                onOpenComments(bvid)
+                            }
+                        },
                         tintColor = Color.White
                     )
                     // 审核319：笔记入口。传当前播放进度，编辑器打开时
@@ -1522,10 +1548,11 @@ private fun createPlayerView(
     view.apply {
         this.player = player
         resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+        useController = false
         setShowNextButton(false)
         setShowPreviousButton(false)
-        controllerAutoShow = true
-        controllerShowTimeoutMs = 3000
+        controllerAutoShow = false
+        controllerShowTimeoutMs = 0
     }
     return view
 }

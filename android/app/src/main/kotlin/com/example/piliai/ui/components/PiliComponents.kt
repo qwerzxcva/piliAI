@@ -152,9 +152,8 @@ fun CategoryPillStrip(
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
                     .background(pillBg)
-                    // padding 提到 clickable 之前，保证触达区含内边距
-                    .padding(horizontal = 14.dp, vertical = 8.dp)
-                    .clickable { onSelect(i) },
+                    .clickable { onSelect(i) }
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -360,10 +359,8 @@ fun SegmentedPillRow(
                         if (selected) MaterialTheme.colorScheme.primaryContainer
                         else Color.Transparent
                     )
-                    // 审核241（P2-3）：padding 提到 clickable 之前，
-                    // 否则点击区 = 文字区（约 32dp 高），低于 48dp 建议值。
-                    .padding(horizontal = 14.dp, vertical = 10.dp)
-                    .clickable { onSelect(i) },
+                    .clickable { onSelect(i) }
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
             ) {
                 Text(
                     label,
