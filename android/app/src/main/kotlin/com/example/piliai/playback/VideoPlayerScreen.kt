@@ -314,6 +314,7 @@ fun VideoPlayerScreen(
     val commentState = commentViewModel?.state?.collectAsStateWithLifecycle()?.value
     val detailEpoch by viewModel.detailEpoch.collectAsStateWithLifecycle()
     val isFollowingOwner by viewModel.isFollowingOwner.collectAsStateWithLifecycle()
+    val inWatchLater by viewModel.isInWatchLater.collectAsStateWithLifecycle()
     val aiEpoch by viewModel.aiEpoch.collectAsStateWithLifecycle()
     val aiLoading by viewModel.aiLoading.collectAsStateWithLifecycle()
     val aiError by viewModel.aiError.collectAsStateWithLifecycle()
@@ -1571,9 +1572,11 @@ fun VideoPlayerScreen(
                 onClick = { viewModel.downloadCurrent(context.applicationContext) },
             )
             PlayerActionChip(
-                icon = Icons.Default.Schedule,
-                label = "稍后看",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                icon = if (inWatchLater) Icons.Default.Check else Icons.Default.Schedule,
+                label = if (inWatchLater) "已添加" else "稍后看",
+                tint = if (inWatchLater) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+                selected = inWatchLater,
                 onClick = { viewModel.addToWatchLater() },
             )
             PlayerActionChip(

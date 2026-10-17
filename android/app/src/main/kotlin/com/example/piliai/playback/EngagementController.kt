@@ -53,6 +53,10 @@ class EngagementController(
     private val _favCount = MutableStateFlow(0L)
     val favCount: StateFlow<Long> = _favCount.asStateFlow()
 
+    /** 审核350：稍后再看是否已添加（防止重复点击重复入库） */
+    private val _isInWatchLater = MutableStateFlow(false)
+    val isInWatchLater: StateFlow<Boolean> = _isInWatchLater.asStateFlow()
+
     /** 默认收藏夹 id（0 = 未取到） */
     private var defaultFavFolderId: Long = 0L
 
@@ -217,6 +221,11 @@ class EngagementController(
                 onError("请先登录")
                 return@launch
             }
+            // 审核350：已添加就直接提示，不再重复调用接口
+            if (_isInWatchLater.value) {
+                onToast("已经在稍后再看里了")
+                return@launch
+            }
             val aid = aidProvider()
             if (aid == 0L) {
                 onError("无法获取视频 aid")
@@ -224,7 +233,10 @@ class EngagementController(
             }
             BiliApiClient().addToView(aid)
                 .onSuccess { ok ->
-                    if (ok) onToast("已加入稍后再看") else onError("添加失败")
+                    if (ok) {
+                        _isInWatchLater.value = true
+                        onToast("已加入稍后再看")
+                    } else onError("添加失败")
                 }
                 .onFailure { onError("添加失败: ${it.message}") }
         }

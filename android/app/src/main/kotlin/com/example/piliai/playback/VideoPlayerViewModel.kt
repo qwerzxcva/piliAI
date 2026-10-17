@@ -1599,6 +1599,8 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     val likeCount: StateFlow<Long> = engagement.likeCount
     val coinCountTotal: StateFlow<Long> = engagement.coinCountTotal
     val favCount: StateFlow<Long> = engagement.favCount
+    /** 审核350：稍后再看已添加状态 */
+    val isInWatchLater: StateFlow<Boolean> = engagement.isInWatchLater
     val favFolders: StateFlow<List<Triple<Long, String, Int>>> = engagement.favFolders
 
     /** 加载互动状态（普通视频/番剧/离线三条链路共用） */
