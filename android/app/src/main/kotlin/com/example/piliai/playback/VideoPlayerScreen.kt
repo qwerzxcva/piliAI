@@ -1592,6 +1592,7 @@ private fun PlayerIntroPage(
     onOpenUser: (Long) -> Unit,
     viewModel: VideoPlayerViewModel,
     isFollowingOwner: Boolean,
+    useRelatedGrid: Boolean = true,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface),
@@ -1762,7 +1763,7 @@ private fun PlayerIntroPage(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-        } else {
+        } else if (useRelatedGrid) {
             items(related, key = { it.bvid }) { item ->
                 Row(
                     Modifier
@@ -1791,6 +1792,57 @@ private fun PlayerIntroPage(
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                    }
+                }
+            }
+        } else {
+            // 审核331：横屏/竖屏都用两列网格，和首页卡片密度一致。
+            // 原来只有单行大图列表，一屏放不下几个。
+            val rows = (related.size + 1) / 2
+            items(rows) { rowIndex ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    for (col in 0..1) {
+                        val index = rowIndex * 2 + col
+                        if (index < related.size) {
+                            val video = related[index]
+                            Column(
+                                Modifier
+                                    .weight(1f)
+                                    .clickable { onRelated(video) },
+                            ) {
+                                coil.compose.AsyncImage(
+                                    model = video.pic.toHttpsUrl(),
+                                    contentDescription = video.title,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .aspectRatio(16f / 9f)
+                                        .clip(RoundedCornerShape(8.dp)),
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    video.title,
+                                    maxLines = 2,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    listOf(video.author, video.viewText)
+                                        .filter { it.isNotBlank() }
+                                        .joinToString(" · "),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                )
+                            }
+                        } else {
+                            Spacer(Modifier.weight(1f))
+                        }
                     }
                 }
             }
