@@ -681,6 +681,9 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         val acceptQn = resp.result?.acceptQuality.orEmpty()
         availableQualities = accepted.zip(acceptQn).map { (desc, q) -> QualityOption(q, desc) }
         currentQn = qnOf(resp)
+        // 审核354：这里原来只给私有字段赋值，没同步到 state——UI 读的是
+        // state.qualities，番剧的清晰度菜单因此是空的，切不了画质。
+        _state.value = _state.value.copy(qualities = availableQualities, currentQn = currentQn)
         startPlayback(primaryVideo, cachedAudioUrl)
         // 审核309：补齐番剧链路缺失的能力加载。原来这里只有
         // loadDanmakuFor，普通视频路径有的字幕/缩略图/在线人数/互动状态
@@ -907,6 +910,8 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         val acceptQn = resp.data?.acceptQuality?.map { it.quality } ?: emptyList()
         availableQualities = accepted.zip(acceptQn).map { (desc, q) -> QualityOption(q, desc) }
         currentQn = resp.data?.quality ?: currentQn
+        // 审核354：同上，普通视频也要把清晰度同步给 UI
+        _state.value = _state.value.copy(qualities = availableQualities, currentQn = currentQn)
 
         startPlayback(videoUrl2, audioUrl2)
         loadSubtitles(bvid, effectiveCid)
