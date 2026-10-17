@@ -1256,7 +1256,9 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     override fun onDecoderOverloaded() {
         if (decoderOverloadReported) return
         decoderOverloadReported = true
-        val superResOn = com.example.piliai.utils.RendererPrefs.superResolutionMode != "off"
+        // 审核328：关闭态的字符串是 disable 不是 off，这里写成 off 会把「关闭」
+        // 判成开启，卡顿提示永远让用户去关一个没开的功能。
+        val superResOn = com.example.piliai.utils.RendererPrefs.superResolutionMode != "disable"
         val message = if (superResOn) {
             "播放卡顿：建议关闭超分辨率"
         } else {

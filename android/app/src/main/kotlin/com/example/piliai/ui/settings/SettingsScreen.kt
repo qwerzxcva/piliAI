@@ -189,27 +189,18 @@ fun SettingsScreen(
                 )
             }
             item {
-                // 审核轮210：超分辨率（真接入 setVideoEffects，GL 上采样）
                 SettingRow(
-                    title = "超分辨率",
-                    // 审核318：文案改为如实描述。此前叫「超分辨率」但实现是
-                    // 双线性拉大（ScaleAndRotateTransformation），观感只是变糊；
-                    // 现在是先锐化（可分离卷积）后放大，文案对应改「画质增强」。
+                    title = "画质增强",
+                    // 审核328：原来是「点一下循环切换」的三态 SettingRow——用户
+                    // 看不到有哪些档，也不知道当前点到了哪档，以为点不动。
+                    // 改成弹窗三选一，和其他单选设置一致。
                     subtitle = when (state.superResolutionMode) {
-                        "efficiency" -> "效率模式（锐化 + 最高 1080p 放大）"
-                        "quality" -> "质量模式（强锐化 + 最高 4K 放大）"
+                        "efficiency" -> "效率（锐化 + 最高 1080p）"
+                        "quality" -> "质量（强锐化 + 最高 4K）"
                         else -> "关闭"
                     },
                     icon = Icons.Default.AutoAwesome,
-                    onClick = {
-                        viewModel.setSuperResolutionMode(
-                            when (state.superResolutionMode) {
-                                "disable" -> "efficiency"
-                                "efficiency" -> "quality"
-                                else -> "disable"
-                            }
-                        )
-                    }
+                    onClick = { dialogs.showSuperResolutionDialog = true }
                 )
             }
             item {

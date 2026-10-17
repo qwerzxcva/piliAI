@@ -492,6 +492,51 @@ if (dialogs.showSpeedListDialog) {
     )
 }
 
+if (dialogs.showSuperResolutionDialog) {
+    AlertDialog(
+        onDismissRequest = { dialogs.showSuperResolutionDialog = false },
+        title = { Text("画质增强") },
+        text = {
+            Column {
+                listOf(
+                    "disable" to "关闭",
+                    "efficiency" to "效率（锐化 + 最高 1080p）",
+                    "quality" to "质量（强锐化 + 最高 4K）",
+                ).forEach { (mode, label) ->
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .clickable {
+                                viewModel.setSuperResolutionMode(mode)
+                                dialogs.showSuperResolutionDialog = false
+                            }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = state.superResolutionMode == mode,
+                            onClick = {
+                                viewModel.setSuperResolutionMode(mode)
+                                dialogs.showSuperResolutionDialog = false
+                            }
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(label, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "基于 Media3 画面效果：先锐化再放大，不是 AI 超分。播放中切换即时生效。",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { dialogs.showSuperResolutionDialog = false }) { Text("取消") }
+        }
+    )
+}
+
 if (dialogs.showBackendDialog) {
     val gpuNextReady = com.example.piliai.playback.backend.GpuNextBackend.isAvailable()
     AlertDialog(
@@ -525,6 +570,15 @@ if (dialogs.showBackendDialog) {
                         Spacer(Modifier.width(8.dp))
                         Text(stringResource(label), style = MaterialTheme.typography.bodyMedium)
                     }
+                }
+                if (!gpuNextReady) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "GPU-next（mpv 渲染）尚未接通：原生库还没有真实输出帧，" +
+                            "选择后会自动回退 Media3，不会出现黑屏。",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         },

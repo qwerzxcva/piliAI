@@ -33,6 +33,7 @@ class SettingsDialogState {
     var showRendererDialog by mutableStateOf(false)
     var showSkipDialog by mutableStateOf(false)
     var showSpeedListDialog by mutableStateOf(false)
+    var showSuperResolutionDialog by mutableStateOf(false)
     var showThemeDialog by mutableStateOf(false)
 
     /** 全部关闭（离开设置页时用，避免返回后弹窗仍开着） */
@@ -55,6 +56,7 @@ class SettingsDialogState {
         showRendererDialog = false
         showSkipDialog = false
         showSpeedListDialog = false
+        showSuperResolutionDialog = false
         showThemeDialog = false
     }
 }

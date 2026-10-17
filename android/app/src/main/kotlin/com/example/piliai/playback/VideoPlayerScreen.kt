@@ -750,7 +750,9 @@ fun VideoPlayerScreen(
                 
                 Spacer(Modifier.height(16.dp))
                 
-                // Engagement buttons
+                // 竖屏时互动按钮移到画面下方独立一行：16:9 画面高度装不下
+                // 顶栏 + 播放键 + 11 个按钮，叠在画面里会被截断。
+                if (!portrait || detailBvid.isEmpty()) {
                 Row(
                     modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -889,6 +891,7 @@ fun VideoPlayerScreen(
                         },
                         tintColor = Color.White
                     )
+                }
                 }
             }
         }
@@ -1416,6 +1419,53 @@ fun VideoPlayerScreen(
     if (portrait && detailBvid.isNotEmpty() && detailPager != null && commentViewModel != null) {
         val scope = rememberCoroutineScope()
         val page = detailPager.currentPage
+        // 画面下方一行互动：点赞/投币/收藏/分享等，横滑不占画面高度
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surface)
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            PlayerActionChip(
+                icon = Icons.Filled.ThumbUp,
+                label = formatCount(likeCount),
+                tint = if (isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                onClick = { viewModel.toggleLike() },
+            )
+            PlayerActionChip(
+                icon = Icons.Default.MonetizationOn,
+                label = formatCount(coinCountTotal),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                onClick = { showCoinSheet = true },
+            )
+            PlayerActionChip(
+                icon = if (isFavorited) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                label = formatCount(favCount),
+                tint = if (isFavorited) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                onClick = { viewModel.loadFavFolders(); showFavSheet = true },
+            )
+            PlayerActionChip(
+                icon = Icons.Default.Share,
+                label = "分享",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                onClick = { shareCurrent(context, bvid) },
+            )
+            PlayerActionChip(
+                icon = Icons.Default.Download,
+                label = "下载",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                onClick = { viewModel.downloadCurrent(context.applicationContext) },
+            )
+            PlayerActionChip(
+                icon = Icons.Default.Schedule,
+                label = "稍后看",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                onClick = { viewModel.addToWatchLater() },
+            )
+        }
         Column(
             Modifier
                 .weight(1f)
@@ -1467,6 +1517,43 @@ fun VideoPlayerScreen(
             }
         }
     }
+    }
+}
+
+@Composable
+private fun PlayerActionChip(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    tint: Color,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Icon(icon, null, tint = tint, modifier = Modifier.size(18.dp))
+        Text(label, style = MaterialTheme.typography.labelMedium, color = tint)
+    }
+}
+
+/** 分享当前视频（系统面板，失败退回剪贴板） */
+private fun shareCurrent(context: android.content.Context, bvid: String) {
+    val link = if (bvid.startsWith("ep"))
+        "https://www.bilibili.com/bangumi/play/$bvid"
+    else "https://www.bilibili.com/video/$bvid"
+    val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(android.content.Intent.EXTRA_TEXT, link)
+    }
+    val shared = runCatching {
+        context.startActivity(android.content.Intent.createChooser(send, "分享到"))
+    }.isSuccess
+    if (!shared) {
+        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        cm.setPrimaryClip(android.content.ClipData.newPlainText("link", link))
     }
 }
 
