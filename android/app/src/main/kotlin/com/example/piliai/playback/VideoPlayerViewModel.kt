@@ -1634,14 +1634,14 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         }
         viewModelScope.launch {
             runCatching {
-                val repo = com.example.piliai.todaywatch.TodayWatchRepository(
+                com.example.piliai.todaywatch.TodayWatchRepository(
                     com.example.piliai.database.PiliNaraDatabase.getDatabase(appContext)
-                )
-                repo.dislike(bv, videoOwnerMid)
+                ).dislike(bv, videoOwnerMid)
             }.onSuccess {
                 showToast("已标记不喜欢，将减少同类推荐")
             }.onFailure {
                 showToast("标记失败，请稍后重试")
+            }
         }
     }
 

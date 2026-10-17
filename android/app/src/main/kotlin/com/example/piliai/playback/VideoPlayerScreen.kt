@@ -317,7 +317,7 @@ fun VideoPlayerScreen(
         val aid = viewModel.aid
         if (aid > 0L) commentViewModel?.bindAid(aid)
     }
-    val detailPager = if (portrait && detailBvid.isNotEmpty()) rememberPagerState(pageCount = { 2 }) else null
+    val detailPager = if (portrait && detailBvid.isNotEmpty()) rememberPagerState(pageCount = { 3 }) else null
 
     Column(modifier = Modifier.fillMaxSize().background(Color.Black)) {
     Box(modifier = Modifier.then(
@@ -1605,7 +1605,6 @@ fun VideoPlayerScreen(
             HorizontalPager(
                 state = detailPager,
                 modifier = Modifier.fillMaxSize(),
-                pageCount = 3,
             ) { index ->
                 if (index == 0) {
                     PlayerIntroPage(
@@ -1628,7 +1627,7 @@ fun VideoPlayerScreen(
                         onRelated = { viewModel.playRelated(it) },
                         onOpenComments = { scope.launch { detailPager.animateScrollToPage(1) } },
                         onOpenUser = onOpenUser,
-                        onShowCollection = { if (parts.size > 1) showPartSheet = true },
+                        onShowCollection = { if (viewModel.partList().size > 1) showPartSheet = true },
                         viewModel = viewModel,
                         isFollowingOwner = isFollowingOwner,
                         followerCount = viewModel.ownerFollowerCount,

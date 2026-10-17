@@ -188,12 +188,7 @@ jobs:
         run: |
           chmod +x ./android/gradlew
           cd android
-          # 审核339/343：kspDebugKotlin 在 calcDirtyFiles 处抛 IllegalStateException，
-          # 栈全在 KSP 内部；清 kspCaches 无用。改在 CI 关闭 KSP 增量，
-          # 直接绕过这条故障路径（只影响 CI，不改本地配置）。
-          rm -rf app/build/kspCaches app/build/generated/ksp
-          ./gradlew :app:assembleDebug --build-cache --no-daemon --stacktrace \
-            -Pksp.incremental=false 2>&1
+          ./gradlew :app:assembleDebug --build-cache --no-daemon --stacktrace 2>&1
           for regression in run_playback_headers_regression.py run_playback_session_regression.py run_playback_network_regression.py run_playback_speed_regression.py run_pip_params_regression.py run_owned_resolver_regression.py run_subscription_search_regression.py run_subscription_link_regression.py run_jsonpath_regression.py run_rss_regression.py run_scraper_regression.py run_todaywatch_regression.py; do
             PYTHONDONTWRITEBYTECODE=1 python3 "../tests/$regression" || exit 1
           done
