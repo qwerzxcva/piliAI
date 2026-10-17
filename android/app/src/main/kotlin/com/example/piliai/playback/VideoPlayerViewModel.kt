@@ -70,6 +70,10 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     /** 标题、简介、UP 主写在普通字段上，简介页读不到变化。这个计数在详情就绪后加一。 */
     private val _detailEpoch = MutableStateFlow(0)
     val detailEpoch: StateFlow<Int> = _detailEpoch.asStateFlow()
+
+    /** 审核334：AI 总结也是普通字段，加载完成后也要通知界面。 */
+    private val _aiEpoch = MutableStateFlow(0)
+    val aiEpoch: StateFlow<Int> = _aiEpoch.asStateFlow()
     
     val activeBackend: String
         get() = com.example.piliai.playback.backend.PlaybackBackends.resolve(
@@ -795,6 +799,9 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         subtitle.reset()
         // 审核311：热力曲线归 DanmakuController 清空
         danmakuCtrl.clear()
+        // 审核334：换片时清掉上一个视频的 AI 总结，否则会串到下一个视频
+        aiSummary = ""
+        aiOutline = emptyList()
     }
 
     private fun loadSubtitles(bvid: String, cid: Long) {
@@ -1414,6 +1421,9 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         private set
     var videoOwnerFace: String = ""
         private set
+    /** 审核334：UP 主粉丝数（UP 主行展示，失败静默） */
+    var ownerFollowerCount: Long = 0L
+        private set
     // 批次L18：简介/标签/发布时间
     var videoDesc: String = ""
     var videoTags: List<String> = emptyList()
@@ -1438,6 +1448,10 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         if (mid <= 0L) return
         viewModelScope.launch {
             _isFollowingOwner.value = BiliApiClient().isFollowing(mid)
+            // 审核334：UP 主行的「X 粉丝」
+            BiliApiClient().getRelationStat(mid).onSuccess { resp ->
+                if (resp.code == 0) ownerFollowerCount = resp.data?.follower ?: 0L
+            }
         }
     }
 
@@ -1467,6 +1481,7 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
             if (resp.data?.code == 0 && mr != null && mr.result_type > 0) {
                 aiSummary = mr.summary
                 aiOutline = mr.outline.map { Pair(it.timestamp, it.title) }
+                _aiEpoch.value = _aiEpoch.value + 1
             }
         }
     }

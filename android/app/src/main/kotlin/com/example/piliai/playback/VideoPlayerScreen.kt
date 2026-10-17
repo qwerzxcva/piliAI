@@ -308,6 +308,7 @@ fun VideoPlayerScreen(
     val commentState = commentViewModel?.state?.collectAsStateWithLifecycle()?.value
     val detailEpoch by viewModel.detailEpoch.collectAsStateWithLifecycle()
     val isFollowingOwner by viewModel.isFollowingOwner.collectAsStateWithLifecycle()
+    val aiEpoch by viewModel.aiEpoch.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel.aid, commentViewModel) {
         val aid = viewModel.aid
         if (aid > 0L) commentViewModel?.bindAid(aid)
@@ -1518,6 +1519,8 @@ fun VideoPlayerScreen(
                         onOpenUser = onOpenUser,
                         viewModel = viewModel,
                         isFollowingOwner = isFollowingOwner,
+                        followerCount = viewModel.ownerFollowerCount,
+                        aiSummary = if (aiEpoch >= 0) viewModel.aiSummary else "",
                     )
                 } else {
                     com.example.piliai.ui.comments.CommentScreen(
@@ -1618,6 +1621,8 @@ private fun PlayerIntroPage(
     onOpenUser: (Long) -> Unit,
     viewModel: VideoPlayerViewModel,
     isFollowingOwner: Boolean,
+    aiSummary: String,
+    followerCount: Long = 0L,
     useRelatedGrid: Boolean = true,
 ) {
     LazyColumn(
@@ -1644,13 +1649,14 @@ private fun PlayerIntroPage(
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
                             Text(owner, style = MaterialTheme.typography.bodyMedium)
-                            if (ownerMid > 0L) {
-                                Text(
-                                    "进入主页",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
+                            Text(
+                                buildList {
+                                    if (followerCount > 0L) add("${formatCount(followerCount)}粉丝")
+                                    if (ownerMid > 0L) add("进入主页")
+                                }.joinToString(" · "),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                         androidx.compose.material3.TextButton(
                             onClick = { viewModel.followOwner(ownerMid) },
@@ -1715,6 +1721,60 @@ private fun PlayerIntroPage(
                 }
                 Spacer(Modifier.height(8.dp))
                 TextButton(onClick = onOpenComments) { Text("查看评论") }
+            }
+        }
+        // 审核334：AI 总结（PiliNara 的 AI 按钮接在简介区右侧，
+        // 这里做成一块可展开卡片）。数据已在 loadAiConclusion。
+        item {
+            var aiExpanded by remember { androidx.compose.runtime.mutableStateOf(false) }
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            if (aiSummary.isBlank()) viewModel.loadAiConclusion()
+                            aiExpanded = !aiExpanded
+                        }
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Default.AutoAwesome,
+                        null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("AI 总结", style = MaterialTheme.typography.titleSmall)
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        if (aiExpanded) "收起" else "查看",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                if (aiExpanded) {
+                    if (aiSummary.isBlank()) {
+                        LaunchedEffect(aiExpanded) { viewModel.loadAiConclusion() }
+                        Text(
+                            "暂无 AI 总结（需登录，且视频需支持）",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        Text(aiSummary, style = MaterialTheme.typography.bodySmall)
+                        viewModel.aiOutline.forEach { (ts, title) ->
+                            Text(
+                                "%d:%02d %s".format(ts / 60, ts % 60, title),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .padding(top = 4.dp)
+                                    .clickable { viewModel.seekTo(ts * 1000) },
+                            )
+                        }
+                    }
+                }
             }
         }
         if (parts.size > 1) {
