@@ -318,7 +318,10 @@ fun VideoPlayerScreen(
     val aiEpoch by viewModel.aiEpoch.collectAsStateWithLifecycle()
     val aiLoading by viewModel.aiLoading.collectAsStateWithLifecycle()
     val aiError by viewModel.aiError.collectAsStateWithLifecycle()
-    LaunchedEffect(viewModel.aid, commentViewModel) {
+    // 审核362：viewModel.aid 是普通 var（非 Compose State），拿它当 LaunchedEffect
+    // 的 key 不会在 aid 变化时重跑，评论可能一直拿不到 aid 而加载失败。
+    // 改用 detailEpoch（详情就绪时自增的 StateFlow）作为触发信号。
+    LaunchedEffect(detailEpoch, commentViewModel) {
         val aid = viewModel.aid
         if (aid > 0L) commentViewModel?.bindAid(aid)
     }

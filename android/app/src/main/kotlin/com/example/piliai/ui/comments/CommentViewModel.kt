@@ -46,30 +46,45 @@ class CommentViewModel(private val bvid: String) : ViewModel() {
         val repliesHasMore: Map<Long, Boolean> = emptyMap(),
     )
 
+    // 审核362：独立评论页（无 bindAid）靠这里的兜底加载；
+    // 播放页内嵌时会很快调 bindAid，那时会按拿到的 aid 重新拉。
     init { load(1) }
 
     /** 播放页已经拿到 aid 时直接用，避免评论接口再打一次详情。 */
     fun bindAid(aid: Long) {
-        if (aid <= 0L || _state.value.oid == aid) return
-        _state.value = _state.value.copy(oid = aid)
-        if (_state.value.comments.isEmpty() && !_state.value.isLoading) load(1)
+        if (aid <= 0L) return
+        if (_state.value.oid == aid && _state.value.comments.isNotEmpty()) return
+        // 审核362：换视频时清空旧列表并递增代际，防止上一个视频的
+        // 在飞请求返回后覆盖新视频的评论。
+        generation++
+        _state.value = _state.value.copy(
+            oid = aid, comments = emptyList(), topComment = null,
+            totalCount = 0, page = 1, hasMore = false,
+        )
+        load(1)
     }
+
+    /** 审核362：换视频时代际递增，过期的响应直接丢弃 */
+    private var generation = 0
 
     private fun aid(): Long = _state.value.oid
 
     fun load(page: Int, mode: Int? = null) {
         val m = mode ?: _state.value.mode
+        val gen = generation
         if (page == 1) _state.value = _state.value.copy(isLoading = true, error = null, mode = m)
         else _state.value = _state.value.copy(isLoadingMore = true)
 
         viewModelScope.launch {
             // 先由 view 解析 aid（详情接口），oid==0 时兜底取
             val oid = if (aid() > 0) aid() else resolveAid()
+            if (gen != generation) return@launch
             if (oid <= 0) {
                 _state.value = _state.value.copy(isLoading = false, error = "无法获取视频 aid")
                 return@launch
             }
             api.getComments(bvid, oid = oid, page = page, mode = m).onSuccess { resp ->
+                if (gen != generation) return@onSuccess
                 if (resp.code == 0) {
                     val list = resp.data?.replay.orEmpty()
                     // 审核237：置顶评论取 upper 优先（UP主置顶），无则 admin
