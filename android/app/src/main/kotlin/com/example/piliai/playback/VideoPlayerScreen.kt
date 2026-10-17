@@ -1513,6 +1513,30 @@ fun VideoPlayerScreen(
                 }
         )
 
+        // 审核359：竖屏播放器右下角常驻全屏按钮。
+        // 原来全屏只在顶栏那一排里，竖屏宽度受限时会被挤进横滑区，用户找不到。
+        if (portrait && !isInPiP) {
+            androidx.compose.material3.IconButton(
+                onClick = {
+                    context.findActivity()?.requestedOrientation =
+                        android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(8.dp),
+            ) {
+                Icon(
+                    Icons.Default.Fullscreen,
+                    "全屏",
+                    tint = Color.White,
+                    modifier = Modifier
+                        .background(Color.Black.copy(alpha = 0.35f), CircleShape)
+                        .padding(6.dp)
+                        .size(22.dp),
+                )
+            }
+        }
+
         // 手势提示浮层（快进/音量/亮度）
         if (state.gestureSeekDeltaMs != 0L && !isInPiP) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
