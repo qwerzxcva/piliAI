@@ -172,11 +172,6 @@ class StorageManager(private val context: Context) {
     }
 
         // Account settings
-        private val IS_LOGGED_IN_KEY = booleanPreferencesKey("isLoggedIn")
-        private val USER_MID_KEY = longPreferencesKey("userMid")
-        private val USER_NAME_KEY = stringPreferencesKey("userName")
-        private val ACCESS_TOKEN_KEY = stringPreferencesKey("accessToken")
-        private val REFRESH_TOKEN_KEY = stringPreferencesKey("refreshToken")
     // Theme
     val themeModeFlow: Flow<String> = context.dataStore.data
         .map { preferences -> preferences[THEME_MODE_KEY] ?: "system" }
@@ -281,15 +276,8 @@ class StorageManager(private val context: Context) {
     val danmakuSpeedFlow: Flow<Float> = context.dataStore.data
         .map { preferences -> preferences[DANMAKU_SPEED_KEY] ?: 1.0f }
     
-    // Account
-    val isLoggedInFlow: Flow<Boolean> = context.dataStore.data
-        .map { preferences -> preferences[IS_LOGGED_IN_KEY] ?: false }
-    
-    val userMidFlow: Flow<Long> = context.dataStore.data
-        .map { preferences -> preferences[USER_MID_KEY] ?: 0L }
-    
-    val userNameFlow: Flow<String> = context.dataStore.data
-        .map { preferences -> preferences[USER_NAME_KEY] ?: "" }
+    // Account（登录态以 AccountSession 为唯一来源；这三个 Flow 与 login/logout
+    // 都无消费方，已删——见审核352）
     
     // Methods
     suspend fun setThemeMode(mode: String) {
@@ -836,25 +824,5 @@ class StorageManager(private val context: Context) {
 
     suspend fun clearAll() {
         context.dataStore.edit { it.clear() }
-    }
-    
-    suspend fun login(mid: Long, name: String, accessToken: String, refreshToken: String) {
-        context.dataStore.edit { preferences ->
-            preferences[IS_LOGGED_IN_KEY] = true
-            preferences[USER_MID_KEY] = mid
-            preferences[USER_NAME_KEY] = name
-            preferences[ACCESS_TOKEN_KEY] = accessToken
-            preferences[REFRESH_TOKEN_KEY] = refreshToken
-        }
-    }
-    
-    suspend fun logout() {
-        context.dataStore.edit { preferences ->
-            preferences[IS_LOGGED_IN_KEY] = false
-            preferences[USER_MID_KEY] = 0L
-            preferences[USER_NAME_KEY] = ""
-            preferences[ACCESS_TOKEN_KEY] = ""
-            preferences[REFRESH_TOKEN_KEY] = ""
-        }
     }
 }
