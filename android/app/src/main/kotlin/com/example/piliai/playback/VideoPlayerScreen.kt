@@ -315,6 +315,8 @@ fun VideoPlayerScreen(
     val detailEpoch by viewModel.detailEpoch.collectAsStateWithLifecycle()
     val isFollowingOwner by viewModel.isFollowingOwner.collectAsStateWithLifecycle()
     val aiEpoch by viewModel.aiEpoch.collectAsStateWithLifecycle()
+    val aiLoading by viewModel.aiLoading.collectAsStateWithLifecycle()
+    val aiError by viewModel.aiError.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel.aid, commentViewModel) {
         val aid = viewModel.aid
         if (aid > 0L) commentViewModel?.bindAid(aid)
@@ -1684,6 +1686,8 @@ fun VideoPlayerScreen(
                         isFollowingOwner = isFollowingOwner,
                         followerCount = viewModel.ownerFollowerCount,
                         aiSummary = if (aiEpoch >= 0) viewModel.aiSummary else "",
+                        aiLoading = aiLoading,
+                        aiError = aiError,
                     )
                 } else if (index == 1) {
                     com.example.piliai.ui.comments.CommentScreen(
@@ -1864,6 +1868,8 @@ private fun PlayerIntroPage(
     viewModel: VideoPlayerViewModel,
     isFollowingOwner: Boolean,
     aiSummary: String,
+    aiLoading: Boolean = false,
+    aiError: String? = null,
     followerCount: Long = 0L,
     useRelatedGrid: Boolean = true,
 ) {
@@ -2003,11 +2009,28 @@ private fun PlayerIntroPage(
                 if (aiExpanded) {
                     if (aiSummary.isBlank()) {
                         LaunchedEffect(aiExpanded) { viewModel.loadAiConclusion() }
-                        Text(
-                            "暂无 AI 总结（需登录，且视频需支持）",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        // 审核348：区分加载中 / 失败 / 本身没有三种情况，
+                        // 原来一律显示「暂无 AI 总结」，用户以为功能坏了。
+                        when {
+                            aiLoading -> Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("正在获取 AI 总结…", style = MaterialTheme.typography.bodySmall)
+                            }
+                            aiError != null -> Text(
+                                aiError,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                            else -> Text(
+                                "该视频没有 AI 总结",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     } else {
                         Text(aiSummary, style = MaterialTheme.typography.bodySmall)
                         viewModel.aiOutline.forEach { (ts, title) ->

@@ -74,6 +74,12 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     /** 审核334：AI 总结也是普通字段，加载完成后也要通知界面。 */
     private val _aiEpoch = MutableStateFlow(0)
     val aiEpoch: StateFlow<Int> = _aiEpoch.asStateFlow()
+
+    /** 审核348：AI 总结的加载中 / 失败态（区分「没加载」「没有」「失败」） */
+    private val _aiLoading = MutableStateFlow(false)
+    val aiLoading: StateFlow<Boolean> = _aiLoading.asStateFlow()
+    private val _aiError = MutableStateFlow<String?>(null)
+    val aiError: StateFlow<String?> = _aiError.asStateFlow()
     
     val activeBackend: String
         get() = com.example.piliai.playback.backend.PlaybackBackends.resolve(
@@ -1475,13 +1481,29 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
 
     /** 批次L22：加载 AI 总结（需登录，失败静默显示无摘要） */
     fun loadAiConclusion() {
+        if (_aiLoading.value) return
+        _aiLoading.value = true
+        _aiError.value = null
         viewModelScope.launch {
-            val resp = BiliApiClient().getAiConclusion(currentBvid, effectiveCid).getOrNull() ?: return@launch
+            // 审核348：原来是失败静默 return，界面永远停在「暂无 AI 总结」，
+            // 用户分不清是视频不支持、未登录还是网络错。现在把三种情况分开。
+            val result = runCatching { BiliApiClient().getAiConclusion(currentBvid, effectiveCid) }
+            _aiLoading.value = false
+            val resp = result.getOrNull()?.getOrNull()
+            if (resp == null) {
+                _aiError.value = "加载失败，请检查网络后重试"
+                return@launch
+            }
             val mr = resp.data?.model_result
             if (resp.data?.code == 0 && mr != null && mr.result_type > 0) {
                 aiSummary = mr.summary
                 aiOutline = mr.outline.map { Pair(it.timestamp, it.title) }
                 _aiEpoch.value = _aiEpoch.value + 1
+            } else {
+                _aiError.value = when {
+                    resp.data?.code != 0 -> "该视频暂不支持 AI 总结（可能需登录）"
+                    else -> "该视频没有 AI 总结"
+                }
             }
         }
     }
