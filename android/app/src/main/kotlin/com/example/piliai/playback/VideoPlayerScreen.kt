@@ -41,6 +41,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.viewinterop.AndroidView
@@ -159,6 +160,7 @@ fun VideoPlayerScreen(
     var showQualityMenu by remember { mutableStateOf(false) }
     var showPartSheet by remember { mutableStateOf(false) }
     var showDanmakuSheet by remember { mutableStateOf(false) }
+    var showShareSheet by remember { mutableStateOf(false) }
     var showRelatedSheet by remember { mutableStateOf(false) }
     var showIntroSheet by remember { mutableStateOf(false) }
     var showCoinSheet by remember { mutableStateOf(false) }
@@ -987,6 +989,37 @@ fun VideoPlayerScreen(
             }
         }
 
+        // 审核342：分享面板（复制链接 / 系统分享 / 浏览器打开）
+        if (showShareSheet) {
+            ModalBottomSheet(onDismissRequest = { showShareSheet = false }) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("分享", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        videoLink(bvid),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    listOf(
+                        "复制链接" to { copyVideoLink(context, bvid) },
+                        "系统分享" to { shareViaSystem(context, bvid) },
+                        "浏览器打开" to { openInBrowser(context, bvid) },
+                    ).forEach { (label, action) ->
+                        Text(
+                            label,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { action(); showShareSheet = false }
+                                .padding(vertical = 12.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+            }
+        }
+
         // 弹幕设置面板
         if (showDanmakuSheet) {
             ModalBottomSheet(onDismissRequest = { showDanmakuSheet = false }) {
@@ -1516,7 +1549,7 @@ fun VideoPlayerScreen(
                 icon = Icons.Default.Share,
                 label = "分享",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                onClick = { shareCurrent(context, bvid) },
+                onClick = { showShareSheet = true },
             )
             PlayerActionChip(
                 icon = Icons.Default.Download,
@@ -1715,11 +1748,14 @@ private fun PlayerActionChip(
     }
 }
 
-/** 分享当前视频（系统面板，失败退回剪贴板） */
-private fun shareCurrent(context: android.content.Context, bvid: String) {
-    val link = if (bvid.startsWith("ep"))
-        "https://www.bilibili.com/bangumi/play/$bvid"
-    else "https://www.bilibili.com/video/$bvid"
+/** 视频链接（番剧走 bangumi/play） */
+private fun videoLink(bvid: String): String = if (bvid.startsWith("ep"))
+    "https://www.bilibili.com/bangumi/play/$bvid"
+else "https://www.bilibili.com/video/$bvid"
+
+/** 系统分享面板，失败退回剪贴板 */
+private fun shareViaSystem(context: android.content.Context, bvid: String) {
+    val link = videoLink(bvid)
     val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
         type = "text/plain"
         putExtra(android.content.Intent.EXTRA_TEXT, link)
@@ -1730,6 +1766,25 @@ private fun shareCurrent(context: android.content.Context, bvid: String) {
     if (!shared) {
         val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
         cm.setPrimaryClip(android.content.ClipData.newPlainText("link", link))
+    }
+}
+
+/** 复制链接到剪贴板 */
+private fun copyVideoLink(context: android.content.Context, bvid: String) {
+    val link = videoLink(bvid)
+    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+    cm.setPrimaryClip(android.content.ClipData.newPlainText("link", link))
+    android.widget.Toast.makeText(context, "链接已复制", android.widget.Toast.LENGTH_SHORT).show()
+}
+
+/** 用浏览器打开原页面 */
+private fun openInBrowser(context: android.content.Context, bvid: String) {
+    val link = videoLink(bvid)
+    val ok = runCatching {
+        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, link.toUri()))
+    }.isSuccess
+    if (!ok) {
+        android.widget.Toast.makeText(context, "没有可用的浏览器", android.widget.Toast.LENGTH_SHORT).show()
     }
 }
 
