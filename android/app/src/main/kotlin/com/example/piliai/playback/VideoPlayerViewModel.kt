@@ -1938,6 +1938,13 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
                     continuePlayingPart -> _state.value.related.firstOrNull()?.let(::playRelated)
                     partIndex + 1 in pages.indices -> showToast("播放完毕，还有下一 P")
                 }
+                // 审核351：原来没有 stop 分支，选「停止」时静默无任何反馈，
+                // 用户不知道是播完了还是卡了。现在明确回到 0 位置并提示。
+                else -> {
+                    if (_state.value.currentTime > 0L) {
+                        showToast("播放完毕")
+                    }
+                }
             }
         }
     }
