@@ -1504,6 +1504,10 @@ fun VideoPlayerScreen(
                         tags = viewModel.videoTags,
                         parts = viewModel.partList(),
                         currentPart = state.currentPart,
+                        videoView = viewModel.videoView,
+                        videoDanmaku = viewModel.videoDanmaku,
+                        videoReply = viewModel.videoReply,
+                        videoPubdate = viewModel.videoPubdate,
                         related = state.related,
                         onPart = { viewModel.playPart(it) },
                         onTag = onSearchTag,
@@ -1576,6 +1580,10 @@ private fun PlayerIntroPage(
     tags: List<String>,
     parts: List<VideoPlayerViewModel.PartInfo>,
     currentPart: Int,
+    videoView: Long,
+    videoDanmaku: Long,
+    videoReply: Long,
+    videoPubdate: Long,
     related: List<VideoPlayerViewModel.RelatedItem>,
     onPart: (Int) -> Unit,
     onTag: (String) -> Unit,
@@ -1625,13 +1633,37 @@ private fun PlayerIntroPage(
                         }
                     }
                 }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    buildList {
+                        if (videoView > 0L) add("${formatCount(videoView)}播放")
+                        if (videoDanmaku > 0L) add("${formatCount(videoDanmaku)}弹幕")
+                        if (videoReply > 0L) add("${formatCount(videoReply)}评论")
+                        if (videoPubdate > 0L) add(
+                            java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.CHINA)
+                                .format(java.util.Date(videoPubdate * 1000))
+                        )
+                    }.joinToString(" · "),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 if (desc.isNotBlank()) {
                     Spacer(Modifier.height(8.dp))
+                    var expanded by remember { androidx.compose.runtime.mutableStateOf(false) }
                     Text(
                         desc,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 4,
+                        maxLines = if (expanded) Int.MAX_VALUE else 3,
+                        modifier = Modifier.clickable { expanded = !expanded },
+                    )
+                    Text(
+                        if (expanded) "收起" else "展开",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .padding(top = 2.dp)
+                            .clickable { expanded = !expanded },
                     )
                 }
                 if (tags.isNotEmpty()) {

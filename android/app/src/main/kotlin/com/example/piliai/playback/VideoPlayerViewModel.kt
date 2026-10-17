@@ -846,6 +846,9 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         videoTags = detail?.tags?.takeIf { it.isNotEmpty() }
             ?.mapNotNull { it.tagName } ?: emptyList()
         videoPubdate = detail?.pubdate ?: 0L
+        videoView = detail?.stat?.play ?: 0L
+        videoDanmaku = detail?.stat?.danmaku ?: 0L
+        videoReply = detail?.stat?.reply ?: 0L
         _detailEpoch.value = _detailEpoch.value + 1
         // 分P 列表（单P视频 pages 只有 1 项）
         pages = (detail?.pages.orEmpty()).map {
@@ -1415,6 +1418,13 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     var videoDesc: String = ""
     var videoTags: List<String> = emptyList()
     var videoPubdate: Long = 0L
+        private set
+    /** 审核330：简介页统计（播放/弹幕/评论） */
+    var videoView: Long = 0L
+        private set
+    var videoDanmaku: Long = 0L
+        private set
+    var videoReply: Long = 0L
         private set
     // 批次L22：AI 总结
     var aiSummary: String = ""
