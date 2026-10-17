@@ -1587,7 +1587,7 @@ fun VideoPlayerScreen(
             )
             PlayerActionChip(
                 icon = Icons.Default.Collections,
-                label = "合集",
+                label = "分集",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 onClick = { showPartSheet = true },
             )
@@ -1974,7 +1974,7 @@ private fun PlayerIntroPage(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = onOpenComments) { Text("查看评论") }
                     if (onShowCollection != null) {
-                        TextButton(onClick = onShowCollection) { Text("合集") }
+                        TextButton(onClick = onShowCollection) { Text("分集") }
                     }
                 }
             }
