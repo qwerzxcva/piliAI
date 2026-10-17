@@ -1478,6 +1478,12 @@ fun VideoPlayerScreen(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 onClick = { viewModel.dislikeCurrent() },
             )
+            PlayerActionChip(
+                icon = Icons.Default.Collections,
+                label = "合集",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                onClick = { showPartSheet = true },
+            )
         }
         Column(
             Modifier
