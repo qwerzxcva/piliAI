@@ -305,6 +305,7 @@ fun VideoPlayerScreen(
         null
     }
     val commentState = commentViewModel?.state?.collectAsStateWithLifecycle()?.value
+    val detailEpoch by viewModel.detailEpoch.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel.aid, commentViewModel) {
         val aid = viewModel.aid
         if (aid > 0L) commentViewModel?.bindAid(aid)
@@ -1442,7 +1443,7 @@ fun VideoPlayerScreen(
             ) { index ->
                 if (index == 0) {
                     PlayerIntroPage(
-                        title = viewModel.videoTitle.ifBlank { title },
+                        title = if (detailEpoch >= 0) viewModel.videoTitle.ifBlank { title } else title,
                         owner = viewModel.videoOwner,
                         desc = viewModel.videoDesc,
                         related = state.related,

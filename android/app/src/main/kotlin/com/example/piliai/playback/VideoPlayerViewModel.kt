@@ -66,6 +66,10 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     /** PlayerView 在 factory 时 player 还是 null；这个计数在后端建好后加一，逼界面重新绑定。 */
     private val _playerEpoch = MutableStateFlow(0)
     val playerEpoch: StateFlow<Int> = _playerEpoch.asStateFlow()
+
+    /** 标题、简介、UP 主写在普通字段上，简介页读不到变化。这个计数在详情就绪后加一。 */
+    private val _detailEpoch = MutableStateFlow(0)
+    val detailEpoch: StateFlow<Int> = _detailEpoch.asStateFlow()
     
     val activeBackend: String
         get() = com.example.piliai.playback.backend.PlaybackBackends.resolve(
@@ -839,6 +843,7 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         videoTags = detail?.tags?.takeIf { it.isNotEmpty() }
             ?.mapNotNull { it.tagName } ?: emptyList()
         videoPubdate = detail?.pubdate ?: 0L
+        _detailEpoch.value = _detailEpoch.value + 1
         // 分P 列表（单P视频 pages 只有 1 项）
         pages = (detail?.pages.orEmpty()).map {
             PartInfo(cid = it.cid, page = it.page, part = it.part, durationSec = it.duration)
@@ -1722,7 +1727,7 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
 
     /** 播放相关视频（重置状态换源） */
     fun playRelated(item: RelatedItem) {
-        _state.value = _state.value.copy(related = _state.value.related, error = null)
+        _state.value = _state.value.copy(related = emptyList(), error = null)
         completionJob?.cancel()
         loadJob?.cancel()
         resetSubtitleState()
@@ -1730,8 +1735,6 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         loadJob = viewModelScope.launch {
             currentBvid = item.bvid
             resolveAndPlay(item.bvid, item.cid, generation)
-            loadEngagement(aid, item.bvid)
-            loadRelated(item.bvid)
         }
     }
 

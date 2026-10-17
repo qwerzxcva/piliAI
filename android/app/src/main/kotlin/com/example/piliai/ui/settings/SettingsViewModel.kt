@@ -31,6 +31,7 @@ class SettingsViewModel(context: Context) : ViewModel() {
         val completionAction: String = "next",
         // 审核279：首页数据源偏好（auto/recommend/popular/precious/weekly）
         val homeFeedSource: String = "auto",
+        val bottomTabs: String = "home,dynamics,live,mine",
         val lowLatencyAudio: Boolean = false,  // Kazumi：低延迟音频
         val renderer: Int = 0,                 // Kazumi：渲染器 0=SurfaceView 1=TextureView
         val videoQuality: String = "auto",   // auto/1080p/720p/480p
@@ -159,6 +160,9 @@ class SettingsViewModel(context: Context) : ViewModel() {
         viewModelScope.launch {
             storage.completionActionFlow.collect { _state.value = _state.value.copy(completionAction = it) }
             storage.homeFeedSourceFlow.collect { _state.value = _state.value.copy(homeFeedSource = it) }
+        }
+        viewModelScope.launch {
+            storage.bottomTabsFlow.collect { _state.value = _state.value.copy(bottomTabs = it) }
         }
         viewModelScope.launch {
             storage.videoQualityFlow.collect { _state.value = _state.value.copy(videoQuality = it) }
@@ -365,6 +369,15 @@ class SettingsViewModel(context: Context) : ViewModel() {
     /** 审核279：设置首页数据源 */
     fun setHomeFeedSource(source: String) = viewModelScope.launch {
         storage.setHomeFeedSource(source)
+    }
+
+    /** 底栏显隐。首页和我的始终保留。 */
+    fun setBottomTabVisible(id: String, visible: Boolean) = viewModelScope.launch {
+        if (id == "home" || id == "mine") return@launch
+        val current = _state.value.bottomTabs.split(',').map { it.trim() }.filter { it.isNotEmpty() }.toMutableSet()
+        if (visible) current.add(id) else current.remove(id)
+        val order = listOf("home", "dynamics", "live", "mine")
+        storage.setBottomTabs(order.filter { it in current || it == "home" || it == "mine" })
     }
     fun setBufferDuration(v: Int) = viewModelScope.launch {
         com.example.piliai.utils.RendererPrefs.updateBufferDuration(v)

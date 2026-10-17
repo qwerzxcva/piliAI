@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ViewQuilt
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -667,6 +668,25 @@ fun SettingsScreen(
                     icon = Icons.Default.DarkMode,
                     checked = state.amoled,
                     onChange = { viewModel.setAmoled(it) }
+                )
+            }
+            item { SectionTitle("底栏") }
+            item {
+                SettingSwitch(
+                    title = "显示动态",
+                    subtitle = "关闭后底栏不再显示动态",
+                    icon = Icons.AutoMirrored.Filled.ArrowForward,
+                    checked = "dynamics" in state.bottomTabs.split(','),
+                    onChange = { viewModel.setBottomTabVisible("dynamics", it) }
+                )
+            }
+            item {
+                SettingSwitch(
+                    title = "显示直播",
+                    subtitle = "关闭后底栏不再显示直播",
+                    icon = Icons.Default.LiveTv,
+                    checked = "live" in state.bottomTabs.split(','),
+                    onChange = { viewModel.setBottomTabVisible("live", it) }
                 )
             }
             // 审核235：图片质量（B站图床 @Nq.webp 压缩，省流量加快加载）
