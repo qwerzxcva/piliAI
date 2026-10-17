@@ -1693,24 +1693,58 @@ private fun PlayerIntroPage(
         if (parts.size > 1) {
             item {
                 Text(
-                    "分集",
+                    "分集（${parts.size}）",
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 )
             }
-            items(parts.size) { index ->
-                val part = parts[index]
-                val selected = part.page == currentPart
-                Text(
-                    "P${part.page}  ${part.part.ifBlank { "第${part.page}P" }}",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onPart(index) }
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    color = if (selected) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurface,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+            item {
+                // 审核330：多 P 用横滑卡片。原来是整列文字行，
+                // 50P 的视频要滚很久才能找到想看的那一 P。
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(parts.size) { index ->
+                        val part = parts[index]
+                        val selected = part.page == currentPart
+                        Column(
+                            modifier = Modifier
+                                .width(132.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(
+                                    if (selected) MaterialTheme.colorScheme.primaryContainer
+                                    else MaterialTheme.colorScheme.surfaceContainerHigh
+                                )
+                                .clickable { onPart(index) }
+                                .padding(10.dp),
+                        ) {
+                            Text(
+                                "P${part.page}",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                part.part.ifBlank { "第${part.page}P" },
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 2,
+                                color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
+                                else MaterialTheme.colorScheme.onSurface,
+                            )
+                            if (part.durationSec > 0) {
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    "%d:%02d".format(part.durationSec / 60, part.durationSec % 60),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
+                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
         item {
