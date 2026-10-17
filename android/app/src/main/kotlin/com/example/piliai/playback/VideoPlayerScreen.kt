@@ -1575,6 +1575,37 @@ fun VideoPlayerScreen(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 onClick = { showPartSheet = true },
             )
+            PlayerActionChip(
+                icon = Icons.Default.EditNote,
+                label = "笔记",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                onClick = { onOpenNote(bvid, cid, viewModel.getCurrentTime()) },
+            )
+            PlayerActionChip(
+                icon = Icons.Default.PhotoCamera,
+                label = "取帧",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                onClick = {
+                    val uri = viewModel.currentPlaybackUri()
+                    if (uri == null) {
+                        viewModel.showToast("当前视频不支持取帧")
+                    } else {
+                        captureScope.launch {
+                            val file = com.example.piliai.playback.VideoFrameCapture.captureFromPlayback(
+                                context = context.applicationContext,
+                                uri = uri,
+                                positionMs = viewModel.getCurrentTime(),
+                                headers = viewModel.currentPlaybackHeaders(),
+                                userAgent = viewModel.currentPlaybackUserAgent(),
+                            )
+                            viewModel.showToast(
+                                if (file != null) "已保存到 ${file.absolutePath}"
+                                else "取帧失败，请稍后重试"
+                            )
+                        }
+                    }
+                },
+            )
         }
         Column(
             Modifier
