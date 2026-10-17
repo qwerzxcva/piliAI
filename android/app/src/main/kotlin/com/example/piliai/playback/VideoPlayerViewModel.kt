@@ -1582,6 +1582,9 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     fun pagesSnapshot(): List<PartInfo> = pages.toList()
     private var epId: Long = 0L
     private var effectiveCid: Long = 0L
+
+    /** 审核363：笔记/弹幕需要当前实际播放的 cid（路由传的 cid 可能为 0） */
+    fun currentCid(): Long = effectiveCid
     private var currentBvid: String = ""
     private var defaultFavFolderId: Long = 0L
     private val repo by lazy { VideoRepository(BiliApiClient()) }

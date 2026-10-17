@@ -835,7 +835,7 @@ fun VideoPlayerScreen(
                     EngagementButton(
                         icon = Icons.Default.EditNote,
                         label = "笔记",
-                        onClick = { onOpenNote(bvid, cid, viewModel.getCurrentTime()) },
+                        onClick = { onOpenNote(bvid, viewModel.currentCid(), viewModel.getCurrentTime()) },
                         tintColor = Color.White,
                         showLabel = false
                     )
@@ -1641,7 +1641,7 @@ fun VideoPlayerScreen(
                 icon = Icons.Default.EditNote,
                 label = "笔记",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                onClick = { onOpenNote(bvid, cid, viewModel.getCurrentTime()) },
+                onClick = { onOpenNote(bvid, viewModel.currentCid(), viewModel.getCurrentTime()) },
             )
             PlayerActionChip(
                 icon = Icons.Default.Headphones,
