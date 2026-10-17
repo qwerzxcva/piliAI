@@ -260,7 +260,10 @@ fun CommentScreen(
             }
         }
     ) { padding ->
-        Column(Modifier.padding(padding).fillMaxSize()) {
+        // 审核356：内嵌到播放页分页时，外层已处理系统栏，这里再吃一次
+        // padding 会把评论输入框挤出屏幕。内嵌模式只取 top（其实为 0）。
+        val innerPadding = if (embedded) PaddingValues(0.dp) else padding
+        Column(Modifier.padding(innerPadding).fillMaxSize()) {
             // 审核237：排序玻璃分段（BiliPai CommentSortFilterBar 视觉）
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
