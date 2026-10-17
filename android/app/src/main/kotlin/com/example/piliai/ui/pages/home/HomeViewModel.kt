@@ -95,6 +95,7 @@ class HomeViewModel(
     }
 
     private var loadingMore = false
+    private var refreshGeneration = 0
 
     /**
      * 下拉刷新。
@@ -111,6 +112,7 @@ class HomeViewModel(
     val refreshing: kotlinx.coroutines.flow.StateFlow<Boolean> = _refreshing.asStateFlow()
 
     fun refresh() {
+        val generation = ++refreshGeneration
         viewModelScope.launch {
             _refreshing.value = true
             try {
@@ -121,13 +123,18 @@ class HomeViewModel(
                 launch {
                     repo.topRcmd()
                         .onSuccess { resp ->
+                            if (generation != refreshGeneration) return@onSuccess
                             if (resp.code == 0) _topRcmd.value =
                                 resp.data?.item.orEmpty().filter { it.goto == "av" && it.bvid.isNotEmpty() }
                         }
                 }
                 repo.refresh()
-                    .onSuccess { _state.value = HomeUiState.Success(applyFilter(it)) }
+                    .onSuccess {
+                        if (generation != refreshGeneration) return@onSuccess
+                        _state.value = HomeUiState.Success(applyFilter(it))
+                    }
                     .onFailure {
+                        if (generation != refreshGeneration) return@onFailure
                         // 审核237：刷新失败时保留旧列表，不清成空屏（此前直接 Error 态白屏）
                         val current = repo.videos.value
                         if (current.isNotEmpty()) {
@@ -137,7 +144,7 @@ class HomeViewModel(
                         }
                     }
             } finally {
-                _refreshing.value = false
+                if (generation == refreshGeneration) _refreshing.value = false
             }
         }
     }
