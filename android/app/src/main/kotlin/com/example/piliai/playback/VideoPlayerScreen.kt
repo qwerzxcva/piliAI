@@ -1472,6 +1472,12 @@ fun VideoPlayerScreen(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 onClick = { viewModel.addToWatchLater() },
             )
+            PlayerActionChip(
+                icon = Icons.Default.ThumbDown,
+                label = "不喜欢",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                onClick = { viewModel.dislikeCurrent() },
+            )
         }
         Column(
             Modifier
@@ -1493,10 +1499,16 @@ fun VideoPlayerScreen(
                         Text(if (n > 0) "评论 $n" else "评论")
                     },
                 )
+                Tab(
+                    selected = page == 2,
+                    onClick = { scope.launch { detailPager.animateScrollToPage(2) } },
+                    text = { Text("推荐") },
+                )
             }
             HorizontalPager(
                 state = detailPager,
                 modifier = Modifier.fillMaxSize(),
+                pageCount = 3,
             ) { index ->
                 if (index == 0) {
                     PlayerIntroPage(
@@ -1524,7 +1536,7 @@ fun VideoPlayerScreen(
                         followerCount = viewModel.ownerFollowerCount,
                         aiSummary = if (aiEpoch >= 0) viewModel.aiSummary else "",
                     )
-                } else {
+                } else if (index == 1) {
                     com.example.piliai.ui.comments.CommentScreen(
                         bvid = detailBvid,
                         onBack = { scope.launch { detailPager.animateScrollToPage(0) } },
@@ -1532,10 +1544,66 @@ fun VideoPlayerScreen(
                         embedded = true,
                         viewModel = commentViewModel,
                     )
+                } else {
+                    PlayerRelatedPage(
+                        related = state.related,
+                        onRelated = { viewModel.playRelated(it) },
+                    )
                 }
             }
         }
     }
+    }
+}
+
+@Composable
+private fun PlayerRelatedPage(
+    related: List<VideoPlayerViewModel.RelatedItem>,
+    onRelated: (VideoPlayerViewModel.RelatedItem) -> Unit,
+) {
+    if (related.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("暂无相关推荐", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        return
+    }
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surface),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        items(related, key = { it.bvid }) { item ->
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { onRelated(item) },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                coil.compose.AsyncImage(
+                    model = item.pic.toHttpsUrl(),
+                    contentDescription = item.title,
+                    modifier = Modifier
+                        .width(128.dp)
+                        .height(72.dp)
+                        .clip(RoundedCornerShape(8.dp)),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                )
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(item.title, maxLines = 2, style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        listOf(item.author, item.viewText, item.durationText)
+                            .filter { it.isNotBlank() }
+                            .joinToString(" · "),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -1835,13 +1903,6 @@ private fun PlayerIntroPage(
                     }
                 }
             }
-        }
-        item {
-            Text(
-                "相关推荐",
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            )
         }
         if (related.isEmpty()) {
             item {

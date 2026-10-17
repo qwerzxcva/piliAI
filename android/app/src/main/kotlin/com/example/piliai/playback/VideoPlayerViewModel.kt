@@ -1622,6 +1622,29 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     fun coinOnce(multiply: Int = 1) = engagement.coinOnce(multiply)
     fun addToWatchLater() = engagement.addToWatchLater()
 
+    /**
+     * 审核336：「不喜欢」。写入今日推荐的负反馈集合，
+     * 之后首页/推荐流会按现有过滤规则避开该视频与作者。
+     */
+    fun dislikeCurrent() {
+        val bv = currentBvid
+        if (bv.isBlank() || bv.startsWith("ep")) {
+            showToast("这个视频暂不支持标记不喜欢")
+            return
+        }
+        viewModelScope.launch {
+            runCatching {
+                val repo = com.example.piliai.todaywatch.TodayWatchRepository(
+                    com.example.piliai.database.PiliNaraDatabase.getDatabase(appContext)
+                )
+                repo.dislike(bv, videoOwnerMid)
+            }.onSuccess {
+                showToast("已标记不喜欢，将减少同类推荐")
+            }.onFailure {
+                showToast("标记失败，请稍后重试")
+        }
+    }
+
     /** 上报历史进度（播放中每 15 秒调一次） */
     fun reportProgress() {
         engagement.reportProgress(aid, effectiveCid, _state.value.currentTime / 1000)
