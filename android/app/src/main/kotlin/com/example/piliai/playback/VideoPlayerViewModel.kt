@@ -1745,7 +1745,16 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     /** 弹幕开关 + 透明度（UI 直接读写） */
     var danmakuEnabled: Boolean
         get() = _state.value.danmakuOn
-        set(v) { _state.value = _state.value.copy(danmakuOn = v) }
+        set(v) {
+            _state.value = _state.value.copy(danmakuOn = v)
+            // 审核360：开关要持久化，否则下次进播放器又回到默认开
+            viewModelScope.launch {
+                runCatching {
+                    com.example.piliai.utils.StorageManager.getInstance(appContext)
+                        .setDanmakuEnabled(v)
+                }
+            }
+        }
 
     /**
      * 切换分P：重走播放链路（不重取详情）。

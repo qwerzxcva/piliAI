@@ -54,7 +54,7 @@ import com.example.piliai.data.model.formatCount
 import com.example.piliai.utils.toHttpsUrl
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @android.annotation.SuppressLint("SourceLockedOrientationActivity") // 审核轮175：播放器全屏切换需运行时切横竖屏，非清单锁定
 @Composable
 fun VideoPlayerScreen(
@@ -617,10 +617,20 @@ fun VideoPlayerScreen(
                         IconButton(onClick = { showSpeedMenu = !showSpeedMenu }) {
                             Icon(Icons.Default.Speed, "Speed", tint = Color.White)
                         }
-                        IconButton(onClick = { showDanmakuSheet = true }) {
+                        // 审核360：弹幕按钮原来是直接打开设置面板，想快速关弹幕
+                        // 还得再点一次开关。改为短按直接开/关，长按进设置面板。
+                        Box(
+                            modifier = Modifier.combinedClickable(
+                                onClick = { viewModel.danmakuEnabled = !state.danmakuOn },
+                                onLongClick = { showDanmakuSheet = true },
+                            ),
+                            contentAlignment = Alignment.Center,
+                        ) {
                             Icon(
                                 if (state.danmakuOn) Icons.Default.Subtitles else Icons.Default.SubtitlesOff,
-                                "Danmaku", tint = Color.White
+                                if (state.danmakuOn) "关闭弹幕" else "打开弹幕",
+                                tint = Color.White,
+                                modifier = Modifier.padding(12.dp).size(24.dp),
                             )
                         }
                         IconButton(onClick = { showVolumeSlider = !showVolumeSlider }) {
