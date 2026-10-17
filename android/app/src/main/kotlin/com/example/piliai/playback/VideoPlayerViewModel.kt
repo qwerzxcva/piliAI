@@ -107,7 +107,6 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         val isMuted: Boolean = false,
         val isBuffering: Boolean = false,
         val error: String? = null,
-        val position: Int = 0,
         // 审核312：isLiked/isFavorited/coinCount/likeCount/coinCountTotal/favCount
         // 已移到 EngagementController（本类顶部同名 StateFlow）。
         // 原来是死字段——互动逻辑搬走后没人给它们赋值，UI 读到的永远是
@@ -158,9 +157,7 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         val dmTotalCount: Int = 0,  // 审核222：弹幕总数（enableDmCount）
         // Kazumi 特性：低延迟音频 + 视频渲染器（0=SurfaceView 1=TextureView）
         val lowLatencyAudio: Boolean = false,
-        val renderer: Int = 0,
-        // 弹幕源：是否启用 DanDan（弹弹play）弹幕作为补充源
-        val danmakuDandanEnabled: Boolean = false
+        val renderer: Int = 0
     )
     
     /** 审核235：字幕偏好打包（combine 上限5个 Flow） */
