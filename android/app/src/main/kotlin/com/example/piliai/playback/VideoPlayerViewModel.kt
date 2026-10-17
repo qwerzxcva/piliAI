@@ -1602,6 +1602,7 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
 
     /** 当前分P 页码（1-based，单P视频恒为 1） */
     val currentPage: Int get() = pages.getOrNull(currentPartIndex)?.page ?: 1
+    fun partList(): List<PartInfo> = pages
     val hasMultipleParts: Boolean get() = pages.size > 1
 
     /** 弹幕开关 + 透明度（UI 直接读写） */

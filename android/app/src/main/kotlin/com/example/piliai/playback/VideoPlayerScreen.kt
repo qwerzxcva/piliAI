@@ -1446,7 +1446,12 @@ fun VideoPlayerScreen(
                         title = if (detailEpoch >= 0) viewModel.videoTitle.ifBlank { title } else title,
                         owner = viewModel.videoOwner,
                         desc = viewModel.videoDesc,
+                        tags = viewModel.videoTags,
+                        parts = viewModel.partList(),
+                        currentPart = state.currentPart,
                         related = state.related,
+                        onPart = { viewModel.playPart(it) },
+                        onTag = onSearchTag,
                         onRelated = { viewModel.playRelated(it) },
                         onOpenComments = { scope.launch { detailPager.animateScrollToPage(1) } },
                     )
@@ -1470,7 +1475,12 @@ private fun PlayerIntroPage(
     title: String,
     owner: String,
     desc: String,
+    tags: List<String>,
+    parts: List<VideoPlayerViewModel.PartInfo>,
+    currentPart: Int,
     related: List<VideoPlayerViewModel.RelatedItem>,
+    onPart: (Int) -> Unit,
+    onTag: (String) -> Unit,
     onRelated: (VideoPlayerViewModel.RelatedItem) -> Unit,
     onOpenComments: () -> Unit,
 ) {
@@ -1494,8 +1504,51 @@ private fun PlayerIntroPage(
                         maxLines = 4,
                     )
                 }
+                if (tags.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(Modifier.horizontalScroll(rememberScrollState())) {
+                        tags.take(12).forEach { tag ->
+                            Text(
+                                "#$tag",
+                                modifier = Modifier
+                                    .padding(end = 8.dp)
+                                    .clickable { onTag(tag) }
+                                    .background(
+                                        MaterialTheme.colorScheme.surfaceContainerHigh,
+                                        RoundedCornerShape(50),
+                                    )
+                                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                }
                 Spacer(Modifier.height(8.dp))
                 TextButton(onClick = onOpenComments) { Text("查看评论") }
+            }
+        }
+        if (parts.size > 1) {
+            item {
+                Text(
+                    "分集",
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+            items(parts.size) { index ->
+                val part = parts[index]
+                val selected = part.page == currentPart
+                Text(
+                    "P${part.page}  ${part.part.ifBlank { "第${part.page}P" }}",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onPart(index) }
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    color = if (selected) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
         }
         item {
