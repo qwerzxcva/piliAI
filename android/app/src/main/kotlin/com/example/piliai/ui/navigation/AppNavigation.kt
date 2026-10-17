@@ -524,6 +524,7 @@ fun AppNavigation() {
                 local = local,
                 onBack = { navController.popBackStack() },
                 onOpenComments = { bv -> navController.navigate(Screen.Comment.createRoute(bv)) },
+                onOpenUser = { mid -> navController.navigate(Screen.Member.createRoute(mid)) },
                 // 审核319：笔记编辑器。把当前播放进度一起带上，
                 // 编辑器里「插入时间点」以此为基准。
                 onOpenNote = { bv, cid, posMs ->

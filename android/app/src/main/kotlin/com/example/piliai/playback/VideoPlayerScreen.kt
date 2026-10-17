@@ -66,6 +66,7 @@ fun VideoPlayerScreen(
     // 审核319：打开视频笔记编辑器（bvid + cid + 当前播放毫秒）
     onOpenNote: (bvid: String, cid: Long, positionMs: Long) -> Unit = { _, _, _ -> },
     onSearchTag: (String) -> Unit = {},
+    onOpenUser: (Long) -> Unit = {},
     sourceRequest: SourcePlaybackRequest? = null,
     // 自动 PiP 资格必须区分“仍停留在本播放页”与“已导航到其他页面”。
     // 页面 lifecycle 在导航转场期间可能仍为 STARTED，因此需要一个独立的
@@ -306,6 +307,7 @@ fun VideoPlayerScreen(
     }
     val commentState = commentViewModel?.state?.collectAsStateWithLifecycle()?.value
     val detailEpoch by viewModel.detailEpoch.collectAsStateWithLifecycle()
+    val isFollowingOwner by viewModel.isFollowingOwner.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel.aid, commentViewModel) {
         val aid = viewModel.aid
         if (aid > 0L) commentViewModel?.bindAid(aid)
@@ -1495,6 +1497,9 @@ fun VideoPlayerScreen(
                     PlayerIntroPage(
                         title = if (detailEpoch >= 0) viewModel.videoTitle.ifBlank { title } else title,
                         owner = viewModel.videoOwner,
+                        ownerMid = viewModel.videoOwnerMid,
+                        ownerFace = viewModel.videoOwnerFace,
+                        cover = viewModel.videoCover,
                         desc = viewModel.videoDesc,
                         tags = viewModel.videoTags,
                         parts = viewModel.partList(),
@@ -1504,6 +1509,9 @@ fun VideoPlayerScreen(
                         onTag = onSearchTag,
                         onRelated = { viewModel.playRelated(it) },
                         onOpenComments = { scope.launch { detailPager.animateScrollToPage(1) } },
+                        onOpenUser = onOpenUser,
+                        viewModel = viewModel,
+                        isFollowingOwner = isFollowingOwner,
                     )
                 } else {
                     com.example.piliai.ui.comments.CommentScreen(
@@ -1561,6 +1569,9 @@ private fun shareCurrent(context: android.content.Context, bvid: String) {
 private fun PlayerIntroPage(
     title: String,
     owner: String,
+    ownerMid: Long,
+    ownerFace: String,
+    cover: String,
     desc: String,
     tags: List<String>,
     parts: List<VideoPlayerViewModel.PartInfo>,
@@ -1570,6 +1581,9 @@ private fun PlayerIntroPage(
     onTag: (String) -> Unit,
     onRelated: (VideoPlayerViewModel.RelatedItem) -> Unit,
     onOpenComments: () -> Unit,
+    onOpenUser: (Long) -> Unit,
+    viewModel: VideoPlayerViewModel,
+    isFollowingOwner: Boolean,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface),
@@ -1579,8 +1593,37 @@ private fun PlayerIntroPage(
             Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                 Text(title.ifBlank { "正在播放" }, style = MaterialTheme.typography.titleMedium)
                 if (owner.isNotBlank()) {
-                    Spacer(Modifier.height(6.dp))
-                    Text(owner, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        Modifier.fillMaxWidth().clickable(enabled = ownerMid > 0L) { onOpenUser(ownerMid) },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        coil.compose.AsyncImage(
+                            model = ownerFace.toHttpsUrl(),
+                            contentDescription = owner,
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(owner, style = MaterialTheme.typography.bodyMedium)
+                            if (ownerMid > 0L) {
+                                Text(
+                                    "进入主页",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                        androidx.compose.material3.TextButton(
+                            onClick = { viewModel.followOwner(ownerMid) },
+                            enabled = ownerMid > 0L,
+                        ) {
+                            Text(if (isFollowingOwner) "已关注" else "关注")
+                        }
+                    }
                 }
                 if (desc.isNotBlank()) {
                     Spacer(Modifier.height(8.dp))

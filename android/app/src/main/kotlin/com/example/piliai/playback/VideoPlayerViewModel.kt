@@ -838,6 +838,9 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         videoTitle = detail?.title.orEmpty()
         videoCover = detail?.pic.orEmpty()
         videoOwner = detail?.owner?.name.orEmpty()
+        videoOwnerMid = detail?.owner?.mid ?: 0L
+        videoOwnerFace = detail?.owner?.face.orEmpty()
+        loadOwnerFollowState(bvid)
         // 批次L18：简介/标签/日期（简介面板数据源）
         videoDesc = detail?.desc.orEmpty()
         videoTags = detail?.tags?.takeIf { it.isNotEmpty() }
@@ -1404,6 +1407,10 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     var videoCover: String = ""
         private set
     var videoOwner: String = ""
+    var videoOwnerMid: Long = 0L
+        private set
+    var videoOwnerFace: String = ""
+        private set
     // 批次L18：简介/标签/发布时间
     var videoDesc: String = ""
     var videoTags: List<String> = emptyList()
@@ -1414,6 +1421,33 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
         private set
     var aiOutline: List<Pair<Long, String>> = emptyList()  // (timestamp, title)
         private set
+
+    /** 审核328：开机时查一次关注状态（未登录静默） */
+    private fun loadOwnerFollowState(bvid: String) {
+        val mid = videoOwnerMid
+        if (mid <= 0L) return
+        viewModelScope.launch {
+            _isFollowingOwner.value = BiliApiClient().isFollowing(mid)
+        }
+    }
+
+    /** 审核328：是否已关注当前 UP 主（播放页关注按钮） */
+    private val _isFollowingOwner = MutableStateFlow(false)
+    val isFollowingOwner: StateFlow<Boolean> = _isFollowingOwner.asStateFlow()
+
+    /** 审核328：关注/取关当前视频 UP 主 */
+    fun followOwner(mid: Long) {
+        if (mid <= 0L) return
+        viewModelScope.launch {
+            val target = !_isFollowingOwner.value
+            BiliApiClient().modifyFollow(mid, target).onSuccess {
+                _isFollowingOwner.value = target
+                showToast(if (target) "已关注" else "已取消关注")
+            }.onFailure {
+                showToast("操作失败，请检查登录状态")
+            }
+        }
+    }
 
     /** 批次L22：加载 AI 总结（需登录，失败静默显示无摘要） */
     fun loadAiConclusion() {

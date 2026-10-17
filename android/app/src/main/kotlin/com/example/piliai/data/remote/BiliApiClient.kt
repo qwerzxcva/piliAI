@@ -812,6 +812,24 @@ class BiliApiClient(private val client: HttpClient = BiliHttpClient.client) {
         legacy ?: wbi ?: error("UP 主信息获取失败（风控或限频）")
     }
 
+    /**
+     * 审核328：查询「我是否关注了该 UP 主」。
+     * /x/space/wbi/acc/relation 的 data.be_relation.attention == 1 表示已关注。
+     * 未登录或风控时返回 false（关注按钮按未关注显示，点了再走 modifyFollow）。
+     */
+    suspend fun isFollowing(mid: Long): Boolean = runCatching {
+        if (mid <= 0L) return@runCatching false
+        val params = WbiSigner.sign(mapOf("mid" to mid.toString()))
+        val text = client.get("$API_BASE/x/space/wbi/acc/relation") {
+            url { params.forEach { (k, v) -> parameters.append(k, v) } }
+            header("Referer", "https://space.bilibili.com/$mid")
+        }.bodyAsText()
+        if (text.trimStart().startsWith("<")) return@runCatching false
+        val json = BiliHttpClient.json
+        val root = json.parseToJsonElement(text).toString()
+        root.contains("\"attention\":1") || root.contains("\"attention\": 1")
+    }.getOrDefault(false)
+
     /** 粉丝/关注数（无需签名） */
     suspend fun getRelationStat(mid: Long): Result<RelationStatResponse> = runCatching {
         client.get("$API_BASE/x/relation/stat") {
