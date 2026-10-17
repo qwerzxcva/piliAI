@@ -994,7 +994,20 @@ fun VideoPlayerScreen(
                     Text("弹幕设置", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(12.dp))
                     // 发送弹幕（批次L5）
+                    // 审核341：对齐 PiliNara send_danmaku/view.dart——发送前可选
+                    // 模式（滚动/顶部/底部）与颜色，原来只能发默认的白色滚动弹幕。
                     var dmInput by remember { mutableStateOf("") }
+                    var dmMode by remember { androidx.compose.runtime.mutableIntStateOf(1) }
+                    var dmColorIdx by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+                    // 审核341：value = B 站弹幕接口的 color 整数，swatch = 预览色
+                    val dmColors: List<Pair<Int, Long>> = listOf(
+                        16777215 to 0xFFFFFFFF, // 白
+                        16711680 to 0xFFFF5252, // 红
+                        16744192 to 0xFFFFA726, // 橙
+                        16776960 to 0xFFFFEE00, // 黄
+                        6749952 to 0xFF66CCFF,  // 蓝
+                        10229552 to 0xFF9C27B0, // 紫
+                    )
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         OutlinedTextField(
                             value = dmInput,
@@ -1008,13 +1021,58 @@ fun VideoPlayerScreen(
                         IconButton(
                             onClick = {
                                 if (dmInput.isNotBlank()) {
-                                    viewModel.sendDanmaku(dmInput)
+                                    viewModel.sendDanmaku(
+                                        text = dmInput,
+                                        mode = dmMode,
+                                        color = dmColors[dmColorIdx].first,
+                                    )
                                     dmInput = ""
                                 }
                             },
                             enabled = dmInput.isNotBlank()
                         ) {
                             Icon(Icons.AutoMirrored.Filled.Send, "发送弹幕")
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Row(
+                        Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        listOf(1 to "滚动", 5 to "顶部", 4 to "底部").forEach { (m, label) ->
+                            Text(
+                                label,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (dmMode == m) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(50))
+                                    .background(
+                                        if (dmMode == m) MaterialTheme.colorScheme.primaryContainer
+                                        else Color.Transparent
+                                    )
+                                    .clickable { dmMode = m }
+                                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                            )
+                        }
+                        Spacer(Modifier.width(4.dp))
+                        dmColors.forEachIndexed { index, (_, swatch) ->
+                            val selected = dmColorIdx == index
+                            Box(
+                                modifier = Modifier
+                                    .size(22.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(swatch))
+                                    .then(
+                                        if (selected) Modifier.border(
+                                            2.dp,
+                                            MaterialTheme.colorScheme.primary,
+                                            CircleShape,
+                                        ) else Modifier
+                                    )
+                                    .clickable { dmColorIdx = index },
+                            )
                         }
                     }
                     Spacer(Modifier.height(8.dp))
@@ -1537,6 +1595,7 @@ fun VideoPlayerScreen(
                         onRelated = { viewModel.playRelated(it) },
                         onOpenComments = { scope.launch { detailPager.animateScrollToPage(1) } },
                         onOpenUser = onOpenUser,
+                        onShowCollection = { if (parts.size > 1) showPartSheet = true },
                         viewModel = viewModel,
                         isFollowingOwner = isFollowingOwner,
                         followerCount = viewModel.ownerFollowerCount,
@@ -1695,6 +1754,7 @@ private fun PlayerIntroPage(
     onRelated: (VideoPlayerViewModel.RelatedItem) -> Unit,
     onOpenComments: () -> Unit,
     onOpenUser: (Long) -> Unit,
+    onShowCollection: (() -> Unit)? = null,
     viewModel: VideoPlayerViewModel,
     isFollowingOwner: Boolean,
     aiSummary: String,
@@ -1795,8 +1855,13 @@ private fun PlayerIntroPage(
                         }
                     }
                 }
-                Spacer(Modifier.height(8.dp))
-                TextButton(onClick = onOpenComments) { Text("查看评论") }
+                Spacer(Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = onOpenComments) { Text("查看评论") }
+                    if (onShowCollection != null) {
+                        TextButton(onClick = onShowCollection) { Text("合集") }
+                    }
+                }
             }
         }
         // 审核334：AI 总结（PiliNara 的 AI 按钮接在简介区右侧，
