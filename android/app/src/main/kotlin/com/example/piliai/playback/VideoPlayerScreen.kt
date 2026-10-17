@@ -533,7 +533,7 @@ fun VideoPlayerScreen(
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                     Spacer(Modifier.height(10.dp))
-                    androidx.compose.material3.TextButton(onClick = { viewModel.setError(null) }) {
+                    androidx.compose.material3.TextButton(onClick = { viewModel.retryCurrent() }) {
                         Text("重试", color = MaterialTheme.colorScheme.onErrorContainer)
                     }
                 }

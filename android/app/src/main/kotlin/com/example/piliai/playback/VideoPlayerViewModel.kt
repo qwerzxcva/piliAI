@@ -1236,6 +1236,33 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
             _state.value = _state.value.copy(
                 error = com.example.piliai.data.remote.BiliErrorTranslator.translate(error) ?: error
             )
+        } else {
+            // 审核353：原来传 null 什么都不做（if (error != null) 直接跳过），
+            // 播放页的「重试」按钮因此只清不掉错误也不重载，像点不动。
+            _state.value = _state.value.copy(error = null)
+        }
+    }
+
+    /** 审核353：错误覆盖层的「重试」——清错误并用当前视频重新起播 */
+    fun retryCurrent() {
+        _state.value = _state.value.copy(error = null, isBuffering = true)
+        val bv = currentBvid
+        val cid = effectiveCid
+        if (bv.isBlank()) {
+            setError("没有可重试的视频")
+            return
+        }
+        completionJob?.cancel()
+        loadJob?.cancel()
+        resetSubtitleState()
+        val generation = ++loadGeneration
+        loadJob = viewModelScope.launch {
+            if (bv.startsWith("ep")) {
+                val ep = bv.removePrefix("ep").toLongOrNull() ?: 0L
+                if (ep > 0L) loadPgcEpisode(ep, generation) else setError("番剧信息缺失")
+            } else {
+                resolveAndPlay(bv, cid, generation)
+            }
         }
     }
 
