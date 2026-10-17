@@ -777,7 +777,8 @@ fun VideoPlayerScreen(
                         label = "投币",
                         count = formatCount(coinCountTotal),
                         onClick = { showCoinSheet = true },
-                        tintColor = Color.White
+                        tintColor = Color.White,
+                        showLabel = false
                     )
                     EngagementButton(
                         icon = if (isFavorited) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
@@ -799,7 +800,8 @@ fun VideoPlayerScreen(
                                 onOpenComments(bvid)
                             }
                         },
-                        tintColor = Color.White
+                        tintColor = Color.White,
+                        showLabel = false
                     )
                     // 审核319：笔记入口。传当前播放进度，编辑器打开时
                     // 「插入时间点」按这个秒数打戳。
@@ -807,26 +809,30 @@ fun VideoPlayerScreen(
                         icon = Icons.Default.EditNote,
                         label = "笔记",
                         onClick = { onOpenNote(bvid, cid, viewModel.getCurrentTime()) },
-                        tintColor = Color.White
+                        tintColor = Color.White,
+                        showLabel = false
                     )
                     EngagementButton(
                         icon = Icons.Default.AutoAwesome,
                         label = "相关",
                         count = if (state.related.isNotEmpty()) state.related.size.toString() else "",
                         onClick = { showRelatedSheet = true },
-                        tintColor = Color.White
+                        tintColor = Color.White,
+                        showLabel = false
                     )
                     EngagementButton(
                         icon = Icons.Default.Schedule,
                         label = "稍后看", onClick = { viewModel.addToWatchLater() },
-                        tintColor = Color.White
+                        tintColor = Color.White,
+                        showLabel = false
                     )
                     // 离线下载（批次I 接线：发起队列）
                     EngagementButton(
                         icon = Icons.Default.Download,
                         label = "下载",
                         onClick = { viewModel.downloadCurrent(context.applicationContext) },
-                        tintColor = Color.White
+                        tintColor = Color.White,
+                        showLabel = false
                     )
                     EngagementButton(
                         icon = Icons.Default.Info,
@@ -835,7 +841,8 @@ fun VideoPlayerScreen(
                             viewModel.loadAiConclusion()
                             showIntroSheet = true
                         },
-                        tintColor = Color.White
+                        tintColor = Color.White,
+                        showLabel = false
                     )
                     // 审核267：取帧（截图当前画面）。
                     // 审核315：在线视频也可用了——请求头经
@@ -864,7 +871,8 @@ fun VideoPlayerScreen(
                                 }
                             }
                         },
-                        tintColor = Color.White
+                        tintColor = Color.White,
+                        showLabel = false
                     )
                     EngagementButton(
                         icon = Icons.Default.Share,
@@ -896,7 +904,8 @@ fun VideoPlayerScreen(
                                 viewModel.notifyShared(link)
                             }
                         },
-                        tintColor = Color.White
+                        tintColor = Color.White,
+                        showLabel = false
                     )
                 }
                 }
@@ -2163,18 +2172,20 @@ private fun EngagementButton(
     count: String = "",
     onClick: () -> Unit,
     tintColor: Color,
+    // 审核346：横屏高度紧张，不显示文字标签，只留图标与计数
+    showLabel: Boolean = true,
     // 审核轮146：长按 = 一键三连（B站官方交互）
     onLongClick: (() -> Unit)? = null
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        verticalArrangement = Arrangement.spacedBy(if (showLabel) 4.dp else 2.dp)) {
         // 审核241（P2-13）：原实现同时给 IconButton 的 onClick 和外层
         // combinedClickable 的 onClick 挂了同一个回调 → 单击触发两次
         // （点赞再取消，点赞数闪一下又回去）。改为 Box + combinedClickable
         // 单一入口，长按/单击都只走一处。
         Box(
             modifier = Modifier
-                .size(48.dp)
+                .size(if (showLabel) 48.dp else 38.dp)
                 .background(Color.Black.copy(alpha = 0.5f), CircleShape)
                 .then(
                     if (onLongClick != null) {
@@ -2188,13 +2199,15 @@ private fun EngagementButton(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, label, tint = tintColor, modifier = Modifier.size(24.dp))
+            Icon(icon, label, tint = tintColor, modifier = Modifier.size(if (showLabel) 24.dp else 20.dp))
         }
         if (count.isNotEmpty()) {
             Text(count, color = tintColor, style = MaterialTheme.typography.labelSmall)
         }
-        Text(label, color = Color.White.copy(alpha = 0.8f), 
-            style = MaterialTheme.typography.labelSmall)
+        if (showLabel) {
+            Text(label, color = Color.White.copy(alpha = 0.8f),
+                style = MaterialTheme.typography.labelSmall)
+        }
     }
 }
 
