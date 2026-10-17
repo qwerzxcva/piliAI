@@ -115,7 +115,7 @@ fun CommentScreen(
             }
         },
         bottomBar = {
-            Surface(tonalElevation = 3.dp) {
+            Surface(tonalElevation = 3.dp, modifier = Modifier.imePadding()) {
                 // 表情面板
                 if (showEmotePanel) {
                     if (emotes.isEmpty()) {
