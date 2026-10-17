@@ -1388,7 +1388,8 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
 
     // ========== 互动（点赞/投币/收藏/历史上报） ==========
 
-    private var aid: Long = 0L
+    var aid: Long = 0L
+        private set
 
     /** 当前视频标题/封面（供下载等外部操作，批次I 接线） */
     var videoTitle: String = ""

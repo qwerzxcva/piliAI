@@ -49,6 +49,7 @@ fun CommentScreen(
     bvid: String,
     onBack: () -> Unit = {},
     onGoLogin: () -> Unit = {},
+    embedded: Boolean = false,
     // 审核295：空降助手——点评论里的时间戳跳到视频对应进度（毫秒）。
     // null 表示用默认行为：走 VideoSeekBus（播放器还活着就能跳），
     // 独立打开的评论页（没有活跃播放器）给提示而不是静默无反应。
@@ -100,6 +101,7 @@ fun CommentScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
+            if (!embedded) {
             TopAppBar(
                 title = {
                     Text("评论 ${if (state.totalCount > 0) "(${formatCount(state.totalCount.toLong())})" else ""}")
@@ -110,6 +112,7 @@ fun CommentScreen(
                     }
                 }
             )
+            }
         },
         bottomBar = {
             Surface(tonalElevation = 3.dp) {

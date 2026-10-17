@@ -48,6 +48,13 @@ class CommentViewModel(private val bvid: String) : ViewModel() {
 
     init { load(1) }
 
+    /** 播放页已经拿到 aid 时直接用，避免评论接口再打一次详情。 */
+    fun bindAid(aid: Long) {
+        if (aid <= 0L || _state.value.oid == aid) return
+        _state.value = _state.value.copy(oid = aid)
+        if (_state.value.comments.isEmpty() && !_state.value.isLoading) load(1)
+    }
+
     private fun aid(): Long = _state.value.oid
 
     fun load(page: Int, mode: Int? = null) {

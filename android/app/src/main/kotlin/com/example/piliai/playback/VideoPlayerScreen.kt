@@ -26,6 +26,8 @@ import androidx.compose.material3.*
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.*
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
@@ -37,6 +39,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -286,7 +289,33 @@ fun VideoPlayerScreen(
         }
     }
     
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+    val portrait = androidx.compose.ui.platform.LocalConfiguration.current.orientation !=
+        android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    val detailBvid = bvid.takeIf { it.isNotBlank() && !it.startsWith("ep") }.orEmpty()
+    val commentViewModel = if (detailBvid.isNotEmpty()) {
+        viewModel(
+            key = "player-comments-$detailBvid",
+            factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+                    com.example.piliai.ui.comments.CommentViewModel(detailBvid) as T
+            }
+        ) as com.example.piliai.ui.comments.CommentViewModel
+    } else {
+        null
+    }
+    val commentState = commentViewModel?.state?.collectAsStateWithLifecycle()?.value
+    LaunchedEffect(viewModel.aid, commentViewModel) {
+        val aid = viewModel.aid
+        if (aid > 0L) commentViewModel?.bindAid(aid)
+    }
+    val detailPager = if (portrait && detailBvid.isNotEmpty()) rememberPagerState(pageCount = { 2 }) else null
+
+    Column(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+    Box(modifier = Modifier.then(
+        if (portrait && detailBvid.isNotEmpty()) Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+        else Modifier.fillMaxSize()
+    )) {
         // PiP keeps playback active; ordinary background handling follows the pause preference.
         val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
         androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
@@ -1379,6 +1408,140 @@ fun VideoPlayerScreen(
                             "${kotlin.math.abs(state.gestureSeekDeltaMs) / 1000}s",
                         color = Color.White, modifier = Modifier.padding(16.dp)
                     )
+                }
+            }
+        }
+    }
+    if (portrait && detailBvid.isNotEmpty() && detailPager != null && commentViewModel != null) {
+        val scope = rememberCoroutineScope()
+        val page = detailPager.currentPage
+        Column(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surface)
+        ) {
+            TabRow(selectedTabIndex = page) {
+                Tab(
+                    selected = page == 0,
+                    onClick = { scope.launch { detailPager.animateScrollToPage(0) } },
+                    text = { Text("简介") },
+                )
+                Tab(
+                    selected = page == 1,
+                    onClick = { scope.launch { detailPager.animateScrollToPage(1) } },
+                    text = {
+                        val n = commentState?.totalCount ?: 0
+                        Text(if (n > 0) "评论 $n" else "评论")
+                    },
+                )
+            }
+            HorizontalPager(
+                state = detailPager,
+                modifier = Modifier.fillMaxSize(),
+            ) { index ->
+                if (index == 0) {
+                    PlayerIntroPage(
+                        title = viewModel.videoTitle.ifBlank { title },
+                        owner = viewModel.videoOwner,
+                        desc = viewModel.videoDesc,
+                        related = state.related,
+                        onRelated = { viewModel.playRelated(it) },
+                        onOpenComments = { scope.launch { detailPager.animateScrollToPage(1) } },
+                    )
+                } else {
+                    com.example.piliai.ui.comments.CommentScreen(
+                        bvid = detailBvid,
+                        onBack = { scope.launch { detailPager.animateScrollToPage(0) } },
+                        onGoLogin = {},
+                        embedded = true,
+                        viewModel = commentViewModel,
+                    )
+                }
+            }
+        }
+    }
+    }
+}
+
+@Composable
+private fun PlayerIntroPage(
+    title: String,
+    owner: String,
+    desc: String,
+    related: List<VideoPlayerViewModel.RelatedItem>,
+    onRelated: (VideoPlayerViewModel.RelatedItem) -> Unit,
+    onOpenComments: () -> Unit,
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface),
+        contentPadding = PaddingValues(bottom = 24.dp),
+    ) {
+        item {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                Text(title.ifBlank { "正在播放" }, style = MaterialTheme.typography.titleMedium)
+                if (owner.isNotBlank()) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(owner, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                }
+                if (desc.isNotBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        desc,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 4,
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                TextButton(onClick = onOpenComments) { Text("查看评论") }
+            }
+        }
+        item {
+            Text(
+                "相关推荐",
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+        }
+        if (related.isEmpty()) {
+            item {
+                Text(
+                    "暂无相关推荐",
+                    modifier = Modifier.padding(16.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            items(related, key = { it.bvid }) { item ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { onRelated(item) }
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    coil.compose.AsyncImage(
+                        model = item.pic.toHttpsUrl(),
+                        contentDescription = item.title,
+                        modifier = Modifier
+                            .width(128.dp)
+                            .height(72.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(item.title, maxLines = 2, style = MaterialTheme.typography.bodyMedium)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            listOf(item.author, item.viewText, item.durationText)
+                                .filter { it.isNotBlank() }
+                                .joinToString(" · "),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
