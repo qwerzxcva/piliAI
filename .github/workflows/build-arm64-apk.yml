@@ -188,6 +188,10 @@ jobs:
         run: |
           chmod +x ./android/gradlew
           cd android
+          # 审核339：KSP 增量缓存（kspCaches / generated/ksp）在多次改动后
+          # 会损坏并抛 IllegalStateException（IncrementalContextBase.calcDirtyFiles），
+          # 与源码无关。构建前清掉，避免缓存污染误报。
+          rm -rf app/build/kspCaches app/build/generated/ksp
           ./gradlew :app:assembleDebug --build-cache --no-daemon --stacktrace 2>&1
           for regression in run_playback_headers_regression.py run_playback_session_regression.py run_playback_network_regression.py run_playback_speed_regression.py run_pip_params_regression.py run_owned_resolver_regression.py run_subscription_search_regression.py run_subscription_link_regression.py run_jsonpath_regression.py run_rss_regression.py run_scraper_regression.py run_todaywatch_regression.py; do
             PYTHONDONTWRITEBYTECODE=1 python3 "../tests/$regression" || exit 1
