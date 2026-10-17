@@ -113,6 +113,16 @@ class TodayWatchRepository(
         }
     }
 
+    /** 审核349：读出「不感兴趣」的 bvid 集合，供首页过滤（与推荐流共用一份） */
+    suspend fun dislikedBvids(): Set<String> = withContext(Dispatchers.IO) {
+        runCatching {
+            db.todayWatchFeedbackDao()
+                .getByKey("today_watch_feedback_v1")
+                ?.dislikedBvidsJson
+                .toStringSet()
+        }.getOrDefault(emptySet())
+    }
+
     // ========== 模型转换 ==========
 
     private fun HistoryItem.toWatchHistoryItem() = WatchHistoryItem(

@@ -203,9 +203,17 @@ fun HomeScreen(
         var selectedTab by remember { androidx.compose.runtime.mutableIntStateOf(0) }
         // 审核320：长按选中的卡片（弹操作菜单）
         var longPressCard by remember { androidx.compose.runtime.mutableStateOf<VideoItem?>(null) }
-        // 审核320：本地隐藏的 bvid 集合（长按→「不感兴趣」）。只在本次进程内
-        // 生效、不持久化——持久化需要决定「隐藏多久/能否恢复」，属产品决策。
-        val hiddenBvids = remember { mutableSetOf<String>() }
+        // 审核349：不感兴趣改为持久化（与今日推荐共用 Room 负反馈表）。
+        // 原来是进程内 mutableSet，重启就丢，提示还写着「重启应用后恢复」。
+        val hiddenBvids = remember { androidx.compose.runtime.mutableStateOf<Set<String>>(emptySet()) }
+        val appCtx = androidx.compose.ui.platform.LocalContext.current.applicationContext
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            hiddenBvids.value = runCatching {
+                com.example.piliai.todaywatch.TodayWatchRepository(
+                    com.example.piliai.database.PiliNaraDatabase.getDatabase(appCtx)
+                ).dislikedBvids()
+            }.getOrDefault(emptySet())
+        }
         // 审核318：标签先在 Composable 上下文解析成普通字符串，再进 remember——
         // stringResource 是 @Composable，不能在 remember { } 里调用。
         val tabLabels = listOf(
@@ -348,7 +356,7 @@ fun HomeScreen(
                         // Compose 会复用已 appeared 的 item 状态。
                         // 审核320：过滤本地隐藏的（长按→不感兴趣）。不改 s.items
                         // 本身——那是 VM 状态，改了会让翻页页码错乱。
-                        val visibleCards = s.items.filter { it.bvid !in hiddenBvids }
+                        val visibleCards = s.items.filter { it.bvid !in hiddenBvids.value }
                         itemsIndexed(
                             visibleCards,
                             key = { _, card -> card.bvid },
@@ -467,12 +475,22 @@ fun HomeScreen(
 
                         androidx.compose.material3.TextButton(
                             onClick = {
-                                hiddenBvids.add(card.bvid)
+                                val target = card
+                                hiddenBvids.value = hiddenBvids.value + target.bvid
                                 android.widget.Toast.makeText(
-                                    ctx, "已隐藏，重启应用后恢复",
+                                    ctx, "已隐藏，重启后仍生效",
                                     android.widget.Toast.LENGTH_SHORT,
                                 ).show()
                                 longPressCard = null
+                                // 审核349：写入 Room 负反馈表（与今日推荐共用的那份）
+                                scope.launch {
+                                    runCatching {
+                                        com.example.piliai.todaywatch.TodayWatchRepository(
+                                            com.example.piliai.database.PiliNaraDatabase
+                                                .getDatabase(appCtx)
+                                        ).dislike(target.bvid, 0L)
+                                    }
+                                }
                             },
                             modifier = Modifier.fillMaxWidth(),
                         ) { Text("不感兴趣", modifier = Modifier.fillMaxWidth()) }
