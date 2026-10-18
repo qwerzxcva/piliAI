@@ -98,6 +98,9 @@ fun VideoPlayerScreen(
         viewModel.restorePlaybackSpeed()
     }
     var showControls by remember { mutableStateOf(true) }
+    // 审核364：控制条此前永远不会自动隐藏（全代码只有构造处和 onTap 切换），
+    // 一直压在画面上——这是「播放器 UI 丑/显示不全」的直接原因之一。
+    // 自动隐藏逻辑放在所有面板状态声明之后（见下方 autoHideControls）。
     var showSpeedMenu by remember { mutableStateOf(false) }
     // 审核轮152：长按 3x 状态
     var showSpeedBurst by remember { mutableStateOf(false) }
@@ -167,6 +170,20 @@ fun VideoPlayerScreen(
     var showIntroSheet by remember { mutableStateOf(false) }
     var showCoinSheet by remember { mutableStateOf(false) }
     var showFavSheet by remember { mutableStateOf(false) }
+
+    // 审核364：播放中 4 秒自动收起控制条；任一面板/菜单开着时不收，
+    // 避免用户操作到一半被抽走。暂停时保持显示。
+    LaunchedEffect(
+        showControls, state.isPlaying, showSpeedMenu, showQualityMenu, showPartSheet,
+        showDanmakuSheet, showVolumeSlider, showFavSheet, showCoinSheet, showShareSheet,
+    ) {
+        if (!showControls || !state.isPlaying) return@LaunchedEffect
+        if (showSpeedMenu || showQualityMenu || showPartSheet || showDanmakuSheet ||
+            showVolumeSlider || showFavSheet || showCoinSheet || showShareSheet
+        ) return@LaunchedEffect
+        kotlinx.coroutines.delay(4_000L)
+        showControls = false
+    }
     
     val context = LocalContext.current
     val componentActivity = activity as? androidx.activity.ComponentActivity
@@ -550,6 +567,9 @@ fun VideoPlayerScreen(
             }
         }
         
+        // 审核364：控制条显示期间不加全屏透明点击层——它会吞掉下方所有
+        // 按钮的点击（造成「点了没反应」）。收起改为靠 4 秒自动隐藏。
+
         // 审核236：顶部/底部渐变 scrim（BiliPai 风，控制条显示时淡入）
         if (showControls && state.error == null && !isInPiP) {
             Box(
@@ -1474,7 +1494,7 @@ fun VideoPlayerScreen(
                 .fillMaxSize()
                 .pointerInput(Unit) {
                     detectTapGestures(
-                        onTap = { showControls = !showControls },
+                        onTap = { showControls = true },
                         onDoubleTap = { tapOffset ->
                             val tapX = tapOffset.x
                             if (tapX < size.width / 2) {
