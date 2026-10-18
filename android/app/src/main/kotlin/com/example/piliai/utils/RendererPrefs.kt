@@ -100,6 +100,10 @@ object RendererPrefs {
     var directExitOnBack: Boolean = false
         private set
 
+    /** 审核373：退出播放页时自动进入画中画 */
+    var autoPipOnExit: Boolean = false
+        private set
+
     /**
      * 审核241（P1-8）：长按倍速总开关 + 档位。
      * 此前播放器硬编码 3.0f，设置里关掉/改档位都不生效。
@@ -186,6 +190,12 @@ object RendererPrefs {
         scope.launch {
             storage.directExitOnBackFlow.collectLatest { v ->
                 directExitOnBack = v
+            }
+        }
+        // 审核373：退出时最小化（画中画）
+        scope.launch {
+            storage.autoPipOnExitFlow.collectLatest { v ->
+                autoPipOnExit = v
             }
         }
         scope.launch {

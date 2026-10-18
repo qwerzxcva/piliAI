@@ -129,6 +129,8 @@ class StorageManager(private val context: Context) {
         // 审核371：播放页区块显隐
         private val SHOW_PLAYER_RELATED_KEY = booleanPreferencesKey("showPlayerRelated")
         private val SHOW_PLAYER_COMMENT_KEY = booleanPreferencesKey("showPlayerComment")
+        // 审核373：退出播放页时自动进入画中画（PiliNara 的「退出时最小化」）
+        private val AUTO_PIP_ON_EXIT_KEY = booleanPreferencesKey("autoPipOnExit")
         // 审核235：图片质量（PiliPlus defaultPicQa；0=100原图 2/4/10 压缩档）+字幕细节6键
         private val PIC_QUALITY_KEY = intPreferencesKey("defaultPicQa")
         private val SUB_SCALE_KEY = floatPreferencesKey("subtitleFontScale")
@@ -771,6 +773,15 @@ class StorageManager(private val context: Context) {
 
     suspend fun setShowPlayerComment(v: Boolean) {
         context.dataStore.edit { it[SHOW_PLAYER_COMMENT_KEY] = v }
+    }
+
+    /** 审核373：退出播放页时自动进入画中画 */
+    val autoPipOnExitFlow: Flow<Boolean> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[AUTO_PIP_ON_EXIT_KEY] ?: false }
+
+    suspend fun setAutoPipOnExit(v: Boolean) {
+        context.dataStore.edit { it[AUTO_PIP_ON_EXIT_KEY] = v }
     }
 
     suspend fun setBanWordForRecommend(words: String) {

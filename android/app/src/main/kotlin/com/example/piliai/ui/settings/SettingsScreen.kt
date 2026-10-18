@@ -532,6 +532,15 @@ fun SettingsScreen(
                     onChange = { viewModel.setShowPlayerRelated(it) }
                 )
             }
+            item {
+                SettingSwitch(
+                    title = "退出时最小化",
+                    subtitle = "离开播放页时自动进入画中画（需支持）",
+                    icon = Icons.Default.PictureInPicture,
+                    checked = state.autoPipOnExit,
+                    onChange = { viewModel.setAutoPipOnExit(it) }
+                )
+            }
         }
         fun LazyListScope.dmSection() {
             // ===== 弹幕设置 =====

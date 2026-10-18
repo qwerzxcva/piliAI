@@ -158,6 +158,8 @@ fun VideoPlayerScreen(
             activity?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         }
     }
+    // 审核373：竖屏时按返回——开了「退出时最小化」就进画中画而不是直接退出。
+    // 这段移到 isInPiP/playerViewRef 声明之后。
     var showVolumeSlider by remember { mutableStateOf(false) }
     var isInPiP by remember(activity) {
         mutableStateOf(activity?.isInPictureInPictureMode == true)
@@ -194,6 +196,17 @@ fun VideoPlayerScreen(
     val context = LocalContext.current
     val componentActivity = activity as? androidx.activity.ComponentActivity
     var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
+    // 审核373：竖屏时按返回——开了「退出时最小化」就进画中画而不是直接退出。
+    androidx.activity.compose.BackHandler(
+        enabled = activity?.resources?.configuration?.orientation !=
+            android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    ) {
+        if (com.example.piliai.utils.RendererPrefs.autoPipOnExit && !isInPiP) {
+            activity?.let { it.enterPiP(playerViewRef) }
+        } else {
+            onBack()
+        }
+    }
     val pipLifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     val pipPlayer = playerViewRef?.player
     DisposableEffect(playerViewRef, isInPiP) {
