@@ -348,7 +348,25 @@ fun VideoPlayerScreen(
         val aid = viewModel.aid
         if (aid > 0L) commentViewModel?.bindAid(aid)
     }
-    val detailPager = if (portrait && detailBvid.isNotEmpty()) rememberPagerState(pageCount = { 3 }) else null
+    // 审核371：分页数随设置变化（简介必留；评论/推荐可关）
+    val showPlayerRelated by com.example.piliai.utils.StorageManager
+        .getInstance(context.applicationContext).showPlayerRelatedFlow
+        .collectAsStateWithLifecycle(initialValue = true)
+    val showPlayerComment by com.example.piliai.utils.StorageManager
+        .getInstance(context.applicationContext).showPlayerCommentFlow
+        .collectAsStateWithLifecycle(initialValue = true)
+    val detailTabCount = 1 +
+        (if (showPlayerComment) 1 else 0) +
+        (if (showPlayerRelated) 1 else 0)
+    val detailPager = if (portrait && detailBvid.isNotEmpty())
+        rememberPagerState(pageCount = { detailTabCount }) else null
+    // 审核371：各分页的实际索引（关闭评论时推荐前移到 1）
+    val commentPageIndex = if (showPlayerComment) 1 else -1
+    val relatedPageIndex = when {
+        showPlayerComment && showPlayerRelated -> 2
+        showPlayerRelated -> 1
+        else -> -1
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(Color.Black)) {
     Box(modifier = Modifier.then(
@@ -1717,19 +1735,24 @@ fun VideoPlayerScreen(
                     onClick = { scope.launch { detailPager.animateScrollToPage(0) } },
                     text = { Text("简介") },
                 )
-                Tab(
-                    selected = page == 1,
-                    onClick = { scope.launch { detailPager.animateScrollToPage(1) } },
-                    text = {
-                        val n = commentState?.totalCount ?: 0
-                        Text(if (n > 0) "评论 $n" else "评论")
-                    },
-                )
-                Tab(
-                    selected = page == 2,
-                    onClick = { scope.launch { detailPager.animateScrollToPage(2) } },
-                    text = { Text("推荐") },
-                )
+                // 审核371：评论/推荐分页可按设置隐藏，索引随之前移
+                if (showPlayerComment) {
+                    Tab(
+                        selected = page == commentPageIndex,
+                        onClick = { scope.launch { detailPager.animateScrollToPage(commentPageIndex) } },
+                        text = {
+                            val n = commentState?.totalCount ?: 0
+                            Text(if (n > 0) "评论 $n" else "评论")
+                        },
+                    )
+                }
+                if (showPlayerRelated) {
+                    Tab(
+                        selected = page == relatedPageIndex,
+                        onClick = { scope.launch { detailPager.animateScrollToPage(relatedPageIndex) } },
+                        text = { Text("推荐") },
+                    )
+                }
             }
             HorizontalPager(
                 state = detailPager,
@@ -1754,7 +1777,11 @@ fun VideoPlayerScreen(
                         onPart = { viewModel.playPart(it) },
                         onTag = onSearchTag,
                         onRelated = { viewModel.playRelated(it) },
-                        onOpenComments = { scope.launch { detailPager.animateScrollToPage(1) } },
+                        onOpenComments = {
+                            if (commentPageIndex >= 0) {
+                                scope.launch { detailPager.animateScrollToPage(commentPageIndex) }
+                            }
+                        },
                         onOpenUser = onOpenUser,
                         onShowCollection = { if (viewModel.partList().size > 1) showPartSheet = true },
                         viewModel = viewModel,
@@ -1764,7 +1791,7 @@ fun VideoPlayerScreen(
                         aiLoading = aiLoading,
                         aiError = aiError,
                     )
-                } else if (index == 1) {
+                } else if (showPlayerComment && index == commentPageIndex) {
                     com.example.piliai.ui.comments.CommentScreen(
                         bvid = detailBvid,
                         onBack = { scope.launch { detailPager.animateScrollToPage(0) } },
@@ -1772,7 +1799,7 @@ fun VideoPlayerScreen(
                         embedded = true,
                         viewModel = commentViewModel,
                     )
-                } else {
+                } else if (showPlayerRelated && index == relatedPageIndex) {
                     PlayerRelatedPage(
                         related = state.related,
                         onRelated = { viewModel.playRelated(it) },

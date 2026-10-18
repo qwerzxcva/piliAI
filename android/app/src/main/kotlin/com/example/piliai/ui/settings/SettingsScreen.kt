@@ -513,6 +513,25 @@ fun SettingsScreen(
                     )
                 }
             }
+            // 审核371：播放页区块显隐
+            item {
+                SettingSwitch(
+                    title = "播放页显示评论",
+                    subtitle = "关闭后播放页不再显示评论分页",
+                    icon = Icons.Default.Comment,
+                    checked = state.showPlayerComment,
+                    onChange = { viewModel.setShowPlayerComment(it) }
+                )
+            }
+            item {
+                SettingSwitch(
+                    title = "播放页显示相关推荐",
+                    subtitle = "关闭后播放页不再显示推荐分页",
+                    icon = Icons.Default.VideoLibrary,
+                    checked = state.showPlayerRelated,
+                    onChange = { viewModel.setShowPlayerRelated(it) }
+                )
+            }
         }
         fun LazyListScope.dmSection() {
             // ===== 弹幕设置 =====

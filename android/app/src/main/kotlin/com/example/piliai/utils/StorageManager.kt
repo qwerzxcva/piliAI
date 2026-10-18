@@ -126,6 +126,9 @@ class StorageManager(private val context: Context) {
         // 审核370：首页 UP 主屏蔽/白名单（mid 逗号分隔）
         private val BLOCKED_UPS_KEY = stringPreferencesKey("blockedUps")
         private val WHITELIST_UPS_KEY = stringPreferencesKey("whitelistUps")
+        // 审核371：播放页区块显隐
+        private val SHOW_PLAYER_RELATED_KEY = booleanPreferencesKey("showPlayerRelated")
+        private val SHOW_PLAYER_COMMENT_KEY = booleanPreferencesKey("showPlayerComment")
         // 审核235：图片质量（PiliPlus defaultPicQa；0=100原图 2/4/10 压缩档）+字幕细节6键
         private val PIC_QUALITY_KEY = intPreferencesKey("defaultPicQa")
         private val SUB_SCALE_KEY = floatPreferencesKey("subtitleFontScale")
@@ -750,6 +753,24 @@ class StorageManager(private val context: Context) {
 
     suspend fun setWhitelistUps(v: String) {
         context.dataStore.edit { it[WHITELIST_UPS_KEY] = v }
+    }
+
+    /** 审核371：播放页是否显示「推荐」分页 */
+    val showPlayerRelatedFlow: Flow<Boolean> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[SHOW_PLAYER_RELATED_KEY] ?: true }
+
+    suspend fun setShowPlayerRelated(v: Boolean) {
+        context.dataStore.edit { it[SHOW_PLAYER_RELATED_KEY] = v }
+    }
+
+    /** 审核371：播放页是否显示「评论」分页 */
+    val showPlayerCommentFlow: Flow<Boolean> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[SHOW_PLAYER_COMMENT_KEY] ?: true }
+
+    suspend fun setShowPlayerComment(v: Boolean) {
+        context.dataStore.edit { it[SHOW_PLAYER_COMMENT_KEY] = v }
     }
 
     suspend fun setBanWordForRecommend(words: String) {
