@@ -880,7 +880,7 @@ fun SettingsScreen(
             com.example.piliai.ui.components.SegmentedPillRow(
                 labels = categories,
                 selectedIndex = category,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = com.example.piliai.ui.theme.PiliTokens.screenHorizontalPadding, vertical = 8.dp),
                 onSelect = { category = it },
             )
             // 审核307：分类切换后回到顶部。原来切到「播放」时列表停在
@@ -895,7 +895,7 @@ fun SettingsScreen(
             LazyColumn(
                 state = settingsListState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                contentPadding = PaddingValues(horizontal = com.example.piliai.ui.theme.PiliTokens.screenHorizontalPadding, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 when (category) {
