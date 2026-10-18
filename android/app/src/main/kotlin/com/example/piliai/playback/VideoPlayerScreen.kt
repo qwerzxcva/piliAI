@@ -563,7 +563,7 @@ fun VideoPlayerScreen(
             // 主题 error 色 + 圆角容器 + 「重试」文字按钮。
             androidx.compose.material3.Surface(
                 color = MaterialTheme.colorScheme.errorContainer,
-                shape = RoundedCornerShape(12.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(com.example.piliai.ui.theme.PiliTokens.controlCornerRadius),
                 modifier = Modifier.align(Alignment.Center).padding(horizontal = 32.dp)
             ) {
                 Column(
@@ -1492,7 +1492,7 @@ fun VideoPlayerScreen(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .background(Color.Black.copy(0.6f), androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+                    .background(Color.Black.copy(0.6f), androidx.compose.foundation.shape.RoundedCornerShape(com.example.piliai.ui.theme.PiliTokens.chipCornerRadius))
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             )
         }
@@ -1507,7 +1507,7 @@ fun VideoPlayerScreen(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 96.dp)
-                    .background(Color.Black.copy(0.7f), androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                    .background(Color.Black.copy(0.7f), androidx.compose.foundation.shape.RoundedCornerShape(com.example.piliai.ui.theme.PiliTokens.chipCornerRadius))
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             )
         }
@@ -1842,7 +1842,7 @@ private fun PlayerRelatedPage(
                     modifier = Modifier
                         .width(128.dp)
                         .height(72.dp)
-                        .clip(RoundedCornerShape(8.dp)),
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(com.example.piliai.ui.theme.PiliTokens.cardCornerRadius)),
                     contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                 )
                 Spacer(Modifier.width(10.dp))
@@ -2170,7 +2170,7 @@ private fun PlayerIntroPage(
                         Column(
                             modifier = Modifier
                                 .width(132.dp)
-                                .clip(RoundedCornerShape(10.dp))
+                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(com.example.piliai.ui.theme.PiliTokens.cardCornerRadius))
                                 .background(
                                     if (selected) MaterialTheme.colorScheme.primaryContainer
                                     else MaterialTheme.colorScheme.surfaceContainerHigh
@@ -2229,7 +2229,7 @@ private fun PlayerIntroPage(
                         modifier = Modifier
                             .width(128.dp)
                             .height(72.dp)
-                            .clip(RoundedCornerShape(8.dp)),
+                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(com.example.piliai.ui.theme.PiliTokens.cardCornerRadius)),
                         contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                     )
                     Spacer(Modifier.width(10.dp))
@@ -2272,7 +2272,7 @@ private fun PlayerIntroPage(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .aspectRatio(16f / 9f)
-                                        .clip(RoundedCornerShape(8.dp)),
+                                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(com.example.piliai.ui.theme.PiliTokens.cardCornerRadius)),
                                     contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                                 )
                                 Spacer(Modifier.height(4.dp))
