@@ -78,9 +78,29 @@ class DanmakuController {
         _heatCurve.value = emptyList()
     }
 
-    /** 取 [currentTimeMs] 前 3 秒内、尚未分发的弹幕 */
-    fun eventsAt(currentTimeMs: Long): List<Event> =
-        queue.filter { it.timestamp <= currentTimeMs && it.timestamp > currentTimeMs - 3000L }
+    /**
+     * 取 [currentTimeMs] 前 3 秒内、尚未分发的弹幕。
+     *
+     * 审核369：原来用 filter 全量扫描——队列是已按时间排好序的
+     * （addEvents 插入后排序），长视频几千条时每帧都扫一遍，是持续卡顿源。
+     * 改成二分找右边界，只取窗口内的切片。
+     */
+    fun eventsAt(currentTimeMs: Long): List<Event> {
+        if (queue.isEmpty()) return emptyList()
+        val lowerBound = currentTimeMs - 3000L
+        // 找第一个 timestamp > currentTimeMs 的位置
+        var lo = 0
+        var hi = queue.size
+        while (lo < hi) {
+            val mid = (lo + hi) ushr 1
+            if (queue[mid].timestamp <= currentTimeMs) lo = mid + 1 else hi = mid
+        }
+        if (lo == 0) return emptyList()
+        // 从 lo 往前回退到窗口下界
+        var start = lo - 1
+        while (start > 0 && queue[start - 1].timestamp > lowerBound) start--
+        return queue.subList(start, lo).toList()
+    }
 
     /** 本地插入一条（发弹幕后立即反馈） */
     fun addLocal(event: Event) {
