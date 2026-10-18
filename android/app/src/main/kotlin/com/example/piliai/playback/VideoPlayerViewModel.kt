@@ -1551,6 +1551,8 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
             appContext, bv,
             title = videoTitle, cover = videoCover, ownerName = videoOwner
         )
+        // 审核365：入队后没有任何反馈，用户不知道点没点上。
+        showToast("已加入下载队列")
     }
 
     /** 批量下载：下载指定分P（分P面板逐项触发，批次L10/L13 支持番剧） */
