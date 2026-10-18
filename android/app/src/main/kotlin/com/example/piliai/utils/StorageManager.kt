@@ -123,6 +123,9 @@ class StorageManager(private val context: Context) {
         private val EXEMPT_FOLLOWED_KEY = booleanPreferencesKey("exemptFilterForFollowed")
         private val FILTER_RELATED_KEY = booleanPreferencesKey("applyFilterToRelatedVideos")
         private val BAN_WORD_RCMD_KEY = stringPreferencesKey("banWordForRecommend")
+        // 审核370：首页 UP 主屏蔽/白名单（mid 逗号分隔）
+        private val BLOCKED_UPS_KEY = stringPreferencesKey("blockedUps")
+        private val WHITELIST_UPS_KEY = stringPreferencesKey("whitelistUps")
         // 审核235：图片质量（PiliPlus defaultPicQa；0=100原图 2/4/10 压缩档）+字幕细节6键
         private val PIC_QUALITY_KEY = intPreferencesKey("defaultPicQa")
         private val SUB_SCALE_KEY = floatPreferencesKey("subtitleFontScale")
@@ -731,6 +734,23 @@ class StorageManager(private val context: Context) {
     val banWordForRecommendFlow: Flow<String> = context.dataStore.data
         .catch { emit(emptyPreferences()) }
         .map { it[BAN_WORD_RCMD_KEY] ?: "" }
+
+    /** 审核370：屏蔽 UP 主 mid 列表 */
+    val blockedUpsFlow: Flow<String> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[BLOCKED_UPS_KEY] ?: "" }
+
+    suspend fun setBlockedUps(v: String) {
+        context.dataStore.edit { it[BLOCKED_UPS_KEY] = v }
+    }
+
+    val whitelistUpsFlow: Flow<String> = context.dataStore.data
+        .catch { emit(emptyPreferences()) }
+        .map { it[WHITELIST_UPS_KEY] ?: "" }
+
+    suspend fun setWhitelistUps(v: String) {
+        context.dataStore.edit { it[WHITELIST_UPS_KEY] = v }
+    }
 
     suspend fun setBanWordForRecommend(words: String) {
         context.dataStore.edit { it[BAN_WORD_RCMD_KEY] = words }

@@ -40,7 +40,12 @@ class HomeViewModel(
                 }
             }
             viewModelScope.launch {
-                kotlinx.coroutines.flow.combine(
+                // 审核370：combine 上限 5 个，屏蔽/白名单 UP 另起一个再合。
+                val upsFlow = kotlinx.coroutines.flow.combine(
+                    storage.blockedUpsFlow,
+                    storage.whitelistUpsFlow,
+                ) { blocked, white -> blocked to white }
+                val baseFlow = kotlinx.coroutines.flow.combine(
                     storage.minDurationForRcmdFlow,
                     storage.minPlayForRcmdFlow,
                     storage.minLikeRatioForRecommendFlow,
@@ -52,6 +57,9 @@ class HomeViewModel(
                         minLikeRatioPercent = minLike, banWords = banWords,
                         exemptFilterForFollowed = exempt,
                     )
+                }
+                kotlinx.coroutines.flow.combine(baseFlow, upsFlow) { base, (blocked, white) ->
+                    base.copy(blockedUps = blocked, whitelistUps = white)
                 }.collect { cfg ->
                     filterConfig = cfg
                     // 审核237：过滤条件变化时立即对当前列表重筛（此前只有下次加载才生效）

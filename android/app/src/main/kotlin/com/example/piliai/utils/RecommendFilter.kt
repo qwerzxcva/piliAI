@@ -14,9 +14,27 @@ object RecommendFilter {
         val minLikeRatioPercent: Int = 0,
         val banWords: String = "",
         val exemptFilterForFollowed: Boolean = true,
+        /** 审核370：屏蔽 UP 主（mid，逗号分隔） */
+        val blockedUps: String = "",
+        /** 审核370：白名单 UP 主（永不屏蔽） */
+        val whitelistUps: String = "",
     ) {
         val enabled: Boolean
-            get() = minDurationSec > 0 || minPlay > 0 || minLikeRatioPercent > 0 || banWords.isNotBlank()
+            get() = minDurationSec > 0 || minPlay > 0 || minLikeRatioPercent > 0 ||
+                banWords.isNotBlank() || blockedUps.isNotBlank()
+
+        private val blockedUpSet: Set<Long> = blockedUps
+            .split(',', ' ', '\n').mapNotNull { it.trim().toLongOrNull() }.toSet()
+
+        private val whitelistUpSet: Set<Long> = whitelistUps
+            .split(',', ' ', '\n').mapNotNull { it.trim().toLongOrNull() }.toSet()
+
+        /** 该 UP 是否应被屏蔽（白名单优先） */
+        fun shouldBlockUp(mid: Long): Boolean {
+            if (mid <= 0L) return false
+            if (mid in whitelistUpSet) return false
+            return mid in blockedUpSet
+        }
 
         /** 大小写不敏感正则（PiliPlus RegExp(caseSensitive:false) 对齐） */
         private val banRegex: Regex? = try {
@@ -47,7 +65,8 @@ object RecommendFilter {
         if (!config.enabled) return items
         if (isFollowedFeed && config.exemptFilterForFollowed) return items
         return items.filter { item ->
-            !config.filterDuration(item.duration) &&
+            !config.shouldBlockUp(item.owner?.mid ?: 0L) &&
+                !config.filterDuration(item.duration) &&
                 !config.filterLikeRatio(item.stat.like, item.stat.displayView) &&
                 !config.filterTitle(item.title)
         }

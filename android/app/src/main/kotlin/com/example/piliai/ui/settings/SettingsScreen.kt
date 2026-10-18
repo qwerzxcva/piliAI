@@ -480,6 +480,39 @@ fun SettingsScreen(
                     onChange = { viewModel.setReplyHideGoods(it) }
                 )
             }
+            // 审核370：首页 UP 主屏蔽 / 白名单
+            item {
+                SettingRow(
+                    title = "屏蔽 UP 主",
+                    subtitle = if (state.blockedUps.isBlank()) "未设置（填 UID，逗号分隔）"
+                        else state.blockedUps.take(24),
+                    icon = Icons.Default.PersonOff,
+                    onClick = { dialogs.showBlockedUpsDialog = true }
+                )
+                if (dialogs.showBlockedUpsDialog) {
+                    BanWordDialog(
+                        initial = state.blockedUps,
+                        onSave = { viewModel.setBlockedUps(it) },
+                        onDismiss = { dialogs.showBlockedUpsDialog = false }
+                    )
+                }
+            }
+            item {
+                SettingRow(
+                    title = "白名单 UP 主",
+                    subtitle = if (state.whitelistUps.isBlank()) "未设置（填 UID，逗号分隔）"
+                        else state.whitelistUps.take(24),
+                    icon = Icons.Default.PersonAdd,
+                    onClick = { dialogs.showWhitelistUpsDialog = true }
+                )
+                if (dialogs.showWhitelistUpsDialog) {
+                    BanWordDialog(
+                        initial = state.whitelistUps,
+                        onSave = { viewModel.setWhitelistUps(it) },
+                        onDismiss = { dialogs.showWhitelistUpsDialog = false }
+                    )
+                }
+            }
         }
         fun LazyListScope.dmSection() {
             // ===== 弹幕设置 =====

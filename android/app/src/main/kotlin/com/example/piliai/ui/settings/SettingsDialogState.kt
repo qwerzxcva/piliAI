@@ -23,6 +23,9 @@ class SettingsDialogState {
     // 审核368：评论过滤弹窗
     var showReplyBanDialog by mutableStateOf(false)
     var showReplyBlockDialog by mutableStateOf(false)
+    // 审核370：首页 UP 主屏蔽/白名单
+    var showBlockedUpsDialog by mutableStateOf(false)
+    var showWhitelistUpsDialog by mutableStateOf(false)
     var showBufferDialog by mutableStateOf(false)
     var showCellularAudioDialog by mutableStateOf(false)
     var showCellularCodecDialog by mutableStateOf(false)
@@ -48,6 +51,8 @@ class SettingsDialogState {
         showBanDialog = false
         showReplyBanDialog = false
         showReplyBlockDialog = false
+        showBlockedUpsDialog = false
+        showWhitelistUpsDialog = false
         showBufferDialog = false
         showCellularAudioDialog = false
         showCellularCodecDialog = false

@@ -96,6 +96,9 @@ class SettingsViewModel(context: Context) : ViewModel() {
         val replyBanWords: String = "",
         val replyBlockedMids: String = "",
         val replyHideGoods: Boolean = false,
+        // 审核370：首页 UP 主屏蔽/白名单
+        val blockedUps: String = "",
+        val whitelistUps: String = "",
         // 审核235：图片质量 + 字幕细节
         val picQuality: Int = 100,
         val subtitleScale: Float = 1f,
@@ -281,6 +284,8 @@ class SettingsViewModel(context: Context) : ViewModel() {
                     replyHideGoods = f.hideGoodsComments,
                 )
             }
+            storage.blockedUpsFlow.collect { _state.value = _state.value.copy(blockedUps = it) }
+            storage.whitelistUpsFlow.collect { _state.value = _state.value.copy(whitelistUps = it) }
         }
         // ===== 审核235 collect =====
         viewModelScope.launch {
@@ -354,6 +359,10 @@ class SettingsViewModel(context: Context) : ViewModel() {
     fun setReplyBanWords(v: String) = viewModelScope.launch { storage.setReplyBanWords(v) }
     fun setReplyBlockedMids(v: String) = viewModelScope.launch { storage.setReplyBlockedMids(v) }
     fun setReplyHideGoods(v: Boolean) = viewModelScope.launch { storage.setReplyHideGoods(v) }
+
+    // 审核370：首页 UP 主屏蔽/白名单
+    fun setBlockedUps(v: String) = viewModelScope.launch { storage.setBlockedUps(v) }
+    fun setWhitelistUps(v: String) = viewModelScope.launch { storage.setWhitelistUps(v) }
     // ===== 审核235 =====
     fun setPicQuality(v: Int) = viewModelScope.launch {
         com.example.piliai.utils.ImageQuality.qualityPercent = if (v == 0) 100 else v
