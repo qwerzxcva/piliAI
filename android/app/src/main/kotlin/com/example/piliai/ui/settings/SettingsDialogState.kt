@@ -20,6 +20,9 @@ class SettingsDialogState {
     var showAudioQaDialog by mutableStateOf(false)
     var showBackendDialog by mutableStateOf(false)
     var showBanDialog by mutableStateOf(false)
+    // 审核368：评论过滤弹窗
+    var showReplyBanDialog by mutableStateOf(false)
+    var showReplyBlockDialog by mutableStateOf(false)
     var showBufferDialog by mutableStateOf(false)
     var showCellularAudioDialog by mutableStateOf(false)
     var showCellularCodecDialog by mutableStateOf(false)
@@ -43,6 +46,8 @@ class SettingsDialogState {
         showAudioQaDialog = false
         showBackendDialog = false
         showBanDialog = false
+        showReplyBanDialog = false
+        showReplyBlockDialog = false
         showBufferDialog = false
         showCellularAudioDialog = false
         showCellularCodecDialog = false

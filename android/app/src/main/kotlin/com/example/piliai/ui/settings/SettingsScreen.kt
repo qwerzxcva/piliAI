@@ -438,6 +438,48 @@ fun SettingsScreen(
                     )
                 }
             }
+            // 审核368：评论过滤（对齐 PiliNara reply_settings）
+            item {
+                SettingRow(
+                    title = "评论屏蔽词",
+                    subtitle = if (state.replyBanWords.isBlank()) "未设置（支持正则，大小写不敏感）"
+                        else state.replyBanWords.take(24),
+                    icon = Icons.Default.Comment,
+                    onClick = { dialogs.showReplyBanDialog = true }
+                )
+                if (dialogs.showReplyBanDialog) {
+                    BanWordDialog(
+                        initial = state.replyBanWords,
+                        onSave = { viewModel.setReplyBanWords(it) },
+                        onDismiss = { dialogs.showReplyBanDialog = false }
+                    )
+                }
+            }
+            item {
+                SettingRow(
+                    title = "评论屏蔽用户",
+                    subtitle = if (state.replyBlockedMids.isBlank()) "未设置（填 UID，逗号分隔）"
+                        else state.replyBlockedMids.take(24),
+                    icon = Icons.Default.Block,
+                    onClick = { dialogs.showReplyBlockDialog = true }
+                )
+                if (dialogs.showReplyBlockDialog) {
+                    BanWordDialog(
+                        initial = state.replyBlockedMids,
+                        onSave = { viewModel.setReplyBlockedMids(it) },
+                        onDismiss = { dialogs.showReplyBlockDialog = false }
+                    )
+                }
+            }
+            item {
+                SettingSwitch(
+                    title = "屏蔽带货评论",
+                    subtitle = "过滤包含购买引导与价格/链接的评论",
+                    icon = Icons.Default.ShoppingCart,
+                    checked = state.replyHideGoods,
+                    onChange = { viewModel.setReplyHideGoods(it) }
+                )
+            }
         }
         fun LazyListScope.dmSection() {
             // ===== 弹幕设置 =====

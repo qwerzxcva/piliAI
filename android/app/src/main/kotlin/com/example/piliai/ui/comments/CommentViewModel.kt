@@ -8,6 +8,7 @@ import com.example.piliai.data.remote.BiliApiClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -48,7 +49,17 @@ class CommentViewModel(private val bvid: String) : ViewModel() {
 
     // 审核362：独立评论页（无 bindAid）靠这里的兜底加载；
     // 播放页内嵌时会很快调 bindAid，那时会按拿到的 aid 重新拉。
-    init { load(1) }
+    init {
+        // 审核368：先读一次评论过滤配置，再加载——否则首批评论会是未过滤的
+        viewModelScope.launch {
+            runCatching {
+                replyFilter = com.example.piliai.utils.StorageManager
+                    .getInstance(com.example.piliai.AppContext.get())
+                    .replyFilterFlow.first()
+            }
+            load(1)
+        }
+    }
 
     /** 播放页已经拿到 aid 时直接用，避免评论接口再打一次详情。 */
     fun bindAid(aid: Long) {
@@ -66,6 +77,14 @@ class CommentViewModel(private val bvid: String) : ViewModel() {
 
     /** 审核362：换视频时代际递增，过期的响应直接丢弃 */
     private var generation = 0
+
+    /** 审核368：评论过滤配置（设置变更时由外部刷新，默认不过滤） */
+    private var replyFilter = com.example.piliai.utils.ReplyFilter.Config()
+
+    fun setReplyFilter(config: com.example.piliai.utils.ReplyFilter.Config) {
+        replyFilter = config
+        if (config.enabled) load(1)
+    }
 
     private fun aid(): Long = _state.value.oid
 
@@ -86,9 +105,16 @@ class CommentViewModel(private val bvid: String) : ViewModel() {
             api.getComments(bvid, oid = oid, page = page, mode = m).onSuccess { resp ->
                 if (gen != generation) return@onSuccess
                 if (resp.code == 0) {
-                    val list = resp.data?.replay.orEmpty()
+                    val rawList = resp.data?.replay.orEmpty()
                     // 审核237：置顶评论取 upper 优先（UP主置顶），无则 admin
                     val top = resp.data?.top?.let { it.upper ?: it.admin ?: it.vote }
+                    // 审核368：应用评论过滤（关键词/屏蔽用户/带货）
+                    val upperMid = resp.data?.upper?.mid ?: 0L
+                    val list = if (replyFilter.enabled) {
+                        rawList.filterNot { c ->
+                            replyFilter.shouldHide(c, upperMid)
+                        }
+                    } else rawList
                     // 审核239 C2：用服务端 action 位初始化点赞集——原实现 likedRpid
                     // 只记本会话点击，重启后"已赞"的评论显示为未赞，再点会变成取消赞。
                     if (page == 1) {

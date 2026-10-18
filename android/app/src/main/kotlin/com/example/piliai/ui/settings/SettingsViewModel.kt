@@ -92,6 +92,10 @@ class SettingsViewModel(context: Context) : ViewModel() {
         val exemptFilterForFollowed: Boolean = true,
         val applyFilterToRelatedVideos: Boolean = true,
         val banWordForRecommend: String = "",
+        // 审核368：评论过滤
+        val replyBanWords: String = "",
+        val replyBlockedMids: String = "",
+        val replyHideGoods: Boolean = false,
         // 审核235：图片质量 + 字幕细节
         val picQuality: Int = 100,
         val subtitleScale: Float = 1f,
@@ -270,6 +274,13 @@ class SettingsViewModel(context: Context) : ViewModel() {
         }
         viewModelScope.launch {
             storage.banWordForRecommendFlow.collect { _state.value = _state.value.copy(banWordForRecommend = it) }
+            storage.replyFilterFlow.collect { f ->
+                _state.value = _state.value.copy(
+                    replyBanWords = f.banWords,
+                    replyBlockedMids = f.blockedMids,
+                    replyHideGoods = f.hideGoodsComments,
+                )
+            }
         }
         // ===== 审核235 collect =====
         viewModelScope.launch {
@@ -338,6 +349,11 @@ class SettingsViewModel(context: Context) : ViewModel() {
     fun setExemptFilterForFollowed(v: Boolean) = viewModelScope.launch { storage.setExemptFilterForFollowed(v) }
     fun setApplyFilterToRelatedVideos(v: Boolean) = viewModelScope.launch { storage.setApplyFilterToRelatedVideos(v) }
     fun setBanWordForRecommend(v: String) = viewModelScope.launch { storage.setBanWordForRecommend(v) }
+
+    // 审核368：评论过滤
+    fun setReplyBanWords(v: String) = viewModelScope.launch { storage.setReplyBanWords(v) }
+    fun setReplyBlockedMids(v: String) = viewModelScope.launch { storage.setReplyBlockedMids(v) }
+    fun setReplyHideGoods(v: Boolean) = viewModelScope.launch { storage.setReplyHideGoods(v) }
     // ===== 审核235 =====
     fun setPicQuality(v: Int) = viewModelScope.launch {
         com.example.piliai.utils.ImageQuality.qualityPercent = if (v == 0) 100 else v
