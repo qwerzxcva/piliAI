@@ -168,6 +168,9 @@ fun VideoPlayerScreen(
     var showPartSheet by remember { mutableStateOf(false) }
     var showDanmakuSheet by remember { mutableStateOf(false) }
     var showShareSheet by remember { mutableStateOf(false) }
+    // 审核378：互动行「更多」菜单（次常用的分集/听音频/取帧收进来，
+    // 不再让整行拍出屏幕、右边被裁）
+    var showMoreMenu by remember { mutableStateOf(false) }
     var showRelatedSheet by remember { mutableStateOf(false) }
     var showIntroSheet by remember { mutableStateOf(false) }
     var showCoinSheet by remember { mutableStateOf(false) }
@@ -797,7 +800,13 @@ fun VideoPlayerScreen(
                             dragFraction = -1f
                             viewModel.seekTo(seekPreviewSec * 1000)
                         },
-                        modifier = Modifier.fillMaxSize().height(24.dp),
+                        // 审核379：fillMaxSize + height 同时用会互相打架，
+                        // 滑块 thumb 在 0% 处被父容器裁切（截图里左边那道白条）。
+                        // 改用 fillMaxWidth 固定高度，并给两端留出 thumb 空间。
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp)
+                            .height(28.dp),
                         colors = SliderDefaults.colors(
                             thumbColor = Color.White,
                             activeTrackColor = Color(0xFFFB7299),
@@ -1078,6 +1087,54 @@ fun VideoPlayerScreen(
                             else ListItemDefaults.colors()
                         )
                     }
+                }
+            }
+        }
+
+        // 审核378：互动行「更多」——分集/笔记/听音频/取帧
+        if (showMoreMenu) {
+            ModalBottomSheet(onDismissRequest = { showMoreMenu = false }) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("更多", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(8.dp))
+                    if (viewModel.partList().size > 1) {
+                        MoreRow("分集（${viewModel.partList().size}）") {
+                            showMoreMenu = false
+                            showPartSheet = true
+                        }
+                    }
+                    MoreRow("笔记") {
+                        showMoreMenu = false
+                        onOpenNote(bvid, viewModel.currentCid(), viewModel.getCurrentTime())
+                    }
+                    MoreRow("听音频") {
+                        showMoreMenu = false
+                        val mid = viewModel.videoOwnerMid
+                        if (mid > 0L) onOpenListenAudio(mid)
+                        else viewModel.showToast("无法获取 UP 主信息")
+                    }
+                    MoreRow("取帧（保存当前画面）") {
+                        showMoreMenu = false
+                        val uri = viewModel.currentPlaybackUri()
+                        if (uri == null) {
+                            viewModel.showToast("当前视频不支持取帧")
+                        } else {
+                            captureScope.launch {
+                                val file = VideoFrameCapture.captureFromPlayback(
+                                    context = context.applicationContext,
+                                    uri = uri,
+                                    positionMs = viewModel.getCurrentTime(),
+                                    headers = viewModel.currentPlaybackHeaders(),
+                                    userAgent = viewModel.currentPlaybackUserAgent(),
+                                )
+                                viewModel.showToast(
+                                    if (file != null) "已保存到 ${file.absolutePath}"
+                                    else "取帧失败，请稍后重试"
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
                 }
             }
         }
@@ -1689,51 +1746,10 @@ fun VideoPlayerScreen(
                 onClick = { viewModel.dislikeCurrent() },
             )
             PlayerActionChip(
-                icon = Icons.Default.Collections,
-                label = "分集",
+                icon = Icons.Default.MoreHoriz,
+                label = "更多",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                onClick = { showPartSheet = true },
-            )
-            PlayerActionChip(
-                icon = Icons.Default.EditNote,
-                label = "笔记",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                onClick = { onOpenNote(bvid, viewModel.currentCid(), viewModel.getCurrentTime()) },
-            )
-            PlayerActionChip(
-                icon = Icons.Default.Headphones,
-                label = "听音频",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                onClick = {
-                    val mid = viewModel.videoOwnerMid
-                    if (mid > 0L) onOpenListenAudio(mid)
-                    else viewModel.showToast("无法获取 UP 主信息")
-                },
-            )
-            PlayerActionChip(
-                icon = Icons.Default.PhotoCamera,
-                label = "取帧",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                onClick = {
-                    val uri = viewModel.currentPlaybackUri()
-                    if (uri == null) {
-                        viewModel.showToast("当前视频不支持取帧")
-                    } else {
-                        captureScope.launch {
-                            val file = com.example.piliai.playback.VideoFrameCapture.captureFromPlayback(
-                                context = context.applicationContext,
-                                uri = uri,
-                                positionMs = viewModel.getCurrentTime(),
-                                headers = viewModel.currentPlaybackHeaders(),
-                                userAgent = viewModel.currentPlaybackUserAgent(),
-                            )
-                            viewModel.showToast(
-                                if (file != null) "已保存到 ${file.absolutePath}"
-                                else "取帧失败，请稍后重试"
-                            )
-                        }
-                    }
-                },
+                onClick = { showMoreMenu = true },
             )
         }
         Column(
@@ -1786,10 +1802,8 @@ fun VideoPlayerScreen(
                         videoDanmaku = viewModel.videoDanmaku,
                         videoReply = viewModel.videoReply,
                         videoPubdate = viewModel.videoPubdate,
-                        related = state.related,
                         onPart = { viewModel.playPart(it) },
                         onTag = onSearchTag,
-                        onRelated = { viewModel.playRelated(it) },
                         onOpenComments = {
                             if (commentPageIndex >= 0) {
                                 scope.launch { detailPager.animateScrollToPage(commentPageIndex) }
@@ -1873,6 +1887,18 @@ private fun PlayerRelatedPage(
             }
         }
     }
+}
+
+@Composable
+private fun MoreRow(label: String, onClick: () -> Unit) {
+    Text(
+        label,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 14.dp),
+        style = MaterialTheme.typography.bodyMedium,
+    )
 }
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
@@ -1973,10 +1999,8 @@ private fun PlayerIntroPage(
     videoDanmaku: Long,
     videoReply: Long,
     videoPubdate: Long,
-    related: List<VideoPlayerViewModel.RelatedItem>,
     onPart: (Int) -> Unit,
     onTag: (String) -> Unit,
-    onRelated: (VideoPlayerViewModel.RelatedItem) -> Unit,
     onOpenComments: () -> Unit,
     onOpenUser: (Long) -> Unit,
     onShowCollection: (() -> Unit)? = null,
@@ -1986,7 +2010,6 @@ private fun PlayerIntroPage(
     aiLoading: Boolean = false,
     aiError: String? = null,
     followerCount: Long = 0L,
-    useRelatedGrid: Boolean = true,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface),
@@ -2045,13 +2068,14 @@ private fun PlayerIntroPage(
                 )
                 if (desc.isNotBlank()) {
                     Spacer(Modifier.height(8.dp))
-                    var expanded by remember { androidx.compose.runtime.mutableStateOf(false) }
+                    // 审核377：简介默认展开（用户反馈「介绍不能自动展开」）。
+                    // 之前是 maxLines=3 + 「展开」，进来只能看到前几行。
+                    var expanded by remember { androidx.compose.runtime.mutableStateOf(true) }
                     Text(
                         desc,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = if (expanded) Int.MAX_VALUE else 3,
-                        modifier = Modifier.clickable { expanded = !expanded },
                     )
                     Text(
                         if (expanded) "收起" else "展开",
@@ -2214,98 +2238,6 @@ private fun PlayerIntroPage(
                                     else MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
-                        }
-                    }
-                }
-            }
-        }
-        if (related.isEmpty()) {
-            item {
-                Text(
-                    "暂无相关推荐",
-                    modifier = Modifier.padding(16.dp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        } else if (useRelatedGrid) {
-            items(related, key = { it.bvid }) { item ->
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { onRelated(item) }
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    coil.compose.AsyncImage(
-                        model = item.pic.toHttpsUrl(),
-                        contentDescription = item.title,
-                        modifier = Modifier
-                            .width(128.dp)
-                            .height(72.dp)
-                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(com.example.piliai.ui.theme.PiliTokens.cardCornerRadius)),
-                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                    )
-                    Spacer(Modifier.width(10.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(item.title, maxLines = 2, style = MaterialTheme.typography.bodyMedium)
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            listOf(item.author, item.viewText, item.durationText)
-                                .filter { it.isNotBlank() }
-                                .joinToString(" · "),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-        } else {
-            // 审核331：横屏/竖屏都用两列网格，和首页卡片密度一致。
-            // 原来只有单行大图列表，一屏放不下几个。
-            val rows = (related.size + 1) / 2
-            items(rows) { rowIndex ->
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    for (col in 0..1) {
-                        val index = rowIndex * 2 + col
-                        if (index < related.size) {
-                            val video = related[index]
-                            Column(
-                                Modifier
-                                    .weight(1f)
-                                    .clickable { onRelated(video) },
-                            ) {
-                                coil.compose.AsyncImage(
-                                    model = video.pic.toHttpsUrl(),
-                                    contentDescription = video.title,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .aspectRatio(16f / 9f)
-                                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(com.example.piliai.ui.theme.PiliTokens.cardCornerRadius)),
-                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                )
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    video.title,
-                                    maxLines = 2,
-                                    style = MaterialTheme.typography.bodySmall,
-                                )
-                                Spacer(Modifier.height(2.dp))
-                                Text(
-                                    listOf(video.author, video.viewText)
-                                        .filter { it.isNotBlank() }
-                                        .joinToString(" · "),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                )
-                            }
-                        } else {
-                            Spacer(Modifier.weight(1f))
                         }
                     }
                 }

@@ -1316,7 +1316,14 @@ class VideoPlayerViewModel(context: Context) : ViewModel(), PlaybackEventListene
     }
 
     override fun onIsPlayingChanged(isPlaying: Boolean) {
-        _state.value = _state.value.copy(isPlaying = isPlaying)
+        // 审核379：真正开始播放时兜底清掉缓冲态。
+        // 起播处会把 isBuffering 置 true，但如果 Media3 因缓存命中/瞬时起播
+        // 没有回调 onIsLoadingChanged(false)，中间的加载圈会一直转着不消。
+        _state.value = if (isPlaying) {
+            _state.value.copy(isPlaying = true, isBuffering = false)
+        } else {
+            _state.value.copy(isPlaying = false)
+        }
     }
     
     override fun onIsLoadingChanged(isLoading: Boolean) {
