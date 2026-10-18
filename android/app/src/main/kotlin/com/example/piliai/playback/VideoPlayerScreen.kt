@@ -171,6 +171,12 @@ fun VideoPlayerScreen(
     var showCoinSheet by remember { mutableStateOf(false) }
     var showFavSheet by remember { mutableStateOf(false) }
 
+    // 审核366：暂停时自动重新显示控制条（B 站行为），否则暂停后
+    // 控制条正在隐藏，用户看不到播放键，得先点一下画面才能继续。
+    LaunchedEffect(state.isPlaying) {
+        if (!state.isPlaying) showControls = true
+    }
+
     // 审核364：播放中 4 秒自动收起控制条；任一面板/菜单开着时不收，
     // 避免用户操作到一半被抽走。暂停时保持显示。
     LaunchedEffect(
