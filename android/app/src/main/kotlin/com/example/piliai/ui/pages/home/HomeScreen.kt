@@ -434,6 +434,15 @@ fun HomeScreen(
                     Column {
                         androidx.compose.material3.TextButton(
                             onClick = {
+                                // 审核375：aid 为 0 时接口必然失败，用户会以为点没反应
+                                if (card.aid <= 0L) {
+                                    android.widget.Toast.makeText(
+                                        ctx, "无法加入稍后再看（该视频缺少 aid）",
+                                        android.widget.Toast.LENGTH_SHORT,
+                                    ).show()
+                                    longPressCard = null
+                                    return@TextButton
+                                }
                                 scope.launch {
                                     com.example.piliai.data.remote.BiliApiClient()
                                         .addToView(card.aid)
